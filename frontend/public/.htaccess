@@ -1,0 +1,15 @@
+RewriteEngine On
+RewriteBase /
+
+# Allow direct access to existing files and assets
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# SPA fallback: route all other requests to index.html
+RewriteRule ^ index.html [L]
+
+# Ensure correct MIME type for WebAssembly
+AddType application/wasm .wasm
+
+
