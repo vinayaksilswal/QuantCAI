@@ -1,5 +1,7 @@
 import logging
+import logging.handlers
 import sys
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -64,7 +66,13 @@ class FileAndDatabaseHandler(logging.Handler):
     
     def __init__(self):
         super().__init__()
-        self.file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
+        # Use RotatingFileHandler: 5MB max size, keep 5 backups
+        self.file_handler = logging.handlers.RotatingFileHandler(
+            LOG_FILE, 
+            maxBytes=5 * 1024 * 1024, 
+            backupCount=5, 
+            encoding='utf-8'
+        )
         self.file_handler.setFormatter(
             logging.Formatter(
                 '%(asctime)s | %(levelname)-8s | %(name)s | %(module)s.%(funcName)s:%(lineno)d | %(message)s',
@@ -104,15 +112,15 @@ def setup_logging():
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("fastapi").setLevel(logging.INFO)
     
-    # Suppress Qiskit and Stevedore noise
-    for logger_name in logging.root.manager.loggerDict:
-        if any(name in logger_name for name in ["qiskit", "stevedore", "matplotlib", "concurrent", "asyncio", "httpcore", "httpx"]):
-             logging.getLogger(logger_name).setLevel(logging.WARNING)
-             
-    # Specifically catch common but missed ones
-    for name in ["qiskit", "stevedore", "httpcore", "httpx"]:
-        logging.getLogger(name).setLevel(logging.WARNING)
+    # Suppress noise from various libraries
+    for name in ["qiskit", "stevedore", "matplotlib", "concurrent", "asyncio", "httpcore", "httpx", "google", "langchain", "pydantic"]:
+         logging.getLogger(name).setLevel(logging.WARNING)
+
+    # Specific suppression for schema warnings and version warnings
+    warnings.filterwarnings("ignore", category=FutureWarning, module="google.api_core")
+    # Pydantic schema noise can sometimes be stubborn, so we explicitly set it to ERROR if WARNING isn't enough
+    logging.getLogger("pydantic").setLevel(logging.ERROR)
         
     # Log initial message
-    logging.info("Logging system initialized - writing to both logfile.txt and database logtable")
+    logging.info("Logging system initialized - writing to both logfile.txt (rotated) and database logtable")
 

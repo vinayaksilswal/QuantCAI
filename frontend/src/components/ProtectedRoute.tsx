@@ -1,10 +1,10 @@
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { ReactElement } from 'react';
 
-export function ProtectedRoute({ children, roles }: { children: ReactElement; roles?: Array<'root'|'developer'|'user'> }) {
+export function ProtectedRoute({ children, roles }: { children: ReactElement; roles?: Array<'root' | 'developer' | 'user'> }) {
   const { user, role, loading } = useAuth();
-  
+
   // Show loading state while checking authentication
   if (loading) {
     return (
@@ -13,12 +13,12 @@ export function ProtectedRoute({ children, roles }: { children: ReactElement; ro
       </div>
     );
   }
-  
+
   // Redirect to login if not authenticated
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
+
   // Check role-based access
   if (roles && roles.length > 0) {
     if (!role) {
@@ -34,11 +34,11 @@ export function ProtectedRoute({ children, roles }: { children: ReactElement; ro
         </div>
       );
     }
-    
+
     // Normalize role to lowercase for comparison
     const normalizedRole = role.toLowerCase() as 'root' | 'developer' | 'user';
     const normalizedRoles = roles.map(r => r.toLowerCase() as 'root' | 'developer' | 'user');
-    
+
     if (!normalizedRoles.includes(normalizedRole)) {
       // User doesn't have required role - show error message instead of silent redirect
       return (
@@ -48,7 +48,7 @@ export function ProtectedRoute({ children, roles }: { children: ReactElement; ro
             <p className="text-gray-300">You don't have permission to access this page.</p>
             <p className="text-sm text-gray-400 mt-2">Required roles: {roles.join(', ')}</p>
             <p className="text-sm text-gray-400">Your role: {role}</p>
-            <button 
+            <button
               onClick={() => window.location.href = '/'}
               className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
             >
@@ -59,7 +59,7 @@ export function ProtectedRoute({ children, roles }: { children: ReactElement; ro
       );
     }
   }
-  
+
   return children;
 }
 

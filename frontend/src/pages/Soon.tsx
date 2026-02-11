@@ -6,12 +6,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { Mail, Sparkles, Cpu, Mic, Workflow } from 'lucide-react';
+import { Mail, Cpu, Mic, Workflow } from 'lucide-react';
 import { usePageTracking } from '@/hooks/usePageTracking';
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const Soon = () => {
   const [formData, setFormData] = useState({
@@ -61,7 +60,7 @@ const Soon = () => {
   return (
     <div className="min-h-screen relative">
       <Navbar />
-      
+
       <div className="pt-32 pb-20 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">

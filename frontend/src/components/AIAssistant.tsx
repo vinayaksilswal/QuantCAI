@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAI } from "../context/AIContext";
+import { useAI } from "../hooks/useAI";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
 import { MessageCircle, X, Send, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "./ui/card";
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export const AIAssistant = () => {
     const { isOpen, toggleChat, messages, sendMessage, isLoading, activeTool, closeTool } = useAI();
@@ -18,7 +22,7 @@ export const AIAssistant = () => {
     useEffect(() => {
         if (!activeTool) return;
 
-        if (activeTool === "quantum-state") {
+        if (activeTool === "quantum-states") {
             navigate("/quantum-states");
             closeTool();
         } else if (activeTool === "circuit-builder") {
@@ -27,11 +31,41 @@ export const AIAssistant = () => {
         }
     }, [activeTool, navigate, closeTool]);
 
+    // Handle external custom events from AI context
+    useEffect(() => {
+        const handleNavigate = (e: any) => {
+            const { path, section } = e.detail;
+            navigate(path + (section ? `#${section}` : ""));
+            // Maybe close chat or show a message
+        };
+
+        const handleStartTutorial = (e: any) => {
+            const { tutorialId } = e.detail;
+            // This event should be picked up by TutorialOverlay if it's listening,
+            // or we can handle it by navigating to circuit builder first.
+            navigate("/circuit-builder");
+            // We need a way to tell TutorialOverlay to start.
+            // Let's use localStorage or a shared state if needed, 
+            // but for now, the user's request "integrate it with the tutorial" 
+            // suggests the AI should be able to trigger it.
+            localStorage.setItem("pending_tutorial", tutorialId);
+        };
+
+        window.addEventListener("ai-navigate", handleNavigate);
+        window.addEventListener("ai-start-tutorial", handleStartTutorial);
+
+        return () => {
+            window.removeEventListener("ai-navigate", handleNavigate);
+            window.removeEventListener("ai-start-tutorial", handleStartTutorial);
+        };
+    }, [navigate]);
+
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages, isOpen]);
+
 
     const handleSend = async () => {
         if (!input.trim()) return;
@@ -105,46 +139,59 @@ export const AIAssistant = () => {
                                     <div
                                         key={i}
                                         className={cn(
-                                            "flex gap-3 max-w-[85%]",
-                                            msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
+                                            "flex flex-col gap-1",
+                                            msg.role === "user" ? "items-end" : "items-start"
                                         )}
                                     >
                                         <div
                                             className={cn(
-                                                "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
-                                                msg.role === "user"
-                                                    ? "bg-primary text-primary-foreground"
-                                                    : "bg-secondary text-secondary-foreground"
+                                                "flex gap-3 max-w-[85%]",
+                                                msg.role === "user" ? "flex-row-reverse" : "flex-row"
                                             )}
                                         >
-                                            {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                                        </div>
-                                        <div
-                                            className={cn(
-                                                "p-3 rounded-2xl text-sm",
-                                                msg.role === "user"
-                                                    ? "bg-primary text-primary-foreground rounded-tr-sm"
-                                                    : "bg-secondary text-secondary-foreground rounded-tl-sm"
-                                            )}
-                                        >
-                                            {msg.content}
-                                        </div>
-                                    </div>
-                                ))}
-                                {isLoading && (
-                                    <div className="flex gap-3 mr-auto max-w-[85%]">
-                                        <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0">
-                                            <Bot className="h-4 w-4 animate-pulse" />
-                                        </div>
-                                        <div className="bg-secondary p-3 rounded-2xl rounded-tl-sm">
-                                            <div className="flex gap-1 h-5 items-center">
-                                                <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                                <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                                <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce"></span>
+                                            <div
+                                                className={cn(
+                                                    "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                                                    msg.role === "user"
+                                                        ? "bg-primary text-primary-foreground"
+                                                        : "bg-secondary text-secondary-foreground"
+                                                )}
+                                            >
+                                                {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                                            </div>
+                                            <div
+                                                className={cn(
+                                                    "p-3 rounded-2xl text-sm prose prose-invert max-w-none",
+                                                    msg.role === "user"
+                                                        ? "bg-primary text-primary-foreground rounded-tr-sm"
+                                                        : "bg-secondary text-secondary-foreground rounded-tl-sm shadow-sm border border-white/5"
+                                                )}
+                                            >
+                                                {msg.content ? (
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkMath]}
+                                                        rehypePlugins={[rehypeKatex]}
+                                                        components={{
+                                                            p: ({ children }) => <p className="m-0">{children}</p>,
+                                                            code: ({ children }) => <code className="bg-black/20 rounded px-1">{children}</code>
+                                                        }}
+                                                    >
+                                                        {msg.content}
+                                                    </ReactMarkdown>
+                                                ) : (
+                                                    isLoading && i === messages.length - 1 ? (
+                                                        <div className="flex gap-1 h-5 items-center">
+                                                            <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                                            <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                                            <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce"></span>
+                                                        </div>
+                                                    ) : null
+                                                )}
                                             </div>
                                         </div>
                                     </div>
-                                )}
+                                ))}
+
                                 <div ref={scrollRef} />
                             </div>
                         </ScrollArea>

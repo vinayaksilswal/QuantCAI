@@ -5,13 +5,13 @@ import { useEffect, useState } from 'react';
 import { api, User } from '@/lib/api';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 const Admin = () => {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'root'|'developer'|'user'>('developer');
+  const [role, setRole] = useState<'root' | 'developer' | 'user'>('developer');
   const [blockEmail, setBlockEmail] = useState('');
   const [blockReason, setBlockReason] = useState('');
   const [loading, setLoading] = useState(true);
@@ -40,7 +40,7 @@ const Admin = () => {
     if (!email) return;
     setError(null);
     setSuccess(null);
-    
+
     try {
       // TODO: Implement backend endpoint for updating user role
       // await api.updateUserRole(email, role);
@@ -59,7 +59,7 @@ const Admin = () => {
     if (!blockEmail) return;
     setError(null);
     setSuccess(null);
-    
+
     try {
       // TODO: Implement backend endpoint for blocking users
       // await api.blockUser(blockEmail, blockReason);
@@ -77,7 +77,7 @@ const Admin = () => {
         <h1 className="text-4xl font-bold text-white mb-6">Admin Control</h1>
         {currentUser && (
           <div className="mb-4 text-gray-300">
-            Logged in as: <span className="text-white font-semibold">{currentUser.email}</span> 
+            Logged in as: <span className="text-white font-semibold">{currentUser.email}</span>
             <span className="ml-2 text-blue-400">({currentUser.id})</span>
           </div>
         )}

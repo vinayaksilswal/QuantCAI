@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -35,7 +35,7 @@ const Login = () => {
         // Navigation will happen via useEffect when user state updates
       } else {
         if (!name.trim()) {
-          setError('Name is required for registration');
+          setError('Username is required for registration');
           setLoading(false);
           return;
         }
@@ -71,7 +71,7 @@ const Login = () => {
               {mode === 'signup' && (
                 <Input
                   type="text"
-                  placeholder="Name"
+                  placeholder="Username"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   className="bg-slate-800/50 border-slate-600 text-white"

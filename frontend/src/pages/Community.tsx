@@ -4,10 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { api } from '@/lib/api';
+import { Heart, MessageSquare, Trash2, Send, PlusCircle } from 'lucide-react';
 
 const Community = () => {
   usePageTracking('community');
@@ -16,7 +18,8 @@ const Community = () => {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [showCreatePost, setShowCreatePost] = useState(false);
+
   const load = async () => {
     try {
       setLoading(true);
@@ -29,16 +32,17 @@ const Community = () => {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => { load(); }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !title.trim() || !body.trim()) return;
     try {
-      await api.createPost(title, body, user.id);
+      await api.createPost(title, body, parseInt(user.id));
       setTitle('');
       setBody('');
+      setShowCreatePost(false);
       load();
     } catch (error) {
       console.error('Error creating post:', error);
@@ -48,7 +52,7 @@ const Community = () => {
   const addComment = async (postId: string, commentBody: string) => {
     if (!user || !commentBody.trim()) return;
     try {
-      await api.createComment(parseInt(postId), commentBody, user.id);
+      await api.createComment(parseInt(postId), commentBody, parseInt(user.id));
       load();
     } catch (error) {
       console.error('Error creating comment:', error);
@@ -58,7 +62,7 @@ const Community = () => {
   const toggleLike = async (postId: string) => {
     if (!user) return;
     try {
-      await api.toggleLike(parseInt(postId), user.id);
+      await api.toggleLike(parseInt(postId), parseInt(user.id));
       load();
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -91,88 +95,181 @@ const Community = () => {
     }
   };
 
+  const getInitials = (name: string) => {
+    return name.slice(0, 2).toUpperCase();
+  };
+
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen relative bg-[#0a0f1d]">
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-purple-500/10 pointer-events-none" />
       <Navbar />
-      <div className="pt-32 pb-20 px-6 max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-white mb-6">Community</h1>
-        {user && (
-          <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm mb-6">
-            <CardContent className="p-6 text-gray-300">
-              <form onSubmit={submit} className="space-y-3">
-                <Input placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} className="bg-slate-800/50 border-slate-600 text-white" />
-                <Textarea placeholder="Share with the community" value={body} onChange={e => setBody(e.target.value)} className="bg-slate-800/50 border-slate-600 text-white" />
-                <Button type="submit" className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">Post</Button>
+      <div className="pt-32 pb-20 px-6 max-w-4xl mx-auto relative z-10">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-white tracking-tight">Community</h1>
+            <p className="text-gray-400 mt-2">Connect and share with other quantum explorers</p>
+          </div>
+          {user && (
+            <Button
+              onClick={() => setShowCreatePost(!showCreatePost)}
+              className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg shadow-blue-500/20"
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              {showCreatePost ? 'Cancel' : 'New Post'}
+            </Button>
+          )}
+        </div>
+
+        {user && showCreatePost && (
+          <Card className="bg-slate-900/60 border-slate-700/50 backdrop-blur-md mb-8 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="h-1 bg-gradient-to-r from-blue-500 to-purple-600" />
+            <CardContent className="p-6">
+              <form onSubmit={submit} className="space-y-4">
+                <Input
+                  placeholder="Catchy Title"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  className="bg-slate-800/50 border-slate-700 text-white placeholder:text-gray-500 focus:ring-blue-500/50"
+                />
+                <Textarea
+                  placeholder="Share your quantum insights..."
+                  value={body}
+                  onChange={e => setBody(e.target.value)}
+                  className="bg-slate-800/50 border-slate-700 text-white placeholder:text-gray-500 focus:ring-blue-500/50 min-h-[120px]"
+                />
+                <div className="flex justify-end">
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                    <Send className="mr-2 h-4 w-4" />
+                    Publish Post
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
         )}
 
         {loading && (
-          <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm mb-6">
-            <CardContent className="p-6">
-              <p className="text-gray-300">Loading posts...</p>
-            </CardContent>
-          </Card>
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
         )}
+
         {!loading && posts.length === 0 && (
-          <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm mb-6">
-            <CardContent className="p-6">
-              <p className="text-gray-300">No posts yet. Be the first to share something!</p>
+          <Card className="bg-slate-900/40 border-slate-800 border-dashed backdrop-blur-sm py-12">
+            <CardContent className="flex flex-col items-center text-center">
+              <MessageSquare className="h-12 w-12 text-slate-700 mb-4" />
+              <p className="text-gray-400 text-lg">No posts yet. Be the first to start a conversation!</p>
             </CardContent>
           </Card>
         )}
-        {posts.map(p => {
-          const likeCount = p.likes?.length ?? 0;
-          const commentCount = p.comments?.length ?? 0;
-          const likedByMe = (p.likes ?? []).some((l: any) => l.user_id === user?.id?.toString());
-          return (
-          <Card key={p.id} className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm mb-4">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-xl font-semibold text-white">{p.title}</h3>
-                {canModerate(p.author?.id) && (
-                  <button onClick={() => deletePost(p.id)} className="text-red-300 hover:text-red-400 text-sm">🗑️ Delete</button>
-                )}
-              </div>
-              <p className="text-gray-400 text-sm mb-2">by {p.author?.email ?? 'Unknown'}</p>
-              <p className="text-gray-300 whitespace-pre-wrap mb-4">{p.body}</p>
-              <div className="flex items-center gap-4 text-gray-300">
-                <button onClick={() => toggleLike(p.id)} className="hover:text-white flex items-center gap-1">
-                  {likedByMe ? '❤️' : '🤍'} {likeCount}
-                </button>
-                <span className="flex items-center gap-1">💬 {commentCount}</span>
-              </div>
-              {user && (
-                <div className="mt-3 flex gap-2">
-                  <Input placeholder="Write a comment" className="bg-slate-800/50 border-slate-600 text-white" onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const target = e.target as HTMLInputElement;
-                      addComment(p.id, target.value);
-                      target.value = '';
-                    }
-                  }} />
-                </div>
-              )}
-              {p.comments && p.comments.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {p.comments.map((c: any) => (
-                    <div key={c.id} className="bg-slate-800/40 border border-slate-700 rounded p-2 text-gray-300 flex justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="text-sm text-white font-medium">{c.author?.email ?? 'Unknown'}</div>
-                        <div className="whitespace-pre-wrap">{c.body}</div>
+
+        <div className="space-y-6">
+          {posts.map(p => {
+            const likeCount = p.likes?.length ?? 0;
+            const commentCount = p.comments?.length ?? 0;
+            const likedByMe = (p.likes ?? []).some((l: any) => l.user_id === user?.id?.toString());
+            const authorName = p.author?.name || p.author?.email || 'Anonymous';
+
+            return (
+              <Card key={p.id} className="bg-slate-900/60 border-slate-800 backdrop-blur-md hover:border-slate-700/50 transition-all duration-300 group">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10 border border-blue-500/20">
+                        <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${authorName}`} />
+                        <AvatarFallback className="bg-blue-500/10 text-blue-400 text-xs">
+                          {getInitials(authorName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="text-white font-semibold flex items-center gap-2">
+                          {authorName}
+                          {p.author?.role === 'root' && <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Root</span>}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently'}
+                        </div>
                       </div>
-                      {canModerate(c.author?.id) && (
-                        <button onClick={() => deleteComment(c.id)} className="text-red-300 hover:text-red-400 text-sm">Delete</button>
-                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );})}
+                    {canModerate(p.author?.id) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deletePost(p.id)}
+                        className="text-slate-500 hover:text-red-400 hover:bg-red-400/10 h-8 w-8"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <h3 className="text-xl font-bold text-white mb-3 group-hover:text-blue-400 transition-colors">{p.title}</h3>
+                  <p className="text-slate-300 whitespace-pre-wrap mb-6 leading-relaxed">{p.body}</p>
+
+                  <div className="flex items-center gap-6 pt-4 border-t border-slate-800">
+                    <button
+                      onClick={() => toggleLike(p.id)}
+                      className={`flex items-center gap-2 text-sm transition-colors ${likedByMe ? 'text-red-400' : 'text-slate-400 hover:text-red-400'}`}
+                    >
+                      <Heart className={`h-5 w-5 ${likedByMe ? 'fill-current' : ''}`} />
+                      <span className="font-medium">{likeCount}</span>
+                    </button>
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                      <MessageSquare className="h-5 w-5" />
+                      <span className="font-medium">{commentCount}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    {p.comments && p.comments.length > 0 && (
+                      <div className="space-y-3 bg-slate-950/40 rounded-xl p-4 border border-slate-800/50">
+                        {p.comments.map((c: any) => (
+                          <div key={c.id} className="flex gap-3 animate-in fade-in duration-300">
+                            <Avatar className="h-7 w-7 mt-0.5">
+                              <AvatarImage src={`https://api.dicebear.com/7.x/bottts/svg?seed=${c.author?.name || 'anon'}`} />
+                              <AvatarFallback className="text-[10px]">{getInitials(c.author?.name || '??')}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-blue-400">{c.author?.name || 'Anonymous'}</span>
+                                {canModerate(c.author?.id) && (
+                                  <button onClick={() => deleteComment(c.id)} className="text-[10px] text-slate-600 hover:text-red-400 uppercase font-bold">Delete</button>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-300 mt-0.5">{c.body}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {user && (
+                      <div className="relative">
+                        <Input
+                          placeholder="Write a supportive comment..."
+                          className="bg-slate-800/30 border-slate-700/50 text-white text-sm pr-12 focus:ring-blue-500/30 h-10 rounded-lg"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const target = e.target as HTMLInputElement;
+                              if (target.value.trim()) {
+                                addComment(p.id, target.value);
+                                target.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase font-bold text-slate-600 pointer-events-none">
+                          Enter
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
       <Footer />
     </div>
@@ -180,5 +277,6 @@ const Community = () => {
 };
 
 export default Community;
+
 
 

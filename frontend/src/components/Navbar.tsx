@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket } from 'lucide-react';
 import { LogoProcessor } from './LogoProcessor';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 // Learning paths configuration
 const learningPaths = [
@@ -48,8 +48,8 @@ export const Navbar = () => {
             <Link
               to="/"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/')
-                  ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
+                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                 }`}
             >
               <Home className="h-4 w-4" />
@@ -65,8 +65,8 @@ export const Navbar = () => {
               <button
                 onClick={handleLearnClick}
                 className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 relative ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states')
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30'
-                    : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-100 hover:from-blue-500/40 hover:to-purple-500/40 hover:text-white border border-blue-400/30'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30'
+                  : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-100 hover:from-blue-500/40 hover:to-purple-500/40 hover:text-white border border-blue-400/30'
                   }`}
               >
                 <BookOpen className="h-4 w-4" />
@@ -86,8 +86,8 @@ export const Navbar = () => {
                           key={item.path}
                           to={item.path}
                           className={`block px-4 py-3 mx-2 rounded-lg transition-all duration-200 ${isPathActive
-                              ? 'bg-blue-600/30 text-white border border-blue-500/50'
-                              : 'text-blue-100 hover:text-white hover:bg-blue-600/20'
+                            ? 'bg-blue-600/30 text-white border border-blue-500/50'
+                            : 'text-blue-100 hover:text-white hover:bg-blue-600/20'
                             }`}
                         >
                           <div className="flex items-center gap-3">
@@ -114,8 +114,8 @@ export const Navbar = () => {
             <Link
               to="/tools"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/tools')
-                  ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
+                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                 }`}
             >
               <Zap className="h-4 w-4" />
@@ -125,8 +125,8 @@ export const Navbar = () => {
             <Link
               to="/community"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/community')
-                  ? 'bg-blue-600/30 text-white font-medium'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-blue-600/30 text-white font-medium'
+                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                 }`}
             >
               <Users className="h-4 w-4" />
@@ -136,8 +136,8 @@ export const Navbar = () => {
             <Link
               to="/soon"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/soon')
-                  ? 'bg-blue-600/30 text-white font-medium'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-blue-600/30 text-white font-medium'
+                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                 }`}
             >
               <Rocket className="h-4 w-4" />
@@ -147,8 +147,8 @@ export const Navbar = () => {
             <Link
               to="/vision"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/vision')
-                  ? 'bg-blue-600/30 text-white font-medium'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-blue-600/30 text-white font-medium'
+                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                 }`}
             >
               <Eye className="h-4 w-4" />
@@ -214,8 +214,8 @@ export const Navbar = () => {
               <Link
                 to="/"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/')
-                    ? 'bg-blue-600/30 text-white font-medium'
-                    : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-blue-600/30 text-white font-medium'
+                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -228,8 +228,8 @@ export const Navbar = () => {
                 <button
                   onClick={() => setIsLearnOpen(!isLearnOpen)}
                   className={`w-full px-4 py-3 rounded-lg transition-all flex items-center justify-between ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states')
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg'
-                      : 'bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-400/30'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg'
+                    : 'bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-400/30'
                     }`}
                 >
                   <div className="flex items-center gap-3">
@@ -248,8 +248,8 @@ export const Navbar = () => {
                           key={item.path}
                           to={item.path}
                           className={`block px-3 py-1 rounded-lg transition-all ${isActive(item.path)
-                              ? 'bg-blue-600/30 text-white'
-                              : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                            ? 'bg-blue-600/30 text-white'
+                            : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                             }`}
                           onClick={() => { setIsMenuOpen(false); setIsLearnOpen(false); }}
                         >
@@ -267,8 +267,8 @@ export const Navbar = () => {
               <Link
                 to="/community"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/community')
-                    ? 'bg-blue-600/30 text-white font-medium'
-                    : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-blue-600/30 text-white font-medium'
+                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -279,8 +279,8 @@ export const Navbar = () => {
               <Link
                 to="/soon"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/soon')
-                    ? 'bg-blue-600/30 text-white font-medium'
-                    : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-blue-600/30 text-white font-medium'
+                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -291,8 +291,8 @@ export const Navbar = () => {
               <Link
                 to="/vision"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/vision')
-                    ? 'bg-blue-600/30 text-white font-medium'
-                    : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-blue-600/30 text-white font-medium'
+                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >

@@ -1,30 +1,26 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { useAI } from '@/context/AIContext';
+import { useAI } from '@/hooks/useAI';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useAuth } from '@/context/AuthContext';
-import { Play, RotateCcw, Download, Zap, Save } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Play, RotateCcw, Download, Zap, Activity } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
-import { GatePalette } from '@/components/GatePalette';
+import { GatePalette, gates } from '@/components/GatePalette';
 import { CircuitGrid } from '@/components/CircuitGrid';
 import { CircuitResults } from '@/components/CircuitResults';
 import { GateType, PlacedGate } from '@/types/circuit';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
 
 const CircuitBuilder = () => {
-    // AuthContext doesn't expose token, so we get it from storage or assume cookie.
-    // However, existing backend requires Bearer token.
-    // api.ts stores it in 'auth_token'.
-    // api.ts stores it in 'auth_token'.
     const { user } = useAuth();
-    const { circuitAction, ackCircuitAction, activeTool } = useAI();
+    const { circuitActions, ackCircuitAction, activeTool } = useAI();
 
     const [circuitName, setCircuitName] = useState("Untitled Circuit");
     const [placedGates, setPlacedGates] = useState<PlacedGate[]>([]);
@@ -33,7 +29,6 @@ const CircuitBuilder = () => {
     const [useNoise, setUseNoise] = useState(false);
     const [isSimulating, setIsSimulating] = useState(false);
     const [numWires, setNumWires] = useState(5);
-
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -45,40 +40,36 @@ const CircuitBuilder = () => {
 
     // AI Action Handler
     useEffect(() => {
-        if (!circuitAction) return;
+        if (circuitActions.length === 0) return;
 
-        const { action, params } = circuitAction;
+        const currentAction = circuitActions[0];
+        const { action, params, id } = currentAction;
+
+        console.log("Processing AI Action:", action, params);
 
         if (action === "add_gate") {
-            const gateName = params.gate || "H";
+            const gateName = (params.gate || "H").toLowerCase();
             const wire = params.qubit || 0;
-            // Find next available step on this wire
+
+            const gateDef = gates.find(g => g.id === gateName || g.name.toLowerCase() === gateName);
+
             const existingInWire = placedGates.filter(g => g.wire === wire);
             const step = existingInWire.length > 0
                 ? Math.max(...existingInWire.map(g => g.step)) + 1
                 : 0;
 
-            // Simple gate mapping logic - you might want a proper lookup from your GatePalette
-            // For now, constructing a basic gate object
-            // This relies on the AI sending valid gate names
-            // You might want to import 'gates' from GatePalette to look up properties like color/icon
-
-            // Fallback for demo properties
-            const newGate: PlacedGate = {
-                id: gateName,
-                name: gateName,
-                icon: (props: any) => <span>{gateName}</span>, // Placeholder icon if regex fails, ideally import
-                color: "from-blue-500 to-cyan-400",
-                description: "AI Added Gate",
-                qubits: 1,
-                category: "single",
-                uid: `gate-${Date.now()}-${Math.random()}`,
-                wire: wire,
-                step: step
-            };
-
-            setPlacedGates(prev => [...prev, newGate]);
-            toast.info(`AI added ${gateName} gate on qubit ${wire}`);
+            if (gateDef) {
+                const newGate: PlacedGate = {
+                    ...gateDef,
+                    uid: `gate-${Date.now()}-${Math.random()}`,
+                    wire: wire,
+                    step: step
+                };
+                setPlacedGates(prev => [...prev, newGate]);
+                toast.info(`AI added ${gateDef.name} gate on qubit ${wire}`);
+            } else {
+                toast.error(`Unknown gate: ${gateName}`);
+            }
         } else if (action === "clear") {
             setPlacedGates([]);
             setResults(null);
@@ -87,8 +78,8 @@ const CircuitBuilder = () => {
             runCircuit();
         }
 
-        ackCircuitAction();
-    }, [circuitAction, placedGates, ackCircuitAction]);
+        ackCircuitAction(id);
+    }, [circuitActions, placedGates, ackCircuitAction]);
 
     const handleDragStart = (event: DragStartEvent) => {
         const { active } = event;
@@ -131,6 +122,37 @@ const CircuitBuilder = () => {
         });
     };
 
+    const runCircuit = async () => {
+        setIsSimulating(true);
+        try {
+            const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
+            const backendCircuit = sortedGates.map(g => {
+                const qubits = [g.wire];
+                if (g.targetWire !== undefined) qubits.push(g.targetWire);
+                return {
+                    name: g.name.toLowerCase(),
+                    qubits: qubits,
+                    params: g.params || []
+                };
+            });
+
+            if (!localStorage.getItem('auth_token')) {
+                toast.error("Please log in to run simulations.");
+                setIsSimulating(false);
+                return;
+            }
+
+            const data = await api.runCircuit(backendCircuit, numWires, useNoise);
+            setResults(data);
+            toast.success("Simulation complete!", { icon: <Zap className="w-4 h-4 text-yellow-400" /> });
+        } catch (error: any) {
+            console.error(error);
+            toast.error(error.message || "Failed to run circuit");
+        } finally {
+            setIsSimulating(false);
+        }
+    };
+
     const exportQASM = () => {
         let qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\n';
         qasm += `qreg q[${numWires}];\n`;
@@ -161,42 +183,6 @@ const CircuitBuilder = () => {
         toast.success("Exported to QASM");
     };
 
-    const runCircuit = async () => {
-        setIsSimulating(true);
-        try {
-            const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
-            const backendCircuit = sortedGates.map(g => {
-                const qubits = [g.wire];
-                if (g.targetWire !== undefined) qubits.push(g.targetWire);
-                return {
-                    name: g.name.toLowerCase(),
-                    qubits: qubits,
-                    params: g.params || []
-                };
-            });
-
-            // Need to ensure user is logged in
-            if (!localStorage.getItem('auth_token')) {
-                toast.error("Please log in to run simulations.");
-                setIsSimulating(false);
-                return;
-            }
-
-            // Use the centralized API client
-            // Import api at the top if not already there (it is used in AuthContext but not here yet)
-            // We need to import 'api' from '@/lib/api'
-            const data = await api.runCircuit(backendCircuit, numWires, useNoise);
-
-            setResults(data);
-            toast.success("Simulation complete!", { icon: <Zap className="w-4 h-4 text-yellow-400" /> });
-        } catch (error: any) {
-            console.error(error);
-            toast.error(error.message || "Failed to run circuit");
-        } finally {
-            setIsSimulating(false);
-        }
-    };
-
     const clearCircuit = () => {
         setPlacedGates([]);
         setResults(null);
@@ -206,7 +192,6 @@ const CircuitBuilder = () => {
         <div className="min-h-screen relative overflow-hidden bg-slate-950 text-white font-sans">
             <Navbar />
             <div className="pt-24 pb-20 px-4 md:px-8 max-w-[1600px] mx-auto">
-
                 <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                     <div>
                         <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
@@ -240,7 +225,6 @@ const CircuitBuilder = () => {
 
                 <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                     <div className="grid lg:grid-cols-12 gap-6 h-[calc(100vh-200px)]">
-
                         {/* Sidebar: Gates */}
                         <div className="lg:col-span-2 space-y-4 overflow-y-auto pr-2 custom-scrollbar">
                             <Card className="bg-slate-900/80 border-slate-800 backdrop-blur">
@@ -278,7 +262,7 @@ const CircuitBuilder = () => {
                             ) : (
                                 <Card className="bg-slate-900/50 border-slate-800 border-dashed h-64 flex items-center justify-center">
                                     <div className="text-center text-slate-500">
-                                        <ActivityIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                        <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
                                         <p className="text-sm">Run a circuit to see results</p>
                                     </div>
                                 </Card>
@@ -299,7 +283,7 @@ const CircuitBuilder = () => {
                                     </div>
                                     <div className="flex justify-between">
                                         <span>Est. Depth:</span>
-                                        <span className="text-white">{Math.max(0, ...placedGates.map(g => g.step)) + 1}</span>
+                                        <span className="text-white">{placedGates.length > 0 ? Math.max(0, ...placedGates.map(g => g.step)) + 1 : 0}</span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -320,11 +304,5 @@ const CircuitBuilder = () => {
         </div>
     );
 };
-
-const ActivityIcon = ({ className }: { className?: string }) => (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-    </svg>
-);
 
 export default CircuitBuilder;

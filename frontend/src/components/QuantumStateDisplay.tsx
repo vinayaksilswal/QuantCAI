@@ -7,11 +7,11 @@ interface QuantumStateDisplayProps {
 
 export const QuantumStateDisplay = ({ qubitState }: QuantumStateDisplayProps) => {
   const { alpha, beta, phase } = qubitState;
-  
+
   // Calculate probabilities
   const prob0 = Math.abs(alpha) ** 2;
   const prob1 = Math.abs(beta) ** 2;
-  
+
   // Format complex numbers
   const formatComplex = (real: number, imag: number = 0) => {
     if (Math.abs(imag) < 0.001) {
@@ -21,8 +21,8 @@ export const QuantumStateDisplay = ({ qubitState }: QuantumStateDisplayProps) =>
     return `${real.toFixed(3)} ${sign} ${Math.abs(imag).toFixed(3)}i`;
   };
 
-  const alphaReal = alpha * Math.cos(phase);
-  const alphaImag = alpha * Math.sin(phase);
+  const alphaReal = alpha;
+  const alphaImag = 0;
   const betaReal = beta * Math.cos(phase);
   const betaImag = beta * Math.sin(phase);
 
@@ -42,19 +42,19 @@ export const QuantumStateDisplay = ({ qubitState }: QuantumStateDisplayProps) =>
           <span className="text-white font-mono">{prob0.toFixed(4)}</span>
         </div>
         <div className="w-full bg-gray-700 rounded-full h-3">
-          <div 
-            className="bg-blue-500 h-3 rounded-full transition-all duration-300" 
+          <div
+            className="bg-blue-500 h-3 rounded-full transition-all duration-300"
             style={{ width: `${prob0 * 100}%` }}
           ></div>
         </div>
-        
+
         <div className="flex justify-between items-center">
           <span className="text-red-200">P(|1⟩):</span>
           <span className="text-white font-mono">{prob1.toFixed(4)}</span>
         </div>
         <div className="w-full bg-gray-700 rounded-full h-3">
-          <div 
-            className="bg-red-500 h-3 rounded-full transition-all duration-300" 
+          <div
+            className="bg-red-500 h-3 rounded-full transition-all duration-300"
             style={{ width: `${prob1 * 100}%` }}
           ></div>
         </div>

@@ -32,22 +32,28 @@ export const CircuitResults = ({ results }: CircuitResultsProps) => {
                     </TabsList>
 
                     <TabsContent value="chart" className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="state" stroke="#94a3b8" />
-                                <YAxis stroke="#94a3b8" label={{ value: 'Probability (%)', angle: -90, position: 'insideLeft', fill: '#94a3b8' }} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' }}
-                                    cursor={{ fill: '#334155', opacity: 0.2 }}
-                                />
-                                <Bar dataKey="probability" radius={[4, 4, 0, 0]}>
-                                    {data.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.raw > 0.01 ? '#60a5fa' : '#334155'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                        {data.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                <BarChart data={data}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                    <XAxis dataKey="state" stroke="#94a3b8" />
+                                    <YAxis stroke="#94a3b8" label={{ value: 'Probability (%)', angle: -90, position: 'insideLeft', fill: '#94a3b8' }} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f1f5f9' }}
+                                        cursor={{ fill: '#334155', opacity: 0.2 }}
+                                    />
+                                    <Bar dataKey="probability" radius={[4, 4, 0, 0]}>
+                                        {data.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.raw > 0.01 ? '#60a5fa' : '#334155'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-slate-500">
+                                No data available for this simulation
+                            </div>
+                        )}
                     </TabsContent>
 
                     <TabsContent value="statevector">

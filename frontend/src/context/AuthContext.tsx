@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { api, User as ApiUser } from '@/lib/api';
 
 type Role = 'root' | 'developer' | 'user' | null;
@@ -20,14 +20,14 @@ type AuthContextType = {
   register: (email: string, password: string, name: string) => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType>({ 
-  user: null, 
-  session: null, 
-  role: null, 
-  loading: true, 
-  signOut: async () => {},
-  login: async () => {},
-  register: async () => {},
+export const AuthContext = createContext<AuthContextType>({
+  user: null,
+  session: null,
+  role: null,
+  loading: true,
+  signOut: async () => { },
+  login: async () => { },
+  register: async () => { },
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.removeItem('auth_user');
         }
       }
-      
+
       // Try to get current user from API
       try {
         const currentUser = await api.getMe();
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // API might not be fully implemented yet
         console.log('getMe endpoint not available yet');
       }
-      
+
       setLoading(false);
     };
     init();
@@ -124,9 +124,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     () => ({ user, session, role, loading, signOut, login, register }),
     [user, session, role, loading]
   );
-  
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => useContext(AuthContext);
+// useAuth is now in @/hooks/useAuth.ts
 

@@ -40,14 +40,18 @@ export const TutorialOverlay = ({ placedGates, setPlacedGates }: TutorialOverlay
 
     const currentStep = activeScenario?.steps[currentStepIndex];
 
+    // Check for pending tutorial from AI
+    useEffect(() => {
+        const pending = localStorage.getItem("pending_tutorial");
+        if (pending) {
+            startScenario(pending);
+            localStorage.removeItem("pending_tutorial");
+        }
+    }, []);
+
     // Check progress
     useEffect(() => {
         if (!activeScenario || !currentStep) return;
-
-        // Check if the required gate is placed correctly
-        // We look for a gate that matches targetGate, targetWire, and maybe loosely targetStep (order matters more than absolute step)
-        // For strict tutorial: match exact step index relative to others?
-        // Let's match exact wire and roughly the step (or just presence if it's the latest gate).
 
         const matchingGate = placedGates.find(g =>
             g.name === currentStep.targetGate &&
@@ -66,6 +70,7 @@ export const TutorialOverlay = ({ placedGates, setPlacedGates }: TutorialOverlay
             }
         }
     }, [placedGates, currentStepIndex, activeScenario]);
+
 
     const exitTutorial = () => {
         setActiveScenario(null);

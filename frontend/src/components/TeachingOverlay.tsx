@@ -1,4 +1,4 @@
-import { useAI } from "../context/AIContext";
+import { useAI } from "../hooks/useAI";
 import { Button } from "./ui/button";
 import { X, Atom } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -7,6 +7,7 @@ import { QuantumGates } from "./QuantumGates";
 import { QuantumStateDisplay } from "./QuantumStateDisplay";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+const API_BASE = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
 
 // Reusing QubitState interface
 export interface QubitState {
@@ -30,7 +31,7 @@ export const TeachingOverlay = () => {
 
     // Reset state when tool opens
     useEffect(() => {
-        if (activeTool === 'quantum-state') {
+        if (activeTool === 'quantum-states') {
             setQubitState({ alpha: 1, beta: 0, phase: 0 });
         }
     }, [activeTool]);
@@ -41,7 +42,7 @@ export const TeachingOverlay = () => {
             return;
         }
         try {
-            const response = await fetch('http://localhost:8000/api/quantum/state/apply', {
+            const response = await fetch(`${API_BASE}/api/quantum/state/apply`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -81,7 +82,7 @@ export const TeachingOverlay = () => {
                     <X className="h-6 w-6" />
                 </Button>
 
-                {activeTool === 'quantum-state' && (
+                {activeTool === 'quantum-states' && (
                     <Card className="bg-background/95 border-primary/50 shadow-2xl">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">

@@ -1,4 +1,5 @@
 import os
+import json
 from typing import Annotated, Literal
 from dotenv import load_dotenv
 from typing_extensions import TypedDict
@@ -17,16 +18,24 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
 
 @tool
-def open_tool(tool_name: Literal["quantum-state", "circuit-builder"]) -> str:
+def open_tool(tool_name: Literal["quantum-states", "circuit-builder"]) -> str:
     """
     Opens a specific quantum tool on the user's screen.
     
     Args:
         tool_name: The name of the tool to open. Options:
-            - "quantum-state": Visualizer for single qubit states (Bloch sphere).
+            - "quantum-states": Visualizer for single qubit states (Bloch sphere).
             - "circuit-builder": Tool for building and running quantum circuits.
     """
     return f"TOOL_OPEN:{tool_name}"
+
+@tool
+def apply_gate_to_visualizer(gate: Literal["H", "X", "Y", "Z", "S", "T"]) -> str:
+    """
+    Applies a quantum gate to the single-qubit visualizer tool.
+    Use this when the user is on the Quantum States page or wants to see a state change.
+    """
+    return f"VISUALIZER_GATE:{gate}"
 
 @tool
 def manage_circuit(action: Literal["add_gate", "clear", "run"], params: dict = {}) -> str:
@@ -40,7 +49,6 @@ def manage_circuit(action: Literal["add_gate", "clear", "run"], params: dict = {
             - "run": Run the circuit.
         params: Dictionary of parameters for the action.
     """
-    import json
     return f"CIRCUIT_ACTION:{json.dumps({'action': action, 'params': params})}"
 
 @tool
@@ -51,7 +59,31 @@ def explain_concept(concept: str) -> str:
     """
     return f"EXPLAIN:{concept}"
 
-tools = [open_tool, manage_circuit, explain_concept]
+
+
+@tool
+def navigate_to_learn(section: str = None) -> str:
+    """
+    Navigates the user to the Learn page.
+    
+    Args:
+        section: Optional section of the learn page to scroll to (e.g., "qubits", "applications").
+    """
+    return f"NAVIGATE:learn{f'#{section}' if section else ''}"
+
+@tool
+def start_tutorial(tutorial_id: str) -> str:
+    """
+    Starts a specific interactive quantum tutorial.
+    
+    Args:
+        tutorial_id: The ID of the tutorial to start. Options:
+            - "bell-state": Create a Bell State.
+            - "teleportation": Quantum Teleportation.
+    """
+    return f"START_TUTORIAL:{tutorial_id}"
+
+tools = [open_tool, manage_circuit, explain_concept, navigate_to_learn, start_tutorial, apply_gate_to_visualizer]
 
 llm_with_tools = llm.bind_tools(tools)
 
@@ -68,14 +100,50 @@ builder.add_edge("tools", "chatbot_node")
 
 graph = builder.compile()
 
-# Example usage function for testing/CLI (optional)
+# Updated for streaming
+async def run_chat_stream(message: str, history: list = []):
+    state = {"messages": history + [{"role": "user", "content": message}]}
+    
+    # Track what we've already sent to avoid duplicates (astream values sends full state)
+    sent_text = ""
+    sent_tool_calls_ids = set()
+
+    async for event in graph.astream(state, stream_mode="values"):
+        if not event or "messages" not in event:
+            continue
+            
+        last_message = event["messages"][-1]
+        
+        # Only process if the last message is from the assistant
+        if last_message.type != "ai":
+            continue
+
+        # Text Content
+        if last_message.content:
+            full_content = ""
+            if isinstance(last_message.content, list):
+                full_content = "".join([part["text"] for part in last_message.content if isinstance(part, dict) and "text" in part])
+            else:
+                full_content = str(last_message.content)
+            
+            # Send only the NEW parts of the content
+            if len(full_content) > len(sent_text):
+                new_part = full_content[len(sent_text):]
+                yield f"data: {json.dumps({'type': 'text', 'content': new_part})}\n\n"
+                sent_text = full_content
+        
+        # Tool Calls
+        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+            for tc in last_message.tool_calls:
+                tc_id = tc.get("id")
+                if tc_id and tc_id not in sent_tool_calls_ids:
+                    yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
+                    sent_tool_calls_ids.add(tc_id)
+
 def run_chat(message: str, history: list = []):
+    # Keep legacy function for compatibility or sync fallback
     state = {"messages": history + [{"role": "user", "content": message}]}
     output = graph.invoke(state)
-    content = output["messages"][-1].content
-    if isinstance(content, list):
-        # Extract text from list of content blocks
-        text_parts = [part["text"] for part in content if isinstance(part, dict) and "text" in part]
-        return " ".join(text_parts)
-    return str(content)
+    return output["messages"][-1].content
+
 
