@@ -78,7 +78,7 @@ def login(request: Request, login_data: LoginRequest, response: Response, db: Se
             key="refresh_token",
             value=refresh,
             httponly=True,
-            secure=False, 
+            secure=True, 
             samesite="lax",
             max_age=auth_settings.refresh_token_minutes * 60
         )
@@ -117,7 +117,7 @@ def register(request: Request, reg_data: RegisterRequest, response: Response, db
             key="refresh_token",
             value=refresh,
             httponly=True,
-            secure=False,
+            secure=True,
             samesite="lax",
             max_age=auth_settings.refresh_token_minutes * 60
         )
@@ -158,7 +158,7 @@ def refresh_tokens(request: Request, response: Response, db: Session = Depends(g
         key="refresh_token",
         value=new_refresh,
         httponly=True,
-        secure=False,
+        secure=True,
         samesite="lax",
         max_age=auth_settings.refresh_token_minutes * 60
     )
@@ -170,30 +170,15 @@ def me(current_user: DBmodels.User = Depends(get_current_user)):
     logger.info("Me endpoint accessed")
     return UserResponse.model_validate(current_user)
 
-@router.post("/oauth/google")
-def oauth_google(request: GoogleOAuthRequest, db: Session = Depends(get_db)):
-    logger.info(f"Google OAuth request using client_id={auth_settings.google_client_id or 'unset'}")
-    if not request.id_token:
-        raise HTTPException(status_code=400, detail="id_token is required")
-
-    idinfo = verify_google_id_token(request.id_token)
-    email = idinfo.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="Google token did not contain an email")
-    name = request.name or idinfo.get("name") or email.split("@")[0]
-
-    user = db.query(DBmodels.User).filter(DBmodels.User.email == email).first()
-    if not user:
-        user = DBmodels.User(
-            email=email,
-            name=name,
-            password=hash_password(os.urandom(16).hex()),
-            is_active=True,
-            is_blocked=False,
-            role="user",
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
     access, refresh = issue_tokens(db, user)
-    return TokenResponse(access_token=access, refresh_token=refresh)
+    
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=auth_settings.refresh_token_minutes * 60
+    )
+    
+    return TokenResponse(access_token=access, refresh_token="")

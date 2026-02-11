@@ -3,6 +3,7 @@ import time
 import logging
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -34,8 +35,14 @@ allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
 if allowed_origins_env:
     allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 else:
-    # Strict defaults for production
-    allowed_origins = ["http://localhost:5173","https://quantcai.in","http://quantcai.in"] 
+    # Strict defaults for production including www version
+    allowed_origins = [
+        "http://localhost:5173",
+        "https://quantcai.in",
+        "http://quantcai.in",
+        "https://www.quantcai.in",
+        "http://www.quantcai.in"
+    ] 
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,7 +78,17 @@ async def security_and_logging_middleware(request: Request, call_next):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("X-XSS-Protection", "1; mode=block")
-        response.headers.setdefault("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none';")
+        
+        # CSP relaxed for Swagger UI (allowed CDNs and fonts)
+        csp = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: https://cdn.jsdelivr.net; "
+            "frame-ancestors 'none';"
+        )
+        response.headers.setdefault("Content-Security-Policy", csp)
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("X-Request-ID", request_id)
 
@@ -101,8 +118,13 @@ async def security_and_logging_middleware(request: Request, call_next):
             exc_info=True,
             extra={"request_id": request_id}
         )
-        return await _rate_limit_exceeded_handler(request, e) if isinstance(e, RateLimitExceeded) else \
-               HTTPException(status_code=500, detail="Internal Server Error")
+        if isinstance(e, RateLimitExceeded):
+            return await _rate_limit_exceeded_handler(request, e)
+        
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal Server Error"}
+        )
 
 @app.get("/")
 def read_root():
@@ -114,3 +136,4 @@ app.include_router(chat.router)
 app.include_router(circuit.router)
 app.include_router(community.router)
 app.include_router(users.router)
+

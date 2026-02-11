@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session, joinedload, selectinload
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
@@ -74,35 +74,39 @@ def list_notifications(db: Session = Depends(get_db)):
 def get_posts(db: Session = Depends(get_db)):
     logger.info("Get posts request")
     try:
-        posts = db.query(DBmodels.Post).order_by(DBmodels.Post.created_at.desc()).all()
+        # Use eager loading to fetch everything in minimum queries (FIX N+1)
+        posts = db.query(DBmodels.Post).options(
+            joinedload(DBmodels.Post.author),
+            selectinload(DBmodels.Post.comments).joinedload(DBmodels.Comment.author),
+            selectinload(DBmodels.Post.likes)
+        ).order_by(DBmodels.Post.created_at.desc()).all()
+        
         result = []
         for post in posts:
-            author = db.query(DBmodels.User).filter(DBmodels.User.id == post.author_id).first()
-            comments = db.query(DBmodels.Comment).filter(DBmodels.Comment.post_id == post.id).order_by(DBmodels.Comment.created_at.asc()).all()
             comment_list = []
-            for comment in comments:
-                comment_author = db.query(DBmodels.User).filter(DBmodels.User.id == comment.author_id).first()
+            for comment in post.comments:
                 comment_list.append({
                     "id": str(comment.id),
                     "body": comment.body,
                     "author": {
-                        "id": str(comment_author.id) if comment_author else None,
-                        "email": comment_author.email if comment_author else None,
-                        "name": comment_author.name if comment_author else None
-                    } if comment_author else None,
+                        "id": str(comment.author.id) if comment.author else None,
+                        "email": comment.author.email if comment.author else None,
+                        "name": comment.author.name if comment.author else None
+                    } if comment.author else None,
                     "created_at": comment.created_at.isoformat() if comment.created_at else None
                 })
-            likes = db.query(DBmodels.Like).filter(DBmodels.Like.post_id == post.id).all()
-            like_list = [{"id": str(l.id), "user_id": str(l.user_id)} for l in likes]
+            
+            like_list = [{"id": str(l.id), "user_id": str(l.user_id)} for l in post.likes]
+            
             result.append({
                 "id": str(post.id),
                 "title": post.title,
                 "body": post.body,
                 "author": {
-                    "id": str(author.id) if author else None,
-                    "email": author.email if author else None,
-                    "name": author.name if author else None
-                } if author else None,
+                    "id": str(post.author.id) if post.author else None,
+                    "email": post.author.email if post.author else None,
+                    "name": post.author.name if post.author else None
+                } if post.author else None,
                 "comments": comment_list,
                 "likes": like_list,
                 "created_at": post.created_at.isoformat() if post.created_at else None
@@ -202,8 +206,7 @@ def delete_post(
         if post.author_id != current_user.id and current_user.role not in ("admin", "root"):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete post")
         
-        db.query(DBmodels.Comment).filter(DBmodels.Comment.post_id == post_id).delete()
-        db.query(DBmodels.Like).filter(DBmodels.Like.post_id == post_id).delete()
+        # Cascades in DBmodels.py handle comments and likes deletion
         db.delete(post)
         db.commit()
         return {"message": "Post deleted successfully"}

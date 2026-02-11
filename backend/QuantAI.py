@@ -88,7 +88,17 @@ tools = [open_tool, manage_circuit, explain_concept, navigate_to_learn, start_tu
 llm_with_tools = llm.bind_tools(tools)
 
 def chatbot(state: State):
-    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+    try:
+        return {"messages": [llm_with_tools.invoke(state["messages"])]}
+    except Exception as e:
+        logger.error(f"AI Error: {str(e)}")
+        # Return a helpful error message to the user instead of crashing
+        error_msg = "I'm sorry, I'm having trouble connecting to my AI brain (Google API). Please check the backend configuration."
+        if "API_KEY_INVALID" in str(e):
+            error_msg = "I'm sorry, the Google API key provided is invalid. Please check the backend configuration."
+        
+        from langchain_core.messages import AIMessage
+        return {"messages": [AIMessage(content=error_msg)]}
 
 builder = StateGraph(State)
 builder.add_node("chatbot_node", chatbot)

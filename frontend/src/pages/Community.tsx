@@ -5,68 +5,92 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { api } from '@/lib/api';
 import { Heart, MessageSquare, Trash2, Send, PlusCircle } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const Community = () => {
   usePageTracking('community');
   const { user, role } = useAuth();
-  const [posts, setPosts] = useState<any[]>([]);
+  const queryClient = useQueryClient();
+
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [loading, setLoading] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
 
-  const load = async () => {
-    try {
-      setLoading(true);
-      const data = await api.getPosts();
-      setPosts(data ?? []);
-    } catch (error) {
-      console.error('Error loading posts:', error);
-      setPosts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch posts using react-query
+  const { data: posts = [], isLoading: loading } = useQuery({
+    queryKey: ['posts'],
+    queryFn: () => api.getPosts(),
+  });
 
-  useEffect(() => { load(); }, []);
+  // Mutations
+  const createPostMutation = useMutation({
+    mutationFn: ({ title, body, userId }: { title: string, body: string, userId: number }) =>
+      api.createPost(title, body, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      setTitle('');
+      setBody('');
+      setShowCreatePost(false);
+      toast.success('Post created successfully!');
+    },
+    onError: (error: any) => {
+      toast.error('Failed to create post: ' + error.message);
+    }
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: ({ postId, body, userId }: { postId: number, body: string, userId: number }) =>
+      api.createComment(postId, body, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast.success('Comment added!');
+    }
+  });
+
+  const toggleLikeMutation = useMutation({
+    mutationFn: ({ postId, userId }: { postId: number, userId: number }) =>
+      api.toggleLike(postId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    }
+  });
+
+  const deletePostMutation = useMutation({
+    mutationFn: (postId: number) => api.deletePost(postId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast.success('Post deleted');
+    }
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: number) => api.deleteComment(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      toast.success('Comment deleted');
+    }
+  });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !title.trim() || !body.trim()) return;
-    try {
-      await api.createPost(title, body, parseInt(user.id));
-      setTitle('');
-      setBody('');
-      setShowCreatePost(false);
-      load();
-    } catch (error) {
-      console.error('Error creating post:', error);
-    }
+    createPostMutation.mutate({ title, body, userId: parseInt(user.id) });
   };
 
   const addComment = async (postId: string, commentBody: string) => {
     if (!user || !commentBody.trim()) return;
-    try {
-      await api.createComment(parseInt(postId), commentBody, parseInt(user.id));
-      load();
-    } catch (error) {
-      console.error('Error creating comment:', error);
-    }
+    addCommentMutation.mutate({ postId: parseInt(postId), body: commentBody, userId: parseInt(user.id) });
   };
 
   const toggleLike = async (postId: string) => {
     if (!user) return;
-    try {
-      await api.toggleLike(parseInt(postId), parseInt(user.id));
-      load();
-    } catch (error) {
-      console.error('Error toggling like:', error);
-    }
+    toggleLikeMutation.mutate({ postId: parseInt(postId), userId: parseInt(user.id) });
   };
 
   const canModerate = (authorId: string | null | undefined) => {
@@ -77,22 +101,14 @@ const Community = () => {
 
   const deletePost = async (postId: string) => {
     if (!user) return;
-    try {
-      await api.deletePost(parseInt(postId));
-      load();
-    } catch (error) {
-      console.error('Error deleting post:', error);
+    if (window.confirm("Are you sure you want to delete this post?")) {
+      deletePostMutation.mutate(parseInt(postId));
     }
   };
 
   const deleteComment = async (commentId: string) => {
     if (!user) return;
-    try {
-      await api.deleteComment(parseInt(commentId));
-      load();
-    } catch (error) {
-      console.error('Error deleting comment:', error);
-    }
+    deleteCommentMutation.mutate(parseInt(commentId));
   };
 
   const getInitials = (name: string) => {
