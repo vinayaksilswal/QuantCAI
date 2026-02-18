@@ -30,6 +30,10 @@ class AuthSettings(BaseModel):
     google_client_secret: Optional[str] = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET"))
     google_redirect_uri: Optional[str] = Field(default_factory=lambda: os.getenv("GOOGLE_REDIRECT_URI"))
 
+    # Lockout policy
+    max_failed_attempts: int = Field(default_factory=lambda: int(os.getenv("MAX_FAILED_ATTEMPTS", "5")))
+    lockout_duration_minutes: int = Field(default_factory=lambda: int(os.getenv("LOCKOUT_DURATION_MINUTES", "15")))
+
 
 settings = AuthSettings()
 
@@ -149,6 +153,49 @@ def revoke_tokens_for_user(user: DBmodels.User, db: Session) -> None:
     db.query(DBmodels.RefreshToken).filter(DBmodels.RefreshToken.user_id == user.id).update(
         {"revoked": True}, synchronize_session=False
     )
+    db.commit()
+    db.refresh(user)
+
+
+def increment_failed_attempts(user: DBmodels.User, db: Session) -> int:
+    """Increment failed login attempts. Returns current count."""
+    user.failed_login_attempts += 1
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user.failed_login_attempts
+
+
+def reset_failed_attempts(user: DBmodels.User, db: Session) -> None:
+    """Reset failed login attempts after successful login."""
+    if user.failed_login_attempts > 0:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+
+def is_account_locked(user: DBmodels.User) -> bool:
+    """Check if account is currently locked."""
+    if user.locked_until:
+        if user.locked_until > datetime.utcnow():
+            return True
+        # Lock expired, reset
+        user.locked_until = None
+        user.failed_login_attempts = 0
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return False
+
+
+def lock_account(user: DBmodels.User, db: Session, duration_minutes: Optional[int] = None) -> None:
+    """Lock account for specified duration (uses default if None)."""
+    if duration_minutes is None:
+        duration_minutes = settings.lockout_duration_minutes
+    user.locked_until = datetime.utcnow() + timedelta(minutes=duration_minutes)
+    db.add(user)
     db.commit()
     db.refresh(user)
 
