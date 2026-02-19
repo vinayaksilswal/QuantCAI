@@ -9,7 +9,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from logger_config import setup_logging
-from routers import auth, chat, circuit, community, users, verification
+from routers import auth, chat, circuit, community, users, verification, health, admin
 
 # Set up logging first
 setup_logging()
@@ -185,6 +185,8 @@ def read_root():
 # Include Routers
 app.include_router(auth.router)
 app.include_router(verification.router)
+app.include_router(health.router)
+app.include_router(admin.router)
 app.include_router(chat.router)
 app.include_router(circuit.router)
 app.include_router(community.router)
