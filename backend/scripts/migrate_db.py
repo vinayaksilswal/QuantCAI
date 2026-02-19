@@ -100,6 +100,35 @@ def migrate_database():
             else:
                 logger.info("✓ circuits table already exists")
 
+            # Email verification: add columns to users
+            # email_verified: BOOLEAN DEFAULT FALSE NOT NULL
+            # verification_sent_at: TIMESTAMP NULL (when we sent the email)
+            col_defs = {
+                "email_verified": "BOOLEAN DEFAULT FALSE NOT NULL",
+                "verification_sent_at": "TIMESTAMP NULL"
+            }
+            for col, col_type in col_defs.items():
+                result = connection.execute(text(f"""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='users' AND column_name='{col}'
+                """))
+                if result.fetchone() is None:
+                    logger.info(f"Adding {col} column to users table...")
+                    connection.execute(text(f"""
+                        ALTER TABLE users 
+                        ADD COLUMN {col} {col_type}
+                    """))
+                    connection.commit()
+                    logger.info(f"✓ Successfully added {col} to users table")
+                else:
+                    logger.info(f"✓ {col} column already exists")
+
+            # Ensure email_verification_tokens table exists
+            logger.info("Ensuring email_verification_tokens table exists...")
+            DBmodels.Base.metadata.create_all(bind=db.engine, tables=[DBmodels.EmailVerificationToken.__table__])
+            logger.info("✓ email_verification_tokens table is present")
+
         logger.info("✓ Database migration completed successfully!")
         
     except Exception as e:
