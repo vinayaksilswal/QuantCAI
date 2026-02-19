@@ -1,0 +1,9 @@
+# Testing and CI/CD dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0
+pytest-cov>=4.1.0  # Coverage reporting
+black>=23.0.0      # Code formatting
+flake8>=6.0.0      # Linting
+mypy>=1.0.0        # Type checking
+pre-commit>=3.0.0  # Pre-commit hooks
