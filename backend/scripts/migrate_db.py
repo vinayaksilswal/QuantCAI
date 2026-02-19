@@ -129,6 +129,47 @@ def migrate_database():
             DBmodels.Base.metadata.create_all(bind=db.engine, tables=[DBmodels.EmailVerificationToken.__table__])
             logger.info("✓ email_verification_tokens table is present")
 
+        # ======================
+        # Performance Indexes
+        # ======================
+        # These indexes improve query performance for common lookups.
+        # Use CONCURRENTLY to avoid locking production DB (PostgreSQL 12+).
+        index_definitions = [
+            ("ix_posts_author_id", "posts(author_id)"),
+            ("ix_posts_created_at", "posts(created_at DESC)"),
+            ("ix_posts_author_created", "posts(author_id, created_at DESC)"),
+            ("ix_comments_post_id", "comments(post_id)"),
+            ("ix_comments_author_id", "comments(author_id)"),
+            ("ix_comments_created_at", "comments(created_at DESC)"),
+            ("ix_circuits_user_id", "circuits(user_id)"),
+            ("ix_refresh_tokens_user_id", "refresh_tokens(user_id)"),
+            ("ix_email_verification_tokens_user_id", "email_verification_tokens(user_id)"),
+        ]
+
+        # Need a new connection with autocommit for CREATE INDEX CONCURRENTLY
+        with db.engine.connect() as conn:
+            conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+            for idx_name, table_columns in index_definitions:
+                # Check if index exists in PostgreSQL
+                result = conn.execute(text("""
+                    SELECT 1 FROM pg_indexes WHERE indexname = :idx
+                """), {"idx": idx_name}).fetchone()
+                if result is None:
+                    logger.info(f"Creating index {idx_name} on {table_columns}...")
+                    try:
+                        conn.execute(text(f"CREATE INDEX CONCURRENTLY {idx_name} ON {table_columns}"))
+                        logger.info(f"✓ Created index {idx_name}")
+                    except Exception as e:
+                        # Fallback to non-concurrent if CONCURRENTLY fails (e.g., older PG version, or already running within transaction)
+                        logger.warning(f"CONCURRENTLY failed for {idx_name}: {e}. Trying normal CREATE INDEX.")
+                        try:
+                            conn.execute(text(f"CREATE INDEX {idx_name} ON {table_columns}"))
+                            logger.info(f"✓ Created index {idx_name} (non-concurrent)")
+                        except Exception as e2:
+                            logger.error(f"Failed to create index {idx_name}: {e2}")
+                else:
+                    logger.info(f"✓ Index {idx_name} already exists")
+
         logger.info("✓ Database migration completed successfully!")
         
     except Exception as e:
