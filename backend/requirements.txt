@@ -18,3 +18,4 @@ langgraph
 langchain-google-genai
 python-dotenv
 bleach>=6.1.0
+psutil
