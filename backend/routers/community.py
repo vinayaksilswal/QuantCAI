@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+import bleach
 from sqlalchemy.orm import Session, joinedload, selectinload
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -27,7 +28,7 @@ class NotificationResponse(BaseModel):
     email: str
     message: str
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -80,14 +81,20 @@ def get_posts(db: Session = Depends(get_db)):
             selectinload(DBmodels.Post.comments).joinedload(DBmodels.Comment.author),
             selectinload(DBmodels.Post.likes)
         ).order_by(DBmodels.Post.created_at.desc()).all()
-        
+
         result = []
         for post in posts:
+            # Sanitize content before returning
+            safe_title = bleach.clean(post.title, tags=[], attributes={}, strip=True)
+            safe_body = bleach.clean(post.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
+
             comment_list = []
             for comment in post.comments:
+                # Sanitize comment body
+                safe_comment_body = bleach.clean(comment.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
                 comment_list.append({
                     "id": str(comment.id),
-                    "body": comment.body,
+                    "body": safe_comment_body,
                     "author": {
                         "id": str(comment.author.id) if comment.author else None,
                         "email": comment.author.email if comment.author else None,
@@ -95,13 +102,13 @@ def get_posts(db: Session = Depends(get_db)):
                     } if comment.author else None,
                     "created_at": comment.created_at.isoformat() if comment.created_at else None
                 })
-            
+
             like_list = [{"id": str(l.id), "user_id": str(l.user_id)} for l in post.likes]
-            
+
             result.append({
                 "id": str(post.id),
-                "title": post.title,
-                "body": post.body,
+                "title": safe_title,
+                "body": safe_body,
                 "author": {
                     "id": str(post.author.id) if post.author else None,
                     "email": post.author.email if post.author else None,
@@ -124,9 +131,13 @@ def create_post(
 ):
     logger.info("Create post request")
     try:
+        # Sanitize inputs before storing
+        safe_title = bleach.clean(request.title, tags=[], attributes={}, strip=True)
+        safe_body = bleach.clean(request.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
+
         new_post = DBmodels.Post(
-            title=request.title,
-            body=request.body,
+            title=safe_title,
+            body=safe_body,
             author_id=current_user.id
         )
         db.add(new_post)
@@ -147,9 +158,12 @@ def create_comment(
 ):
     logger.info("Create comment request")
     try:
+        # Sanitize comment body
+        safe_body = bleach.clean(request.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
+
         new_comment = DBmodels.Comment(
             post_id=request.post_id,
-            body=request.body,
+            body=safe_body,
             author_id=current_user.id
         )
         db.add(new_comment)
@@ -205,7 +219,7 @@ def delete_post(
             raise HTTPException(status_code=404, detail="Post not found")
         if post.author_id != current_user.id and current_user.role not in ("admin", "root"):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete post")
-        
+
         # Cascades in DBmodels.py handle comments and likes deletion
         db.delete(post)
         db.commit()
@@ -245,7 +259,7 @@ def subscribe(email: EmailStr, db: Session = Depends(get_db)):
     logger.info(f"Subscription request for email: {email}")
     try:
         existing_subscriber = db.query(DBmodels.Subscriber).filter(DBmodels.Subscriber.email == email).first()
-        
+
         if existing_subscriber:
             if existing_subscriber.is_active:
                 return {"message": "Email is already subscribed", "subscribed": True}
@@ -253,7 +267,7 @@ def subscribe(email: EmailStr, db: Session = Depends(get_db)):
                 existing_subscriber.is_active = True
                 db.commit()
                 return {"message": "Subscription reactivated successfully", "subscribed": True}
-        
+
         new_subscriber = DBmodels.Subscriber(email=email, is_active=True)
         db.add(new_subscriber)
         db.commit()
