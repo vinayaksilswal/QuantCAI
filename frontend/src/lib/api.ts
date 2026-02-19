@@ -18,11 +18,7 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
   return res.json();
 }
 
-export interface User {
-  id: number; email: string; name: string; role: string; is_active: boolean; is_blocked: boolean;
-  email_verified: boolean; created_at: string; updated_at: string; token_version: number;
-  failed_login_attempts?: number; locked_until?: string | null; verification_sent_at?: string | null;
-}
+export interface User { id: number; email: string; name: string; role: string; is_active: boolean; is_blocked: boolean; email_verified: boolean; created_at: string; updated_at: string; token_version: number; failed_login_attempts?: number; locked_until?: string | null; verification_sent_at?: string | null; }
 export interface Post { id: number; title: string; body: string; author: any; comments: any[]; likes: any[]; created_at: string; }
 export interface Comment { id: number; body: string; author: any; created_at: string; }
 export interface TokenResponse { access_token: string; refresh_token?: string; token_type: string; }
@@ -52,16 +48,11 @@ export const communityApi = {
 };
 
 export const circuitApi = {
-  runCircuit: (circuit: Circuit, numWires: number, useNoise?: boolean) =>
-    fetchApi<CircuitSimulationResult>('/api/circuit/run', { method: 'POST', body: JSON.stringify({ circuit, num_wires: numWires, use_noise: useNoise }) },
+  runCircuit: (circuit: Circuit, numWires: number, useNoise?: boolean) => fetchApi<CircuitSimulationResult>('/api/circuit/run', { method: 'POST', body: JSON.stringify({ circuit, num_wires: numWires, use_noise: useNoise }) },
 };
 
 export const adminApi = {
-  getUsers: (params?: any) => {
-    const url = new URL('/admin/users', API_BASE);
-    if (params) Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null) url.searchParams.set(k, String(v)); });
-    return fetchApi<any>(url.toString());
-  },
+  getUsers: (params?: any) => { const url = new URL('/admin/users', API_BASE); if (params) Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null) url.searchParams.set(k, String(v)); }); return fetchApi<any>(url.toString()); },
   getUser: (userId: number) => fetchApi<User>(`/admin/users/${userId}`),
   blockUser: (userId: number) => fetchApi(`/admin/users/${userId}/block`, { method: 'POST' }),
   unblockUser: (userId: number) => fetchApi(`/admin/users/${userId}/unblock`, { method: 'POST' }),
