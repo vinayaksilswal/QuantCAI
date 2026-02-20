@@ -158,13 +158,17 @@ const CircuitBuilder = () => {
                 };
             });
 
-            if (!localStorage.getItem('auth_token')) {
+            if (!user) {
                 toast.error("Please log in to run simulations.");
                 setIsSimulating(false);
                 return;
             }
 
-            const data = await api.runCircuit(backendCircuit, numWires, useNoise);
+            const data = await api.runCircuit({
+                name: circuitName,
+                num_wires: numWires,
+                gates: backendCircuit
+            }, numWires, useNoise);
             setResults(data);
             toast.success("Simulation complete!", { icon: <Zap className="w-4 h-4 text-yellow-400" /> });
         } catch (error: any) {

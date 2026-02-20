@@ -4,13 +4,51 @@
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://quantcai.onrender.com';
 
+let authToken: string | null = null;
+
+export const setToken = (token: string | null) => {
+  authToken = token;
+};
+
+export const getAuthToken = () => authToken;
+
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-  const config: RequestInit = {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
   };
+
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const config: RequestInit = {
+    ...options,
+    headers,
+    credentials: 'include', // Important for sending/receiving HTTP-Only cookies
+  };
+
   const res = await fetch(url, config);
+
+  if (res.status === 401 && endpoint !== '/api/auth/refresh' && endpoint !== '/api/auth/login') {
+    // Attempt to refresh token
+    try {
+      const refreshRes = await authApi.refresh();
+      if (refreshRes.access_token) {
+        setToken(refreshRes.access_token);
+        // Retry original request with new token
+        const retryHeaders = { ...headers, 'Authorization': `Bearer ${refreshRes.access_token}` };
+        const retryRes = await fetch(url, { ...config, headers: retryHeaders });
+        if (retryRes.ok) return retryRes.json();
+      }
+    } catch (refreshErr) {
+      console.error('Session expired, please login again.');
+      setToken(null);
+    }
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
     throw new Error(err.detail || `HTTP ${res.status}`);
@@ -68,5 +106,5 @@ export const healthApi = {
   detailed: () => fetchApi('/health/detailed'),
 };
 
-export const api = { ...authApi, ...communityApi, ...circuitApi, ...adminApi, ...healthApi };
+export const api = { ...authApi, ...communityApi, ...circuitApi, ...adminApi, ...healthApi, setToken, getAuthToken };
 export default api;

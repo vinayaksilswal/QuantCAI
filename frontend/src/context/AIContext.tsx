@@ -1,37 +1,16 @@
-import { createContext, useState, ReactNode } from "react";
-
-
-type Message = {
-    role: "user" | "assistant";
-    content: string;
-};
-
-type AIContextType = {
-    isOpen: boolean;
-    toggleChat: () => void;
-    messages: Message[];
-    sendMessage: (message: string) => Promise<void>;
-    isLoading: boolean;
-    activeTool: "quantum-states" | "circuit-builder" | null;
-    closeTool: () => void;
-    circuitActions: { id: string; action: string; params: any }[];
-    ackCircuitAction: (id: string) => void;
-    visualizerActions: { id: string; gate: string }[];
-    ackVisualizerAction: (id: string) => void;
-};
-
-export const AIContext = createContext<AIContextType | undefined>(undefined);
+import { useState, ReactNode } from "react";
+import { api } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+import { AIContext, Message } from './AIContextInstance';
 
 export const AIProvider = ({ children }: { children: ReactNode }) => {
+    const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [activeTool, setActiveTool] = useState<"quantum-states" | "circuit-builder" | null>(null);
     const [circuitActions, setCircuitActions] = useState<{ id: string; action: string; params: any }[]>([]);
     const [visualizerActions, setVisualizerActions] = useState<{ id: string; gate: string }[]>([]);
-
-
-    // const { token } = useAuth(); 
 
     const toggleChat = () => setIsOpen(!isOpen);
 
@@ -46,14 +25,12 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const sendMessage = async (content: string) => {
-        const token = localStorage.getItem("auth_token");
-
         // Optimistic update
         const userMsg: Message = { role: "user", content };
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
 
-        if (!token) {
+        if (!user) {
             setMessages(prev => [...prev, {
                 role: "assistant",
                 content: "Please login first to use the QuantAI Assistant. You can find the login button in the top right corner."
@@ -64,6 +41,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
 
         try {
             const historyPayload = messages.map(m => ({ role: m.role, content: m.content }));
+            const token = api.getAuthToken();
 
             const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/chat`, {
                 method: "POST",
@@ -100,7 +78,6 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                 if (value) {
                     const chunkValue = decoder.decode(value);
 
-                    // Parse potential multiple data packets in one chunk
                     const lines = chunkValue.split("\n");
                     for (const line of lines) {
                         if (line.startsWith("data: ")) {

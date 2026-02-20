@@ -168,7 +168,7 @@ async def register(request: Request, reg_data: RegisterRequest, response: Respon
             value=refresh,
             httponly=True,
             secure=True,
-            samesite="strict",  # Changed from Lax to Strict
+            samesite="lax",  # Changed from strict to lax
             max_age=auth_settings.refresh_token_minutes * 60
         )
 
@@ -215,7 +215,7 @@ async def refresh_tokens(request: Request, response: Response, db: Session = Dep
             value=new_refresh,
             httponly=True,
             secure=True,
-            samesite="strict",
+            samesite="lax",
             max_age=auth_settings.refresh_token_minutes * 60
         )
 

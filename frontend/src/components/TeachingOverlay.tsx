@@ -9,6 +9,8 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 const API_BASE = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
 
+import { api } from "@/lib/api";
+
 // Reusing QubitState interface
 export interface QubitState {
     alpha: number;
@@ -18,9 +20,6 @@ export interface QubitState {
 
 export const TeachingOverlay = () => {
     const { activeTool, closeTool } = useAI();
-
-    // Retrieve token from local storage directly as AuthContext doesn't expose it
-    const token = localStorage.getItem("access_token");
 
     // Local state for Quantum State Tool
     const [qubitState, setQubitState] = useState<QubitState>({
@@ -37,6 +36,7 @@ export const TeachingOverlay = () => {
     }, [activeTool]);
 
     const handleApplyGate = async (gateName: string) => {
+        const token = api.getAuthToken();
         if (!token) {
             toast.error("Please login to use tools");
             return;

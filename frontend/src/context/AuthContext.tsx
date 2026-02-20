@@ -1,34 +1,6 @@
-import { createContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { useEffect, useMemo, useState, ReactNode } from 'react';
 import { api, User as ApiUser } from '@/lib/api';
-
-type Role = 'root' | 'developer' | 'user' | null;
-
-// Convert backend User to frontend User type
-interface FrontendUser {
-  id: string;
-  email: string;
-  name?: string;
-}
-
-type AuthContextType = {
-  user: FrontendUser | null;
-  session: ApiUser | null;
-  role: Role;
-  loading: boolean;
-  signOut: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-};
-
-export const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  role: null,
-  loading: true,
-  signOut: async () => { },
-  login: async () => { },
-  register: async () => { },
-});
+import { AuthContext, Role, FrontendUser } from './AuthContextInstance';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<ApiUser | null>(null);
@@ -38,7 +10,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const init = async () => {
-      // Check localStorage for existing session
+      // 1. Try to initialize from refresh token (auto-login)
+      try {
+        const tokenData = await api.refresh();
+        if (tokenData.access_token) {
+          api.setToken(tokenData.access_token);
+          const currentUser = await api.getMe();
+          if (currentUser) {
+            setSession(currentUser);
+            setUser({
+              id: currentUser.id?.toString() ?? '',
+              email: currentUser.email,
+              name: currentUser.name,
+            });
+            setRole((currentUser.role as Role) ?? 'user');
+            localStorage.setItem('auth_user', JSON.stringify(currentUser));
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (error) {
+        console.log('Refresh token failed or expired');
+      }
+
+      // 2. Fallback to localStorage if offline or refresh failed (for UI state)
       const storedUser = localStorage.getItem('auth_user');
       if (storedUser) {
         try {
@@ -56,23 +51,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Try to get current user from API
-      try {
-        const currentUser = await api.getMe();
-        if (currentUser) {
-          setSession(currentUser);
-          setUser({
-            id: currentUser.id?.toString() ?? '',
-            email: currentUser.email,
-            name: currentUser.name,
-          });
-          setRole((currentUser.role as Role) ?? 'user');
-        }
-      } catch (error) {
-        // API might not be fully implemented yet
-        console.log('getMe endpoint not available yet');
-      }
-
       setLoading(false);
     };
     init();
@@ -80,14 +58,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const userData = await api.login(email, password);
-      setSession(userData);
-      setUser({
-        id: userData.id?.toString() ?? '',
-        email: userData.email,
-        name: userData.name,
-      });
-      setRole((userData.role as Role) ?? 'user');
+      const tokenData = await api.login(email, password);
+      if (tokenData.access_token) {
+        api.setToken(tokenData.access_token);
+        const userData = await api.getMe();
+        setSession(userData);
+        setUser({
+          id: userData.id?.toString() ?? '',
+          email: userData.email,
+          name: userData.name,
+        });
+        setRole((userData.role as Role) ?? 'user');
+        localStorage.setItem('auth_user', JSON.stringify(userData));
+      }
     } catch (error) {
       throw error;
     }
@@ -95,14 +78,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const register = async (email: string, password: string, name: string) => {
     try {
-      const userData = await api.register(email, password, name);
-      setSession(userData);
-      setUser({
-        id: userData.id?.toString() ?? '',
-        email: userData.email,
-        name: userData.name,
-      });
-      setRole((userData.role as Role) ?? 'user');
+      const tokenData = await api.register(email, password, name);
+      if (tokenData.access_token) {
+        api.setToken(tokenData.access_token);
+        const userData = await api.getMe();
+        setSession(userData);
+        setUser({
+          id: userData.id?.toString() ?? '',
+          email: userData.email,
+          name: userData.name,
+        });
+        setRole((userData.role as Role) ?? 'user');
+        localStorage.setItem('auth_user', JSON.stringify(userData));
+      }
     } catch (error) {
       throw error;
     }
@@ -117,6 +105,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setSession(null);
       setRole(null);
+      api.setToken(null);
+      localStorage.removeItem('auth_user');
     }
   };
 
