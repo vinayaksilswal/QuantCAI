@@ -46,13 +46,21 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const sendMessage = async (content: string) => {
-        // ... (existing code omitted for clarity, but I will replace the whole block if needed or used targeted chunks)
-        // Actually, let's use multi_replace for this file if it's cleaner.
-        // For now, I'll continue with replace_file_content for this block.
+        const token = localStorage.getItem("auth_token");
+
         // Optimistic update
         const userMsg: Message = { role: "user", content };
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
+
+        if (!token) {
+            setMessages(prev => [...prev, {
+                role: "assistant",
+                content: "Please login first to use the QuantAI Assistant. You can find the login button in the top right corner."
+            }]);
+            setIsLoading(false);
+            return;
+        }
 
         try {
             const historyPayload = messages.map(m => ({ role: m.role, content: m.content }));
@@ -61,10 +69,18 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+                    "Authorization": `Bearer ${token}`
                 },
                 body: JSON.stringify({ message: content, history: historyPayload }),
             });
+
+            if (response.status === 401) {
+                setMessages(prev => [...prev, {
+                    role: "assistant",
+                    content: "Your session has expired. Please log in again."
+                }]);
+                return;
+            }
 
             if (!response.ok) throw new Error("Failed to send message");
 
@@ -81,30 +97,32 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
             while (!done) {
                 const { value, done: doneReading } = await reader.read();
                 done = doneReading;
-                const chunkValue = decoder.decode(value);
+                if (value) {
+                    const chunkValue = decoder.decode(value);
 
-                // Parse potential multiple data packets in one chunk
-                const lines = chunkValue.split("\n");
-                for (const line of lines) {
-                    if (line.startsWith("data: ")) {
-                        try {
-                            const data = JSON.parse(line.substring(6));
-                            if (data.type === "text") {
-                                currentAiMessage += data.content;
-                                setMessages(prev => {
-                                    const next = [...prev];
-                                    const last = next[next.length - 1];
-                                    if (last && last.role === "assistant") {
-                                        last.content = currentAiMessage;
-                                    }
-                                    return next;
-                                });
-                            } else if (data.type === "tool_call") {
-                                const { name, args } = data;
-                                handleToolCall(name, args);
+                    // Parse potential multiple data packets in one chunk
+                    const lines = chunkValue.split("\n");
+                    for (const line of lines) {
+                        if (line.startsWith("data: ")) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                if (data.type === "text") {
+                                    currentAiMessage += data.content;
+                                    setMessages(prev => {
+                                        const next = [...prev];
+                                        const last = next[next.length - 1];
+                                        if (last && last.role === "assistant") {
+                                            last.content = currentAiMessage;
+                                        }
+                                        return next;
+                                    });
+                                } else if (data.type === "tool_call") {
+                                    const { name, args } = data;
+                                    handleToolCall(name, args);
+                                }
+                            } catch (e) {
+                                console.error("Failed to parse stream packet", e, line);
                             }
-                        } catch (e) {
-                            console.error("Failed to parse stream packet", e, line);
                         }
                     }
                 }
@@ -112,7 +130,10 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
 
         } catch (error) {
             console.error(error);
-            setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I encountered an error. Please try again." }]);
+            setMessages(prev => [...prev, {
+                role: "assistant",
+                content: "I'm having trouble reaching the quantum backend. Please ensure the server is running or try again in 1 or 2 minutes."
+            }]);
         } finally {
             setIsLoading(false);
         }

@@ -48,7 +48,7 @@ export const communityApi = {
 };
 
 export const circuitApi = {
-  runCircuit: (circuit: Circuit, numWires: number, useNoise?: boolean) => fetchApi<CircuitSimulationResult>('/api/circuit/run', { method: 'POST', body: JSON.stringify({ circuit, num_wires: numWires, use_noise: useNoise }) },
+  runCircuit: (circuit: Circuit, numWires: number, useNoise?: boolean) => fetchApi<CircuitSimulationResult>('/api/circuit/run', { method: 'POST', body: JSON.stringify({ circuit, num_wires: numWires, use_noise: useNoise }) }),
 };
 
 export const adminApi = {

@@ -44,7 +44,8 @@ def manage_circuit(action: Literal["add_gate", "clear", "run"], params: dict = {
     
     Args:
         action: The action to perform.
-            - "add_gate": Add a gate. Params: {"gate": "H", "qubit": 0}
+            - "add_gate": Add a gate. Params: {"gate": "H", "qubit": 0}. 
+              For multi-qubit gates like CNOT, use {"gate": "CX", "control": 0, "target": 1}.
             - "clear": Clear the circuit.
             - "run": Run the circuit.
         params: Dictionary of parameters for the action.

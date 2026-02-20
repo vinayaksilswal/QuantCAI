@@ -100,12 +100,14 @@ def migrate_database():
             else:
                 logger.info("✓ circuits table already exists")
 
-            # Email verification: add columns to users
-            # email_verified: BOOLEAN DEFAULT FALSE NOT NULL
-            # verification_sent_at: TIMESTAMP NULL (when we sent the email)
+            # Account security: add columns to users
+            # failed_login_attempts: INTEGER DEFAULT 0 NOT NULL
+            # locked_until: TIMESTAMP NULL
             col_defs = {
                 "email_verified": "BOOLEAN DEFAULT FALSE NOT NULL",
-                "verification_sent_at": "TIMESTAMP NULL"
+                "verification_sent_at": "TIMESTAMP NULL",
+                "failed_login_attempts": "INTEGER DEFAULT 0 NOT NULL",
+                "locked_until": "TIMESTAMP NULL"
             }
             for col, col_type in col_defs.items():
                 result = connection.execute(text(f"""
@@ -128,6 +130,16 @@ def migrate_database():
             logger.info("Ensuring email_verification_tokens table exists...")
             DBmodels.Base.metadata.create_all(bind=db.engine, tables=[DBmodels.EmailVerificationToken.__table__])
             logger.info("✓ email_verification_tokens table is present")
+
+            # Ensure notification_requests table exists
+            logger.info("Ensuring notification_requests table exists...")
+            DBmodels.Base.metadata.create_all(bind=db.engine, tables=[DBmodels.NotificationRequest.__table__])
+            logger.info("✓ notification_requests table is present")
+
+            # Ensure subscribers table exists
+            logger.info("Ensuring subscribers table exists...")
+            DBmodels.Base.metadata.create_all(bind=db.engine, tables=[DBmodels.Subscriber.__table__])
+            logger.info("✓ subscribers table is present")
 
         # ======================
         # Performance Indexes

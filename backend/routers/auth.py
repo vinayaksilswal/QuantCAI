@@ -24,7 +24,6 @@ from auth_utils import (
     reset_failed_attempts,
     is_account_locked,
     lock_account,
-    is_email_verification_required,
 )
 
 limiter = Limiter(key_func=get_remote_address)
@@ -103,13 +102,6 @@ async def login(request: Request, login_data: LoginRequest, response: Response, 
 
         if user.is_blocked or not user.is_active:
             raise HTTPException(status_code=401, detail="Account is disabled")
-
-        # Check email verification requirement
-        if is_email_verification_required(user, auth_settings):
-            raise HTTPException(
-                status_code=403,
-                detail="Email verification required. Please check your inbox for the verification link or request a new one."
-            )
 
         access, refresh = issue_tokens(db, user)
 

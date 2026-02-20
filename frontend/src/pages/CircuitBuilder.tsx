@@ -49,24 +49,46 @@ const CircuitBuilder = () => {
 
         if (action === "add_gate") {
             const gateName = (params.gate || "H").toLowerCase();
-            const wire = params.qubit || 0;
+            const controlWire = params.control !== undefined ? params.control : (params.qubit || 0);
+            const targetWire = params.target !== undefined ? params.target : undefined;
 
-            const gateDef = gates.find(g => g.id === gateName || g.name.toLowerCase() === gateName);
-
-            const existingInWire = placedGates.filter(g => g.wire === wire);
-            const step = existingInWire.length > 0
-                ? Math.max(...existingInWire.map(g => g.step)) + 1
-                : 0;
+            const gateDef = gates.find(g =>
+                g.id === gateName ||
+                g.name.toLowerCase() === gateName ||
+                (gateName === 'cx' && g.id === 'cnot') ||
+                (gateName === 'cnot' && g.id === 'cnot')
+            );
 
             if (gateDef) {
+                // Determine all wires involved
+                const involvedWires = [controlWire];
+                if (targetWire !== undefined) involvedWires.push(targetWire);
+                else if (gateDef.qubits > 1) {
+                    // Fallback for multi-qubit gates if target not specified
+                    const fallbackTarget = controlWire < 4 ? controlWire + 1 : controlWire - 1;
+                    involvedWires.push(fallbackTarget);
+                }
+
+                // Find the next available step across ALL involved wires
+                const existingInInvolved = placedGates.filter(g =>
+                    involvedWires.includes(g.wire) ||
+                    (g.targetWire !== undefined && involvedWires.includes(g.targetWire))
+                );
+
+                const step = existingInInvolved.length > 0
+                    ? Math.max(...existingInInvolved.map(g => g.step)) + 1
+                    : 0;
+
                 const newGate: PlacedGate = {
                     ...gateDef,
                     uid: `gate-${Date.now()}-${Math.random()}`,
-                    wire: wire,
-                    step: step
+                    wire: controlWire,
+                    step: step,
+                    targetWire: targetWire !== undefined ? targetWire : (gateDef.qubits > 1 ? involvedWires[1] : undefined)
                 };
+
                 setPlacedGates(prev => [...prev, newGate]);
-                toast.info(`AI added ${gateDef.name} gate on qubit ${wire}`);
+                toast.info(`AI added ${gateDef.name} gate on ${involvedWires.length > 1 ? `wires ${involvedWires.join(' & ')}` : `wire ${controlWire}`}`);
             } else {
                 toast.error(`Unknown gate: ${gateName}`);
             }
