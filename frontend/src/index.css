@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -32,7 +31,7 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
-    
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -83,6 +82,7 @@
       opacity: 0;
       transform: translateY(20px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
@@ -90,11 +90,14 @@
   }
 
   @keyframes quantumPulse {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: scale(1);
       opacity: 0.8;
       box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
     }
+
     50% {
       transform: scale(1.1);
       opacity: 1;
@@ -103,30 +106,39 @@
   }
 
   @keyframes quantumFloat {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: translateY(0px) rotate(0deg);
     }
+
     33% {
       transform: translateY(-10px) rotate(120deg);
     }
+
     66% {
       transform: translateY(5px) rotate(240deg);
     }
   }
 
   @keyframes entanglement {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: scale(1) rotate(0deg);
       filter: hue-rotate(0deg);
     }
+
     25% {
       transform: scale(1.05) rotate(90deg);
       filter: hue-rotate(90deg);
     }
+
     50% {
       transform: scale(0.95) rotate(180deg);
       filter: hue-rotate(180deg);
     }
+
     75% {
       transform: scale(1.05) rotate(270deg);
       filter: hue-rotate(270deg);
@@ -150,6 +162,7 @@
     from {
       filter: blur(0px) brightness(1);
     }
+
     to {
       filter: blur(1px) brightness(1.2);
     }

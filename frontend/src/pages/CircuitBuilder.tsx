@@ -164,16 +164,19 @@ const CircuitBuilder = () => {
                 return;
             }
 
-            const data = await api.runCircuit({
-                name: circuitName,
-                num_wires: numWires,
-                gates: backendCircuit
-            }, numWires, useNoise);
+            if (backendCircuit.length === 0) {
+                toast.error("Circuit is empty. Add some gates first!");
+                setIsSimulating(false);
+                return;
+            }
+
+            const data = await api.runCircuit(backendCircuit, numWires, useNoise);
             setResults(data);
             toast.success("Simulation complete!", { icon: <Zap className="w-4 h-4 text-yellow-400" /> });
         } catch (error: any) {
-            console.error(error);
-            toast.error(error.message || "Failed to run circuit");
+            console.error("Simulation failed:", error);
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error(msg || "Failed to run circuit");
         } finally {
             setIsSimulating(false);
         }

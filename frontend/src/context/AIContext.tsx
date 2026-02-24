@@ -1,5 +1,5 @@
 import { useState, ReactNode } from "react";
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { AIContext, Message } from './AIContextInstance';
 
@@ -43,7 +43,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
             const historyPayload = messages.map(m => ({ role: m.role, content: m.content }));
             const token = api.getAuthToken();
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/chat`, {
+            const response = await fetch(`${API_BASE}/api/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -57,10 +57,14 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                     role: "assistant",
                     content: "Your session has expired. Please log in again."
                 }]);
+                setIsLoading(false);
                 return;
             }
 
-            if (!response.ok) throw new Error("Failed to send message");
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || "Failed to send message");
+            }
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
@@ -68,6 +72,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
 
             let done = false;
             let currentAiMessage = "";
+            let buffer = "";
 
             // Add initial empty AI message
             setMessages(prev => [...prev, { role: "assistant", content: "" }]);
@@ -76,40 +81,44 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                 const { value, done: doneReading } = await reader.read();
                 done = doneReading;
                 if (value) {
-                    const chunkValue = decoder.decode(value);
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || ""; // Keep the last partial line in buffer
 
-                    const lines = chunkValue.split("\n");
                     for (const line of lines) {
-                        if (line.startsWith("data: ")) {
-                            try {
-                                const data = JSON.parse(line.substring(6));
-                                if (data.type === "text") {
-                                    currentAiMessage += data.content;
-                                    setMessages(prev => {
-                                        const next = [...prev];
-                                        const last = next[next.length - 1];
-                                        if (last && last.role === "assistant") {
-                                            last.content = currentAiMessage;
-                                        }
-                                        return next;
-                                    });
-                                } else if (data.type === "tool_call") {
-                                    const { name, args } = data;
-                                    handleToolCall(name, args);
-                                }
-                            } catch (e) {
-                                console.error("Failed to parse stream packet", e, line);
+                        const trimmedLine = line.trim();
+                        if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
+
+                        try {
+                            const data = JSON.parse(trimmedLine.substring(6));
+                            if (data.type === "text") {
+                                currentAiMessage += data.content;
+                                setMessages(prev => {
+                                    const next = [...prev];
+                                    const last = next[next.length - 1];
+                                    if (last && last.role === "assistant") {
+                                        last.content = currentAiMessage;
+                                    }
+                                    return next;
+                                });
+                            } else if (data.type === "tool_call") {
+                                const { name, args } = data;
+                                handleToolCall(name, args);
                             }
+                        } catch (e) {
+                            console.error("Failed to parse stream packet", e, trimmedLine);
                         }
                     }
                 }
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
             setMessages(prev => [...prev, {
                 role: "assistant",
-                content: "I'm having trouble reaching the quantum backend. Please ensure the server is running or try again in 1 or 2 minutes."
+                content: error.message === "Failed to fetch"
+                    ? "I'm having trouble reaching the quantum backend. Please ensure the server is running."
+                    : `Error: ${error.message}`
             }]);
         } finally {
             setIsLoading(false);

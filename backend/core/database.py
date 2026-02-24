@@ -23,13 +23,21 @@ DATABASE_URL = _get_database_url()
 # Create engine with connection pooling
 # In production, we typically don't use NullPool unless usage is very intermittent (like Lambda).
 # For a persistent server, default pooling is better.
+
+engine_kwargs = {
+    "echo": False,
+    # pool_pre_ping=True helps verify connections before usage, good for production stability
+    "pool_pre_ping": True,
+}
+
+# SQLite memory db does not support pool_size and max_overflow
+if "sqlite" not in DATABASE_URL:
+    engine_kwargs["pool_size"] = 10
+    engine_kwargs["max_overflow"] = 20
+
 engine = create_engine(
     DATABASE_URL,
-    echo=False,
-    # pool_pre_ping=True helps verify connections before usage, good for production stability
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    **engine_kwargs
 )
 
 # Create session factory

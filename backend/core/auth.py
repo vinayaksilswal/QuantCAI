@@ -11,8 +11,8 @@ import bcrypt
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-import DBmodels
-import database as db
+import models as DBmodels
+from core import database as db
 
 
 # Remove CryptContext and usage of passlib
@@ -33,16 +33,6 @@ class AuthSettings(BaseModel):
     # Lockout policy
     max_failed_attempts: int = Field(default_factory=lambda: int(os.getenv("MAX_FAILED_ATTEMPTS", "5")))
     lockout_duration_minutes: int = Field(default_factory=lambda: int(os.getenv("LOCKOUT_DURATION_MINUTES", "15")))
-
-    # Email verification
-    verification_required: bool = Field(default_factory=lambda: os.getenv("VERIFICATION_REQUIRED", "true").lower() == "true")
-    verification_grace_period_hours: int = Field(default_factory=lambda: int(os.getenv("VERIFICATION_GRACE_PERIOD_HOURS", "168")))  # 7 days
-    email_from: str = Field(default_factory=lambda: os.getenv("EMAIL_FROM", "QuantCAI <noreply@quantcai.in>"))
-    smtp_host: Optional[str] = Field(default_factory=lambda: os.getenv("SMTP_HOST"))
-    smtp_port: int = Field(default_factory=lambda: int(os.getenv("SMTP_PORT", "587")))
-    smtp_username: Optional[str] = Field(default_factory=lambda: os.getenv("SMTP_USERNAME"))
-    smtp_password: Optional[str] = Field(default_factory=lambda: os.getenv("SMTP_PASSWORD"))
-    smtp_use_tls: bool = Field(default_factory=lambda: os.getenv("SMTP_USE_TLS", "true").lower() == "true")
 
 
 settings = AuthSettings()
@@ -210,18 +200,8 @@ def lock_account(user: DBmodels.User, db: Session, duration_minutes: Optional[in
     db.refresh(user)
 
 
-def is_email_verification_required(user: DBmodels.User, settings: AuthSettings = settings) -> bool:
-    """Check if user needs to verify their email before login."""
-    if not settings.verification_required:
-        return False
-    if user.email_verified:
-        return False
-    # Grace period: if account created less than X hours ago, allow login without verification
-    if user.created_at:
-        grace_period = timedelta(hours=settings.verification_grace_period_hours)
-        if datetime.utcnow() - user.created_at < grace_period:
-            return False
-    return True
+
+
 
 
 def issue_tokens(db: Session, user: DBmodels.User) -> Tuple[str, str]:

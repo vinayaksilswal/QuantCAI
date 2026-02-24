@@ -8,9 +8,9 @@ from typing import Optional
 import os
 import logging
 import re
-import database as db
-import DBmodels
-from auth_utils import (
+from core import database as db
+import models as DBmodels
+from core.auth import (
     AuthSettings,
     verify_password,
     hash_password,
@@ -30,6 +30,8 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
 auth_settings = AuthSettings()
+ENV = os.getenv("ENV", "production").lower()
+is_production = ENV == "production"
 
 def get_db():
     ses = db.SessionLocal()
@@ -109,8 +111,8 @@ async def login(request: Request, login_data: LoginRequest, response: Response, 
             key="refresh_token",
             value=refresh,
             httponly=True,
-            secure=True,
-            samesite="strict",  # Changed from Lax to Strict for CSRF protection
+            secure=is_production,  # Dynamic based on env
+            samesite="lax" if not is_production else "strict",
             max_age=auth_settings.refresh_token_minutes * 60
         )
 
@@ -167,8 +169,8 @@ async def register(request: Request, reg_data: RegisterRequest, response: Respon
             key="refresh_token",
             value=refresh,
             httponly=True,
-            secure=True,
-            samesite="lax",  # Changed from strict to lax
+            secure=is_production,
+            samesite="lax",
             max_age=auth_settings.refresh_token_minutes * 60
         )
 
@@ -184,7 +186,13 @@ async def register(request: Request, reg_data: RegisterRequest, response: Respon
 def logout(response: Response, current_user: DBmodels.User = Depends(get_current_user), db: Session = Depends(get_db)):
     logger.info(f"Logout request for user {current_user.email}")
     try:
-        revoke_tokens_for_user(current_user, db)
+        # Re-fetch user in the local db session to avoid cross-session errors
+        local_user = db.query(DBmodels.User).filter(DBmodels.User.id == current_user.id).first()
+        if not local_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        revoke_tokens_for_user(local_user, db)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Logout error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Logout failed")
@@ -214,7 +222,7 @@ async def refresh_tokens(request: Request, response: Response, db: Session = Dep
             key="refresh_token",
             value=new_refresh,
             httponly=True,
-            secure=True,
+            secure=is_production,
             samesite="lax",
             max_age=auth_settings.refresh_token_minutes * 60
         )

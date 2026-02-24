@@ -23,9 +23,7 @@ class User(Base):
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True)
 
-    # Email verification
-    email_verified = Column(Boolean, default=False, nullable=False)
-    verification_sent_at = Column(DateTime, nullable=True)
+
 
     # Relationships
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
@@ -135,7 +133,38 @@ class Circuit(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+class LearnBlock(Base):
+    __tablename__ = "learn_blocks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    body_md = Column(Text, nullable=False)
+    image_url = Column(String, nullable=True)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    author = relationship("User")
+
+class PageProgress(Base):
+    __tablename__ = "page_progress"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    page_key = Column(String, nullable=False, index=True)
+    read_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("User")
+
+    # Ensure one entry per user per page (or just keep latest)
+    __table_args__ = (
+        UniqueConstraint('user_id', 'page_key', name='uq_user_page_progress'),
+    )
+
 class RefreshToken(Base):
+
     __tablename__ = "refresh_tokens"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -144,20 +173,5 @@ class RefreshToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     revoked = Column(Boolean, default=False, nullable=False)
-
-
-class EmailVerificationToken(Base):
-    __tablename__ = "email_verification_tokens"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    token = Column(String, unique=True, nullable=False, index=True)
-    expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    __table_args__ = (
-        # Ensure user_id == user.id exists (handled by app logic, not DB constraint)
-        # ForeignKey constraint would be good but requires careful migration
-    )
 
 

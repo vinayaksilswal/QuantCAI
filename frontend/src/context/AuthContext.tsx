@@ -30,7 +30,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       } catch (error) {
-        console.log('Refresh token failed or expired');
+        console.log('Refresh token failed or expired. Clearing session.');
+        localStorage.removeItem('auth_user');
       }
 
       // 2. Fallback to localStorage if offline or refresh failed (for UI state)
@@ -38,6 +39,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (storedUser) {
         try {
           const userData: ApiUser = JSON.parse(storedUser);
+          // Only trust localStorage if we didn't just fail a refresh (the fail above clears it)
+          // But if we are offline, it might still be here.
           setSession(userData);
           setUser({
             id: userData.id?.toString() ?? '',

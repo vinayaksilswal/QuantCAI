@@ -89,9 +89,9 @@ export const AIAssistant = () => {
                     onClick={toggleChat}
                     size="lg"
                     className={cn(
-                        "rounded-full h-14 w-14 shadow-lg transition-transform duration-300",
-                        isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100",
-                        "bg-primary hover:bg-primary/90 text-primary-foreground"
+                        "rounded-full h-14 w-14 shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-500 hover:scale-110 active:scale-95",
+                        isOpen ? "scale-0 opacity-0 rotate-90" : "scale-100 opacity-100 rotate-0",
+                        "bg-gradient-to-tr from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white border-0"
                     )}
                 >
                     <MessageCircle className="h-6 w-6" />
@@ -102,36 +102,65 @@ export const AIAssistant = () => {
             {/* Chat Interface */}
             <div
                 className={cn(
-                    "fixed bottom-6 right-6 z-50 transition-all duration-300 origin-bottom-right",
+                    "fixed bottom-6 right-6 z-50 transition-all duration-500 origin-bottom-right",
                     isOpen
                         ? "scale-100 opacity-100 translate-y-0"
                         : "scale-90 opacity-0 translate-y-8 pointer-events-none"
                 )}
             >
-                <Card className="w-[380px] h-[600px] shadow-2xl border-primary/20 flex flex-col backdrop-blur-md bg-background/95">
-                    <CardHeader className="flex flex-row items-center justify-between pb-3 border-b">
-                        <div className="flex items-center gap-2">
-                            <Bot className="h-5 w-5 text-primary" />
-                            <CardTitle className="text-lg">QuantAI Assistant</CardTitle>
+                <Card className="w-[380px] h-[600px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-white/10 flex flex-col backdrop-blur-2xl bg-slate-900/80 overflow-hidden rounded-3xl">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-purple-500/10 pointer-events-none" />
+
+                    <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-white/5 relative z-10 bg-white/5">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-500/20 rounded-xl">
+                                <Bot className="h-5 w-5 text-blue-400" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-base font-bold tracking-tight">QuantAI</CardTitle>
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Online</span>
+                                </div>
+                            </div>
                         </div>
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={toggleChat}
-                            className="h-8 w-8 -mr-2"
+                            className="h-8 w-8 -mr-2 text-muted-foreground hover:text-white hover:bg-white/10 rounded-full"
                         >
                             <X className="h-4 w-4" />
                         </Button>
                     </CardHeader>
 
-                    <CardContent className="flex-1 p-0 overflow-hidden relative">
-                        <ScrollArea className="h-full p-4">
-                            <div className="flex flex-col gap-4 pb-4">
+                    <CardContent className="flex-1 p-0 overflow-hidden relative z-10">
+                        <ScrollArea className="h-full px-4 pt-4">
+                            <div className="flex flex-col gap-6 pb-6">
                                 {messages.length === 0 && (
-                                    <div className="text-center text-muted-foreground my-8">
-                                        <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                                        <p>Hi! I'm QuantAI.</p>
-                                        <p className="text-sm">Ask me about quantum concepts or tell me to open a tool!</p>
+                                    <div className="text-center my-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                        <div className="relative inline-block mb-6">
+                                            <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full" />
+                                            <div className="relative h-20 w-20 mx-auto bg-gradient-to-tr from-blue-600 to-purple-600 rounded-3xl flex items-center justify-center shadow-xl rotate-3">
+                                                <Bot className="h-10 w-10 text-white" />
+                                            </div>
+                                        </div>
+                                        <h3 className="text-xl font-bold mb-2">Welcome to QuantCAI</h3>
+                                        <p className="text-sm text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
+                                            I'm your quantum assistant. Ask me to explain concepts, build circuits, or guide you through tutorials.
+                                        </p>
+
+                                        <div className="grid grid-cols-1 gap-2 mt-8 max-w-[280px] mx-auto">
+                                            {["Explain Bell States", "Open Circuit Builder", "How do qubits work?"].map((suggestion) => (
+                                                <button
+                                                    key={suggestion}
+                                                    onClick={() => setInput(suggestion)}
+                                                    className="text-xs text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors text-blue-300 font-medium"
+                                                >
+                                                    {suggestion}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
@@ -139,56 +168,62 @@ export const AIAssistant = () => {
                                     <div
                                         key={i}
                                         className={cn(
-                                            "flex flex-col gap-1",
+                                            "flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300",
                                             msg.role === "user" ? "items-end" : "items-start"
                                         )}
                                     >
                                         <div
                                             className={cn(
-                                                "flex gap-3 max-w-[85%]",
+                                                "flex gap-2.5 max-w-[90%]",
                                                 msg.role === "user" ? "flex-row-reverse" : "flex-row"
                                             )}
                                         >
                                             <div
                                                 className={cn(
-                                                    "h-8 w-8 rounded-full flex items-center justify-center shrink-0",
+                                                    "h-7 w-7 rounded-lg flex items-center justify-center shrink-0 mt-1 shadow-md",
                                                     msg.role === "user"
-                                                        ? "bg-primary text-primary-foreground"
-                                                        : "bg-secondary text-secondary-foreground"
+                                                        ? "bg-blue-600 text-white"
+                                                        : "bg-slate-800 border border-white/10 text-blue-400"
                                                 )}
                                             >
-                                                {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                                                {msg.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
                                             </div>
                                             <div
                                                 className={cn(
-                                                    "p-3 rounded-2xl text-sm prose prose-invert max-w-none",
+                                                    "px-4 py-3 rounded-2xl text-[13.5px] leading-relaxed relative",
                                                     msg.role === "user"
-                                                        ? "bg-primary text-primary-foreground rounded-tr-sm"
-                                                        : "bg-secondary text-secondary-foreground rounded-tl-sm shadow-sm border border-white/5"
+                                                        ? "bg-blue-600 text-white rounded-tr-none shadow-blue-900/20 shadow-lg"
+                                                        : "bg-white/5 text-slate-200 rounded-tl-none border border-white/5 shadow-sm"
                                                 )}
                                             >
                                                 {msg.content ? (
-                                                    <ReactMarkdown
-                                                        remarkPlugins={[remarkMath]}
-                                                        rehypePlugins={[rehypeKatex]}
-                                                        components={{
-                                                            p: ({ children }) => <p className="m-0">{children}</p>,
-                                                            code: ({ children }) => <code className="bg-black/20 rounded px-1">{children}</code>
-                                                        }}
-                                                    >
-                                                        {msg.content}
-                                                    </ReactMarkdown>
+                                                    <div className="prose prose-invert prose-sm max-w-none">
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkMath]}
+                                                            rehypePlugins={[rehypeKatex]}
+                                                            components={{
+                                                                p: ({ children }) => <p className="m-0 last:mb-0 mb-3">{children}</p>,
+                                                                code: ({ children }) => <code className="bg-white/10 rounded-md px-1.5 py-0.5 font-mono text-xs text-blue-300">{children}</code>,
+                                                                strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
+                                                            }}
+                                                        >
+                                                            {msg.content}
+                                                        </ReactMarkdown>
+                                                    </div>
                                                 ) : (
                                                     isLoading && i === messages.length - 1 ? (
-                                                        <div className="flex gap-1 h-5 items-center">
-                                                            <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                                            <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                                            <span className="w-1.5 h-1.5 bg-foreground/50 rounded-full animate-bounce"></span>
+                                                        <div className="flex gap-1.5 h-6 items-center px-1">
+                                                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></span>
                                                         </div>
                                                     ) : null
                                                 )}
                                             </div>
                                         </div>
+                                        <span className="text-[10px] text-muted-foreground/60 font-medium tracking-wide">
+                                            {msg.role === "user" ? "You" : "QuantAI"}
+                                        </span>
                                     </div>
                                 ))}
 
@@ -197,22 +232,34 @@ export const AIAssistant = () => {
                         </ScrollArea>
                     </CardContent>
 
-                    <CardFooter className="p-3 pt-3 border-t bg-muted/20">
+                    <CardFooter className="p-4 border-t border-white/5 bg-white/5 relative z-10 mt-auto">
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault();
                                 handleSend();
                             }}
-                            className="flex w-full gap-2"
+                            className="flex w-full gap-2 items-center"
                         >
-                            <Input
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                placeholder="Type a message..."
-                                className="flex-1 bg-background/50"
-                                onKeyDown={handleKeyDown}
-                            />
-                            <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
+                            <div className="relative flex-1">
+                                <Input
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    placeholder="Ask anything quantum..."
+                                    className="pr-12 bg-white/5 border-white/10 focus-visible:ring-blue-500/50 h-10 rounded-xl placeholder:text-muted-foreground/50 transition-all focus:bg-white/10"
+                                    onKeyDown={handleKeyDown}
+                                />
+                                {input.trim() && (
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                        <span className="text-[10px] text-muted-foreground/30 font-bold border border-white/5 rounded px-1">ENTER</span>
+                                    </div>
+                                )}
+                            </div>
+                            <Button
+                                type="submit"
+                                size="icon"
+                                disabled={isLoading || !input.trim()}
+                                className="h-10 w-10 shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 disabled:opacity-30 transition-all hover:scale-105 active:scale-95"
+                            >
                                 <Send className="h-4 w-4" />
                             </Button>
                         </form>

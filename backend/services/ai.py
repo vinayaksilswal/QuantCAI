@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from typing import Annotated, Literal
 from dotenv import load_dotenv
 from typing_extensions import TypedDict
@@ -10,9 +11,10 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 # Initialize Gemini
-llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=0)
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
@@ -60,8 +62,6 @@ def explain_concept(concept: str) -> str:
     """
     return f"EXPLAIN:{concept}"
 
-
-
 @tool
 def navigate_to_learn(section: str = None) -> str:
     """
@@ -86,15 +86,21 @@ def start_tutorial(tutorial_id: str) -> str:
 
 tools = [open_tool, manage_circuit, explain_concept, navigate_to_learn, start_tutorial, apply_gate_to_visualizer]
 
-llm_with_tools = llm.bind_tools(tools)
+if llm:
+    llm_with_tools = llm.bind_tools(tools)
+else:
+    llm_with_tools = None
 
-def chatbot(state: State):
+async def chatbot(state: State):
+    if not llm_with_tools:
+        return {"messages": [{"role": "ai", "content": "I'm sorry, my AI brain (Google API) is not initialized. Please check the backend configuration."}]}
+    
     try:
-        return {"messages": [llm_with_tools.invoke(state["messages"])]}
+        response = await llm_with_tools.ainvoke(state["messages"])
+        return {"messages": [response]}
     except Exception as e:
         logger.error(f"AI Error: {str(e)}")
-        # Return a helpful error message to the user instead of crashing
-        error_msg = "I'm sorry, I'm having trouble connecting to my AI brain (Google API). Please check the backend configuration."
+        error_msg = "I'm sorry, I'm having trouble connecting to my AI brain. Please try again in a moment."
         if "API_KEY_INVALID" in str(e):
             error_msg = "I'm sorry, the Google API key provided is invalid. Please check the backend configuration."
         
@@ -111,50 +117,50 @@ builder.add_edge("tools", "chatbot_node")
 
 graph = builder.compile()
 
-# Updated for streaming
 async def run_chat_stream(message: str, history: list = []):
+    """
+    Runs the chatbot and yields events in a format suitable for Server-Sent Events.
+    """
     state = {"messages": history + [{"role": "user", "content": message}]}
     
-    # Track what we've already sent to avoid duplicates (astream values sends full state)
     sent_text = ""
     sent_tool_calls_ids = set()
 
-    async for event in graph.astream(state, stream_mode="values"):
-        if not event or "messages" not in event:
-            continue
-            
-        last_message = event["messages"][-1]
-        
-        # Only process if the last message is from the assistant
-        if last_message.type != "ai":
-            continue
+    try:
+        async for event in graph.astream(state, stream_mode="values"):
+            if not event or "messages" not in event:
+                continue
+                
+            last_message = event["messages"][-1]
+            if last_message.type != "ai":
+                continue
 
-        # Text Content
-        if last_message.content:
-            full_content = ""
-            if isinstance(last_message.content, list):
-                full_content = "".join([part["text"] for part in last_message.content if isinstance(part, dict) and "text" in part])
-            else:
-                full_content = str(last_message.content)
+            # Text Content
+            if last_message.content:
+                full_content = ""
+                if isinstance(last_message.content, list):
+                    full_content = "".join([part["text"] for part in last_message.content if isinstance(part, dict) and "text" in part])
+                else:
+                    full_content = str(last_message.content)
+                
+                if len(full_content) > len(sent_text):
+                    new_part = full_content[len(sent_text):]
+                    yield f"data: {json.dumps({'type': 'text', 'content': new_part})}\n\n"
+                    sent_text = full_content
             
-            # Send only the NEW parts of the content
-            if len(full_content) > len(sent_text):
-                new_part = full_content[len(sent_text):]
-                yield f"data: {json.dumps({'type': 'text', 'content': new_part})}\n\n"
-                sent_text = full_content
-        
-        # Tool Calls
-        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-            for tc in last_message.tool_calls:
-                tc_id = tc.get("id")
-                if tc_id and tc_id not in sent_tool_calls_ids:
-                    yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
-                    sent_tool_calls_ids.add(tc_id)
+            # Tool Calls
+            if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+                for tc in last_message.tool_calls:
+                    tc_id = tc.get("id")
+                    if tc_id and tc_id not in sent_tool_calls_ids:
+                        yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
+                        sent_tool_calls_ids.add(tc_id)
+    except Exception as e:
+        logger.error(f"Error in run_chat_stream: {str(e)}")
+        yield f"data: {json.dumps({'type': 'text', 'content': 'I encountered an error while thinking. Please try again.'})}\n\n"
 
 def run_chat(message: str, history: list = []):
-    # Keep legacy function for compatibility or sync fallback
+    """Legacy sync function for chat (not used for streaming)."""
     state = {"messages": history + [{"role": "user", "content": message}]}
     output = graph.invoke(state)
     return output["messages"][-1].content
-
-

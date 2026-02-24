@@ -1,12 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from typing import List
 import logging
-import DBmodels
-from auth_utils import get_current_user
+import models as DBmodels
+from core.auth import get_current_user
 from fastapi.responses import StreamingResponse
-from QuantAI import run_chat_stream
-import json
+from services.ai import run_chat_stream
 
 router = APIRouter(prefix="/api", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -22,8 +21,11 @@ async def chat_endpoint(request: ChatRequest, current_user: DBmodels.User = Depe
     """
     logger.info(f"Chat request from user: {current_user.email}")
     
-    return StreamingResponse(
-        run_chat_stream(request.message, request.history),
-        media_type="text/event-stream"
-    )
-
+    try:
+        return StreamingResponse(
+            run_chat_stream(request.message, request.history),
+            media_type="text/event-stream"
+        )
+    except Exception as e:
+        logger.error(f"Error in chat_endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal AI Error")

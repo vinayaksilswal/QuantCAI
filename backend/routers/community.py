@@ -1,16 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 import bleach
 from sqlalchemy.orm import Session, joinedload, selectinload
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
 import logging
-import database as db
-import DBmodels
-from auth_utils import get_current_user
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+from core import database as db
+import models as DBmodels
+from core.auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["community"])
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 def get_db():
     ses = db.SessionLocal()
@@ -44,12 +48,13 @@ class ToggleLikeRequest(BaseModel):
     post_id: int
 
 @router.post("/notify", response_model=NotificationResponse)
-def create_notification(request: NotificationCreateRequest, db: Session = Depends(get_db)):
-    logger.info(f"New notification request from {request.email}")
+@limiter.limit("5/minute")
+def create_notification(request: Request, body: NotificationCreateRequest, db: Session = Depends(get_db)):
+    logger.info(f"New notification request from {body.email}")
     try:
         new_req = DBmodels.NotificationRequest(
-            email=request.email,
-            message=request.message,
+            email=body.email,
+            message=body.message,
         )
         db.add(new_req)
         db.commit()
@@ -62,8 +67,10 @@ def create_notification(request: NotificationCreateRequest, db: Session = Depend
         raise HTTPException(status_code=500, detail="Failed to save notification request")
 
 @router.get("/notify", response_model=List[NotificationResponse])
-def list_notifications(db: Session = Depends(get_db)):
+def list_notifications(db: Session = Depends(get_db), current_user: DBmodels.User = Depends(get_current_user)):
     logger.info("List notification requests")
+    if current_user.role not in ("admin", "root"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     try:
         items = db.query(DBmodels.NotificationRequest).order_by(DBmodels.NotificationRequest.created_at.desc()).all()
         return [NotificationResponse.model_validate(i) for i in items]
@@ -124,16 +131,18 @@ def get_posts(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/posts")
+@limiter.limit("10/minute")
 def create_post(
-    request: CreatePostRequest,
+    request: Request,
+    body: CreatePostRequest,
     db: Session = Depends(get_db),
     current_user: DBmodels.User = Depends(get_current_user),
 ):
     logger.info("Create post request")
     try:
         # Sanitize inputs before storing
-        safe_title = bleach.clean(request.title, tags=[], attributes={}, strip=True)
-        safe_body = bleach.clean(request.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
+        safe_title = bleach.clean(body.title, tags=[], attributes={}, strip=True)
+        safe_body = bleach.clean(body.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
 
         new_post = DBmodels.Post(
             title=safe_title,
@@ -151,18 +160,20 @@ def create_post(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/comments")
+@limiter.limit("20/minute")
 def create_comment(
-    request: CreateCommentRequest,
+    request: Request,
+    body: CreateCommentRequest,
     db: Session = Depends(get_db),
     current_user: DBmodels.User = Depends(get_current_user),
 ):
     logger.info("Create comment request")
     try:
         # Sanitize comment body
-        safe_body = bleach.clean(request.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
+        safe_body = bleach.clean(body.body, tags=['p', 'br', 'strong', 'em', 'b', 'i'], attributes={}, strip=True)
 
         new_comment = DBmodels.Comment(
-            post_id=request.post_id,
+            post_id=body.post_id,
             body=safe_body,
             author_id=current_user.id
         )
@@ -177,15 +188,17 @@ def create_comment(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/likes/toggle")
+@limiter.limit("30/minute")
 def toggle_like(
-    request: ToggleLikeRequest,
+    request: Request,
+    body: ToggleLikeRequest,
     db: Session = Depends(get_db),
     current_user: DBmodels.User = Depends(get_current_user),
 ):
     logger.info("Toggle like request")
     try:
         existing_like = db.query(DBmodels.Like).filter(
-            DBmodels.Like.post_id == request.post_id,
+            DBmodels.Like.post_id == body.post_id,
             DBmodels.Like.user_id == current_user.id
         ).first()
         if existing_like:
@@ -255,7 +268,8 @@ def delete_comment(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/subscribe")
-def subscribe(email: EmailStr, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def subscribe(request: Request, email: EmailStr, db: Session = Depends(get_db)):
     logger.info(f"Subscription request for email: {email}")
     try:
         existing_subscriber = db.query(DBmodels.Subscriber).filter(DBmodels.Subscriber.email == email).first()
@@ -279,8 +293,10 @@ def subscribe(email: EmailStr, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.get("/subscribers")
-def get_subscribers(db: Session = Depends(get_db)):
+def get_subscribers(db: Session = Depends(get_db), current_user: DBmodels.User = Depends(get_current_user)):
     logger.info("Get subscribers request")
+    if current_user.role not in ("admin", "root"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     try:
         subscribers = db.query(DBmodels.Subscriber).filter(
             DBmodels.Subscriber.is_active == True

@@ -8,8 +8,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from logger_config import setup_logging
-from routers import auth, chat, circuit, community, users, verification, health, admin
+from core.logger import setup_logging
+from routers import auth, chat, circuit, community, users, health, admin, content
 
 # Set up logging first
 setup_logging()
@@ -68,18 +68,24 @@ else:
         ]
     else:
         # Development: Localhost with HTTP allowed
+        env_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
         allowed_origins = [
             "http://localhost:5173",
             "http://localhost:3000",
             "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000"
+            "http://127.0.0.1:3000",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "http://0.0.0.0:8000"
         ]
+        # Filter out empty strings and add env origins
+        allowed_origins.extend([o for o in env_origins if o])
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["*"], # Allow all methods in dev for flexibility
     allow_headers=["*"],
     expose_headers=["X-Request-ID"]
 )
@@ -133,7 +139,7 @@ async def security_and_logging_middleware(request: Request, call_next):
                 "default-src 'self'; "
                 "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
-                "font-src 'self' https://fonts.gstatic.com; "
+                "font-src 'self' data: https://fonts.gstatic.com; "
                 "img-src 'self' data: https://cdn.jsdelivr.net; "
                 "frame-ancestors 'none';"
             )
@@ -184,10 +190,10 @@ def read_root():
 
 # Include Routers
 app.include_router(auth.router)
-app.include_router(verification.router)
 app.include_router(health.router)
 app.include_router(admin.router)
 app.include_router(chat.router)
 app.include_router(circuit.router)
 app.include_router(community.router)
 app.include_router(users.router)
+app.include_router(content.router)

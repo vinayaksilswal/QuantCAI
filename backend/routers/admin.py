@@ -9,9 +9,9 @@ from typing import List, Optional
 import logging
 from datetime import datetime, timedelta
 
-from auth_utils import get_current_user
-import DBmodels
-import database as db
+from core.auth import get_current_user
+import models as DBmodels
+from core import database as db
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
@@ -71,7 +71,6 @@ def list_users(
                 "role": u.role,
                 "is_active": u.is_active,
                 "is_blocked": u.is_blocked,
-                "email_verified": u.email_verified,
                 "created_at": u.created_at.isoformat() if u.created_at else None,
                 "failed_login_attempts": u.failed_login_attempts,
                 "locked_until": u.locked_until.isoformat() if u.locked_until else None
@@ -97,13 +96,11 @@ def get_user(
         "role": user.role,
         "is_active": user.is_active,
         "is_blocked": user.is_blocked,
-        "email_verified": user.email_verified,
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "updated_at": user.updated_at.isoformat() if user.updated_at else None,
         "token_version": user.token_version,
         "failed_login_attempts": user.failed_login_attempts,
-        "locked_until": user.locked_until.isoformat() if user.locked_until else None,
-        "verification_sent_at": user.verification_sent_at.isoformat() if user.verification_sent_at else None
+        "locked_until": user.locked_until.isoformat() if user.locked_until else None
     }
 
 @router.post("/users/{user_id}/block")
@@ -278,10 +275,8 @@ def database_stats(
         stats["subscribers"] = db.query(DBmodels.Subscriber).filter_by(is_active=True).count()
         stats["circuits"] = db.query(DBmodels.Circuit).count()
         stats["refresh_tokens"] = db.query(DBmodels.RefreshToken).count()
-        stats["email_verification_tokens"] = db.query(DBmodels.EmailVerificationToken).count()
         stats["failed_login_users"] = db.query(DBmodels.User).filter(DBmodels.User.failed_login_attempts > 0).count()
         stats["locked_accounts"] = db.query(DBmodels.User).filter(DBmodels.User.locked_until != None).filter(DBmodels.User.locked_until > datetime.utcnow()).count()
-        stats["unverified_emails"] = db.query(DBmodels.User).filter(DBmodels.User.email_verified == False).count()
     except Exception as e:
         logger.error(f"Error fetching stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch stats")

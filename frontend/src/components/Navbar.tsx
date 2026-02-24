@@ -155,13 +155,13 @@ export const Navbar = () => {
               Vision
             </Link>
 
-            {(role === 'root' || role === 'developer') && (
+            {role === 'root' && (
               <Link
-                to={role === 'root' ? '/admin' : '/developer'}
+                to="/admin"
                 className="px-3 py-1 rounded-lg transition-all duration-200 text-purple-200 hover:text-white hover:bg-purple-600/20 flex items-center gap-2"
               >
                 <Target className="h-4 w-4" />
-                {role === 'root' ? 'Admin' : 'Developer'}
+                Admin
               </Link>
             )}
           </div>
@@ -300,14 +300,14 @@ export const Navbar = () => {
                 Vision
               </Link>
 
-              {(role === 'root' || role === 'developer') && (
+              {role === 'root' && (
                 <Link
-                  to={role === 'root' ? '/admin' : '/developer'}
+                  to="/admin"
                   className="px-4 py-3 rounded-lg transition-all text-purple-200 hover:text-white hover:bg-purple-600/20 flex items-center gap-3"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   <Target className="h-5 w-5" />
-                  {role === 'root' ? 'Admin' : 'Developer'}
+                  Admin
                 </Link>
               )}
 

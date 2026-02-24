@@ -1,19 +1,18 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/lib/api';
 
 export function usePageTracking(pageKey: string) {
   const { user } = useAuth();
 
   useEffect(() => {
-    // Page tracking - can be extended to send to backend API when endpoint is available
-    // For now, just log to console or send analytics if needed
     const trackPage = async () => {
+      if (!user) return;
       try {
-        // TODO: Implement backend endpoint for page tracking
-        // await api.trackPageVisit(pageKey, user?.id);
-        console.log(`Page tracked: ${pageKey}`, user ? `User: ${user.id}` : 'Anonymous');
-      } catch {
-        // ignore tracking errors
+        await api.trackProgress(pageKey);
+        console.info(`Page tracked: ${pageKey}`);
+      } catch (err) {
+        console.warn(`Failed to track page ${pageKey}:`, err);
       }
     };
     trackPage();

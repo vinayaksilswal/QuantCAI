@@ -9,8 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Mail, Cpu, Mic, Workflow } from 'lucide-react';
 import { usePageTracking } from '@/hooks/usePageTracking';
+import { api } from '@/lib/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const Soon = () => {
   const [formData, setFormData] = useState({
@@ -25,14 +25,7 @@ const Soon = () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/notify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: formData.email, message: formData.message })
-      });
-      if (!res.ok) {
-        throw new Error("Failed to submit");
-      }
+      await api.sendContactMessage({ email: formData.email, message: formData.message });
       toast({
         title: "Message sent!",
         description: "Thank you for contacting us. We'll keep you posted.",

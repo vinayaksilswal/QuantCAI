@@ -7,9 +7,7 @@ import { QuantumGates } from "./QuantumGates";
 import { QuantumStateDisplay } from "./QuantumStateDisplay";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-const API_BASE = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
-
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 
 // Reusing QubitState interface
 export interface QubitState {

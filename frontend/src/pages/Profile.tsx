@@ -4,38 +4,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { BookOpen, Bell, Shield, User as UserIcon, Calendar } from 'lucide-react';
-
-const API_BASE = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
+import { api, PageProgress } from '@/lib/api';
+import { BookOpen, Bell, Shield, User as UserIcon, Calendar, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Profile = () => {
   const { user, role } = useAuth();
-  const [progress, setProgress] = useState<any[]>([]);
+  const [progress, setProgress] = useState<PageProgress[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       if (!user) return;
-      const { data } = await supabase.from('page_progress').select('page_key, read_at').eq('user_id', user.id).order('read_at', { ascending: false });
-      setProgress(data ?? []);
+      try {
+        const data = await api.getProgress();
+        setProgress(data ?? []);
+      } catch (err: any) {
+        console.error('Error loading progress:', err);
+      }
     };
     load();
   }, [user]);
 
   useEffect(() => {
     const loadNotifications = async () => {
-      if (role !== 'root') return;
+      if (role !== 'root' && role !== 'admin') return;
       try {
         setLoadingNotifications(true);
-        const res = await fetch(`${API_BASE}/api/notify`);
-        if (!res.ok) throw new Error('failed');
-        const data = await res.json();
+        // Use the authenticated API client instead of raw fetch
+        const data = await api.listNotifications();
         setNotifications(data ?? []);
-      } catch (err) {
-        setNotifications([]);
+      } catch (err: any) {
+        console.error('Error loading notifications:', err);
+        setError('Failed to load administrative notifications.');
       } finally {
         setLoadingNotifications(false);
       }
@@ -53,6 +58,14 @@ const Profile = () => {
       <Navbar />
 
       <div className="pt-32 pb-20 px-6 max-w-4xl mx-auto relative z-10">
+        {error && (
+          <Alert variant="destructive" className="mb-6 bg-red-900/20 border-red-900/50 text-red-200">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Profile Header Card */}
         <Card className="bg-slate-900/60 border-slate-800 backdrop-blur-md mb-8 overflow-hidden">
           <div className="h-32 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-blue-600/20 relative">

@@ -6,8 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import traceback
-import database as db
-import DBmodels
+from core import database as db
+import models as DBmodels
 from sqlalchemy.orm import Session
 
 # Log file in backend directory

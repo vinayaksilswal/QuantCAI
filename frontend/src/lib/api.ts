@@ -2,7 +2,8 @@
  * API Client for QuantCAI Backend
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://quantcai.onrender.com';
+const API_URL = import.meta.env.VITE_API_URL || 'https://quantcai.onrender.com';
+export const API_BASE = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
 
 let authToken: string | null = null;
 
@@ -12,8 +13,10 @@ export const setToken = (token: string | null) => {
 
 export const getAuthToken = () => authToken;
 
-async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${base}${path}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -51,7 +54,10 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    const errorMessage = typeof err.detail === 'string'
+      ? err.detail
+      : JSON.stringify(err.detail) || `HTTP ${res.status}`;
+    throw new Error(errorMessage);
   }
   return res.json();
 }
@@ -62,6 +68,9 @@ export interface Comment { id: number; body: string; author: any; created_at: st
 export interface TokenResponse { access_token: string; refresh_token?: string; token_type: string; }
 export interface Circuit { id?: number; name: string; description?: string; num_wires: number; gates: any[]; created_at?: string; updated_at?: string; user_id?: number; }
 export interface CircuitSimulationResult { state_vector: number[]; probabilities: number[]; measurements?: number[]; }
+export interface NotificationResponse { id: number; email: string; message: string; created_at: string; }
+export interface PageProgress { page_key: string; read_at: string; }
+export interface LearnBlock { id: number; title: string; body_md: string; image_url?: string; author_id: number; created_at: string; }
 export interface SystemStats { users: number; posts: number; comments: number; likes: number; subscribers: number; circuits: number; refresh_tokens: number; email_verification_tokens: number; failed_login_users: number; locked_accounts: number; unverified_emails: number; }
 
 export const authApi = {
@@ -74,6 +83,21 @@ export const authApi = {
   resendVerification: (email: string) => fetchApi('/api/auth/verify/resend', { method: 'POST', body: JSON.stringify({ email }) }),
   verifyEmail: (token: string) => fetchApi('/api/auth/verify/confirm', { method: 'POST', body: JSON.stringify({ token }) }),
   getVerificationStatus: () => fetchApi<{ email_verified: boolean; verification_sent_at?: string }>('/api/auth/verify/status'),
+  listNotifications: () => fetchApi<NotificationResponse[]>('/api/notify'),
+  getProgress: () => fetchApi<PageProgress[]>('/api/progress'),
+  trackProgress: (pageKey: string) => fetchApi('/api/progress', { method: 'POST', body: JSON.stringify({ page_key: pageKey }) }),
+};
+
+export const contentApi = {
+  getLearnBlocks: () => fetchApi<LearnBlock[]>('/api/learn-blocks'),
+  createLearnBlock: (data: Partial<LearnBlock>) => fetchApi<LearnBlock>('/content/learn-blocks', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  sendContactMessage: (data: { email: string; message: string }) => fetchApi('/notify', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
 };
 
 export const communityApi = {
@@ -86,7 +110,23 @@ export const communityApi = {
 };
 
 export const circuitApi = {
-  runCircuit: (circuit: Circuit, numWires: number, useNoise?: boolean) => fetchApi<CircuitSimulationResult>('/api/circuit/run', { method: 'POST', body: JSON.stringify({ circuit, num_wires: numWires, use_noise: useNoise }) }),
+  runCircuit: (gates: any[], numQubits: number, useNoise?: boolean) =>
+    fetchApi<CircuitSimulationResult>('/api/circuit/run', {
+      method: 'POST',
+      body: JSON.stringify({
+        circuit: gates,
+        num_qubits: numQubits,
+        use_noise: useNoise
+      })
+    }),
+  applyQuantumGate: (state: any, gateName: string) =>
+    fetchApi<any>('/api/quantum/state/apply', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_state: state,
+        gate: gateName
+      })
+    }),
 };
 
 export const adminApi = {
@@ -106,5 +146,5 @@ export const healthApi = {
   detailed: () => fetchApi('/health/detailed'),
 };
 
-export const api = { ...authApi, ...communityApi, ...circuitApi, ...adminApi, ...healthApi, setToken, getAuthToken };
+export const api = { ...authApi, ...communityApi, ...circuitApi, ...adminApi, ...healthApi, ...contentApi, setToken, getAuthToken };
 export default api;

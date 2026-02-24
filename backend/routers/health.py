@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 import os
 
-from database import SessionLocal
+from core.database import SessionLocal
 
 router = APIRouter(tags=["monitoring"])
 logger = logging.getLogger(__name__)
