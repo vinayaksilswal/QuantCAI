@@ -20,6 +20,7 @@ const Vision = lazy(() => import("./pages/Vision"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Login = lazy(() => import("./pages/Login"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 import { AuthProvider } from "./context/AuthContext";
@@ -62,6 +63,7 @@ const App = () => (
                   }>
                     <Routes>
                       <Route path="/" element={<RootRedirect><Index /></RootRedirect>} />
+                      <Route path="/dashboard" element={<ProtectedRoute roles={["root", "developer", "user"]}><Dashboard /></ProtectedRoute>} />
                       <Route path="/learn" element={<Learn />} />
                       <Route path="/quantum-computing" element={<QuantumComputing />} />
                       <Route path="/quantum-states" element={<ProtectedRoute roles={["root", "developer", "user"]}><QuantumStates /></ProtectedRoute>} />
@@ -73,6 +75,7 @@ const App = () => (
                       <Route path="/vision" element={<Vision />} />
                       <Route path="/admin" element={<ProtectedRoute roles={["root"]}><Admin /></ProtectedRoute>} />
                       <Route path="/login" element={<Login />} />
+                      <Route path="/signup" element={<Login />} />
                       <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user"]}><Profile /></ProtectedRoute>} />
                       <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
                     </Routes>

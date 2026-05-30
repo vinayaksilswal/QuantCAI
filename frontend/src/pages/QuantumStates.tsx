@@ -1,5 +1,4 @@
 import { usePageTracking } from '@/hooks/usePageTracking';
-import { useAuth } from '@/hooks/useAuth';
 import { toast } from "sonner";
 
 import { useState } from 'react';
@@ -23,7 +22,6 @@ export interface QubitState {
 
 const QuantumStates = () => {
   usePageTracking('quantum-states');
-  const { user } = useAuth();
   const { visualizerActions, ackVisualizerAction } = useAI();
   const [qubitState, setQubitState] = useState<QubitState>({
     alpha: 1,

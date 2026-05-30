@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
 import logging
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 from core import database as db
 import models as DBmodels
 from core.auth import get_current_user
@@ -104,3 +105,64 @@ def track_progress(
         logger.error(f"Error tracking progress: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.get("/usage/summary")
+def get_usage_summary(
+    db: Session = Depends(get_db),
+    current_user: DBmodels.User = Depends(get_current_user)
+):
+    """
+    Returns user-specific usage statistics (API calls today, PQC scans this month,
+    simulations run) and the last 10 usage events.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+
+        # 1. API Calls Today
+        api_calls_today = db.query(func.count(DBmodels.UsageEvent.id)).filter(
+            DBmodels.UsageEvent.user_id == current_user.id,
+            DBmodels.UsageEvent.event_type == DBmodels.UsageEventType.API_CALL,
+            DBmodels.UsageEvent.created_at >= today_start
+        ).scalar() or 0
+
+        # 2. PQC Scans This Month
+        pqc_scans_this_month = db.query(func.count(DBmodels.UsageEvent.id)).filter(
+            DBmodels.UsageEvent.user_id == current_user.id,
+            DBmodels.UsageEvent.event_type == DBmodels.UsageEventType.PQC_SCAN,
+            DBmodels.UsageEvent.created_at >= month_start
+        ).scalar() or 0
+
+        # 3. Simulations Run
+        simulations_run = db.query(func.count(DBmodels.UsageEvent.id)).filter(
+            DBmodels.UsageEvent.user_id == current_user.id,
+            DBmodels.UsageEvent.event_type == DBmodels.UsageEventType.SIMULATION_RUN
+        ).scalar() or 0
+
+        # 4. Recent Activity (last 10 usage events)
+        recent_events = db.query(DBmodels.UsageEvent).filter(
+            DBmodels.UsageEvent.user_id == current_user.id
+        ).order_by(DBmodels.UsageEvent.created_at.desc()).limit(10).all()
+
+        events_list = [
+            {
+                "id": ev.id,
+                "event_type": ev.event_type.value if hasattr(ev.event_type, "value") else str(ev.event_type),
+                "credits_used": ev.credits_used,
+                "created_at": ev.created_at.isoformat() if ev.created_at else None,
+                "metadata": ev.metadata_
+            }
+            for ev in recent_events
+        ]
+
+        return {
+            "api_calls_today": api_calls_today,
+            "pqc_scans_this_month": pqc_scans_this_month,
+            "simulations_run": simulations_run,
+            "recent_events": events_list
+        }
+    except Exception as e:
+        logger.error(f"Error fetching usage summary: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+

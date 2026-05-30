@@ -7,6 +7,10 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { NewsletterForm } from '@/components/NewsletterForm';
 import { LogoProcessor } from '@/components/LogoProcessor';
+import { FeatureSplit } from '@/components/landing/FeatureSplit';
+import { PricingSection } from '@/components/landing/PricingSection';
+import { TrustSection } from '@/components/landing/TrustSection';
+import { CtaBanner } from '@/components/landing/CtaBanner';
 
 const Index = () => {
   usePageTracking('home');
@@ -85,6 +89,12 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* ── New Sections: API, Scanner, Pricing, Trust, CTA ── */}
+      <FeatureSplit />
+      <PricingSection />
+      <TrustSection />
+      <CtaBanner />
 
       {/* About Section */}
       <section className="py-20 px-6 bg-white/5 backdrop-blur-sm relative z-10">

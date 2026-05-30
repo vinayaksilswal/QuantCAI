@@ -91,7 +91,7 @@ async def login(request: Request, login_data: LoginRequest, response: Response, 
             raise HTTPException(status_code=403, detail="Account is temporarily locked due to multiple failed login attempts. Please try again later.")
 
         # Verify password
-        if not verify_password(login_data.password, user.password):
+        if not verify_password(login_data.password, user.hashed_password):
             # Increment failed attempts and check if we should lock
             attempts = increment_failed_attempts(user, db)
             if attempts >= auth_settings.max_failed_attempts:
@@ -153,7 +153,7 @@ async def register(request: Request, reg_data: RegisterRequest, response: Respon
 
         new_user = DBmodels.User(
             email=reg_data.email,
-            password=hash_password(reg_data.password),
+            hashed_password=hash_password(reg_data.password),
             name=reg_data.name.strip(),
             is_active=True,
             is_blocked=False,

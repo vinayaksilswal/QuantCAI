@@ -1,177 +1,700 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, UniqueConstraint, ForeignKey
-from sqlalchemy.orm import DeclarativeBase, relationship
-from datetime import datetime
+import enum
+from datetime import datetime, timezone, date
+from typing import Optional, Any
+from sqlalchemy import (
+    String, Integer, Boolean, DateTime, Date, ForeignKey, Index, func, text, Text, UniqueConstraint
+)
+from sqlalchemy.dialects.postgresql import JSONB, ENUM as PG_ENUM
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+# -----------------------------------------------------------------------------
+# Base Class
+# -----------------------------------------------------------------------------
 class Base(DeclarativeBase):
+    """Base declarative class for all SQLAlchemy models."""
     pass
+
+# -----------------------------------------------------------------------------
+# Python Enums representing the schema states
+# -----------------------------------------------------------------------------
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    DEVELOPER = "developer"
+    LEARNER = "learner"
+    ENTERPRISE_USER = "enterprise_user"
+
+class OrgPlan(str, enum.Enum):
+    STARTER = "starter"
+    PRO = "pro"
+    ENTERPRISE = "enterprise"
+
+class ContractType(str, enum.Enum):
+    MONTHLY = "monthly"
+    ANNUAL = "annual"
+
+class SubscriptionPlan(str, enum.Enum):
+    FREE = "free"
+    PRO = "pro"
+    ENTERPRISE = "enterprise"
+
+class SubscriptionStatus(str, enum.Enum):
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    CANCELLED = "cancelled"
+    TRIALING = "trialing"
+
+class APIKeyTier(str, enum.Enum):
+    FREE = "free"
+    PRO = "pro"
+    ENTERPRISE = "enterprise"
+
+class UsageEventType(str, enum.Enum):
+    TUTOR_QUERY = "tutor_query"
+    SIMULATION_RUN = "simulation_run"
+    PQC_SCAN = "pqc_scan"
+    API_CALL = "api_call"
+
+# -----------------------------------------------------------------------------
+# Database Models
+# -----------------------------------------------------------------------------
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    email = Column(String, unique=True, nullable=False, index=True)
-    password = Column(String, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False)
-    is_blocked = Column(Boolean, default=False, nullable=False)
-    role = Column(String, default="user", nullable=False)
-    token_version = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    # Account lockout fields
-    failed_login_attempts = Column(Integer, default=0, nullable=False)
-    locked_until = Column(DateTime, nullable=True)
-
-
-
-    # Relationships
-    posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
-    comments = relationship("Comment", back_populates="author", cascade="all, delete-orphan")
-    likes = relationship("Like", back_populates="user", cascade="all, delete-orphan")
-
-class Course(Base):
-    __tablename__ = "courses"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-class Post(Base):
-    __tablename__ = "posts"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    body = Column(Text, nullable=False)
-    author_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    # Relationships
-    author = relationship("User", back_populates="posts")
-    comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
-    likes = relationship("Like", back_populates="post", cascade="all, delete-orphan")
-
-class Comment(Base):
-    __tablename__ = "comments"
-
-    id = Column(Integer, primary_key=True, index=True)
-    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False, index=True)
-    body = Column(Text, nullable=False)
-    author_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    # Relationships
-    post = relationship("Post", back_populates="comments")
-    author = relationship("User", back_populates="comments")
-
-class Like(Base):
-    __tablename__ = "likes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     
-    # Relationships
-    post = relationship("Post", back_populates="likes")
-    user = relationship("User", back_populates="likes")
-
-    # Ensure one like per user per post
-    __table_args__ = (
-        UniqueConstraint('post_id', 'user_id', name='uq_like_post_user'),
+    role: Mapped[UserRole] = mapped_column(
+        PG_ENUM(UserRole, name="user_role_enum", create_type=True),
+        nullable=False,
+        default=UserRole.LEARNER
+    )
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    
+    last_active_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=True
+    )
+    
+    org_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
     )
 
-class Subscriber(Base):
-    __tablename__ = "subscribers"
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    verification_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, nullable=False, index=True)
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    # Relationships
+    organization: Mapped[Optional["Organization"]] = relationship("Organization")
+    subscriptions: Mapped[list["Subscription"]] = relationship(
+        "Subscription", back_populates="user", cascade="all, delete-orphan"
+    )
+    api_keys: Mapped[list["APIKey"]] = relationship(
+        "APIKey", back_populates="user", cascade="all, delete-orphan"
+    )
+    usage_events: Mapped[list["UsageEvent"]] = relationship(
+        "UsageEvent", back_populates="user", cascade="all, delete-orphan"
+    )
+    consent_records: Mapped[list["ConsentRecord"]] = relationship(
+        "ConsentRecord", back_populates="user", cascade="all, delete-orphan"
+    )
+    audit_logs: Mapped[list["AuditLog"]] = relationship(
+        "AuditLog", back_populates="user", cascade="all, delete-orphan"
+    )
+    posts: Mapped[list["Post"]] = relationship(
+        "Post", back_populates="author", cascade="all, delete-orphan"
+    )
+    comments: Mapped[list["Comment"]] = relationship(
+        "Comment", back_populates="author", cascade="all, delete-orphan"
+    )
+    circuits: Mapped[list["Circuit"]] = relationship(
+        "Circuit", back_populates="user", cascade="all, delete-orphan"
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        "RefreshToken", back_populates="user", cascade="all, delete-orphan"
+    )
 
-class Log(Base):
-    __tablename__ = "logtable"
-
-    id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    level = Column(String(20), nullable=False, index=True)
-    logger_name = Column(String(100), nullable=True)
-    message = Column(Text, nullable=False)
-    module = Column(String(100), nullable=True)
-    function = Column(String(100), nullable=True)
-    line_number = Column(Integer, nullable=True)
-    request_method = Column(String(10), nullable=True)
-    request_path = Column(String(500), nullable=True)
-    request_ip = Column(String(50), nullable=True)
-    response_status = Column(Integer, nullable=True)
-    exception = Column(Text, nullable=True)
-
-class NotificationRequest(Base):
-    __tablename__ = "notification_requests"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, nullable=False, index=True)
-    message = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    def __repr__(self) -> str:
+        return (
+            f"<User(id={self.id}, email={self.email!r}, role={self.role.value!r}, "
+            f"org_id={self.org_id}, stripe_customer_id={self.stripe_customer_id!r})>"
+        )
 
 
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    domain: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    
+    plan: Mapped[OrgPlan] = mapped_column(
+        PG_ENUM(OrgPlan, name="org_plan_enum", create_type=True),
+        nullable=False,
+        default=OrgPlan.STARTER
+    )
+    
+    contract_type: Mapped[ContractType] = mapped_column(
+        PG_ENUM(ContractType, name="contract_type_enum", create_type=True),
+        nullable=False,
+        default=ContractType.MONTHLY
+    )
+    
+    pqc_scan_quota: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+
+    # Relationships
+    subscriptions: Mapped[list["Subscription"]] = relationship(
+        "Subscription", back_populates="organization", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Organization(id={self.id}, name={self.name!r}, domain={self.domain!r}, "
+            f"plan={self.plan.value!r}, pqc_scan_quota={self.pqc_scan_quota})>"
+        )
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True
+    )
+    
+    org_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True
+    )
+    
+    plan: Mapped[SubscriptionPlan] = mapped_column(
+        PG_ENUM(SubscriptionPlan, name="sub_plan_enum", create_type=True),
+        nullable=False,
+        default=SubscriptionPlan.FREE
+    )
+    
+    status: Mapped[SubscriptionStatus] = mapped_column(
+        PG_ENUM(SubscriptionStatus, name="sub_status_enum", create_type=True),
+        nullable=False,
+        default=SubscriptionStatus.TRIALING
+    )
+    
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        unique=True,
+        index=True,
+        nullable=True
+    )
+    
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    # Relationships
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="subscriptions")
+    organization: Mapped[Optional["Organization"]] = relationship("Organization", back_populates="subscriptions")
+
+    def __repr__(self) -> str:
+        return (
+            f"<Subscription(id={self.id}, user_id={self.user_id}, org_id={self.org_id}, "
+            f"plan={self.plan.value!r}, status={self.status.value!r})>"
+        )
+
+
+class APIKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    
+    key_hash: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    
+    tier: Mapped[APIKeyTier] = mapped_column(
+        PG_ENUM(APIKeyTier, name="api_key_tier_enum", create_type=True),
+        nullable=False,
+        default=APIKeyTier.FREE
+    )
+    
+    requests_today: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_reset_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    daily_limit: Mapped[int] = mapped_column(Integer, default=1000, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="api_keys")
+    usage_events: Mapped[list["UsageEvent"]] = relationship(
+        "UsageEvent", back_populates="api_key", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<APIKey(id={self.id}, user_id={self.user_id}, label={self.label!r}, "
+            f"tier={self.tier.value!r}, is_active={self.is_active})>"
+        )
+
+
+class UsageEvent(Base):
+    __tablename__ = "usage_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    
+    api_key_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    
+    event_type: Mapped[UsageEventType] = mapped_column(
+        PG_ENUM(UsageEventType, name="usage_event_type_enum", create_type=True),
+        nullable=False
+    )
+    
+    credits_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
+    # Python-side attribute name mapping to avoid conflicts with DeclarativeBase.metadata
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        JSONB,
+        default=dict,
+        nullable=False
+    )
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="usage_events")
+    api_key: Mapped[Optional["APIKey"]] = relationship("APIKey", back_populates="usage_events")
+
+    # Table arguments for required indexes
+    __table_args__ = (
+        Index("idx_usage_events_user_id_created_at", "user_id", text("created_at DESC")),
+        Index("idx_usage_events_api_key_id", "api_key_id"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<UsageEvent(id={self.id}, user_id={self.user_id}, api_key_id={self.api_key_id}, "
+            f"event_type={self.event_type.value!r}, credits_used={self.credits_used})>"
+        )
+
+
+class ConsentRecord(Base):
+    __tablename__ = "consent_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    
+    purpose: Mapped[str] = mapped_column(String(255), nullable=False)
+    granted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    
+    withdrawn_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="consent_records")
+
+    def __repr__(self) -> str:
+        return (
+            f"<ConsentRecord(id={self.id}, user_id={self.user_id}, purpose={self.purpose!r}, "
+            f"granted={self.granted})>"
+        )
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    
+    action: Mapped[str] = mapped_column(String(255), nullable=False)
+    table_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    record_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    old_value: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    new_value: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    
+    ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)  # Fits IPv6 and IPv4
+    user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+
+    # Relationships
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="audit_logs")
+
+    def __repr__(self) -> str:
+        return (
+            f"<AuditLog(id={self.id}, user_id={self.user_id}, action={self.action!r}, "
+            f"table_name={self.table_name!r}, record_id={self.record_id})>"
+        )
+
+
+# -----------------------------------------------------------------------------
+# Recreated Missing Models
+# -----------------------------------------------------------------------------
 
 class Circuit(Base):
     __tablename__ = "circuits"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    name = Column(String, nullable=True)
-    circuit_data = Column(Text, nullable=False) # JSON string
-    is_interactive = Column(Boolean, default=False, nullable=False) # True if from QuantumStates tool
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    circuit_data: Mapped[str] = mapped_column(Text, nullable=False)
+    is_interactive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="circuits")
+
+    def __repr__(self) -> str:
+        return f"<Circuit(id={self.id}, user_id={self.user_id}, name={self.name!r})>"
+
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    author_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    author: Mapped["User"] = relationship("User", back_populates="posts")
+    comments: Mapped[list["Comment"]] = relationship(
+        "Comment", back_populates="post", cascade="all, delete-orphan"
+    )
+    likes: Mapped[list["Like"]] = relationship(
+        "Like", back_populates="post", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_posts_created_at", text("created_at DESC")),
+        Index("ix_posts_author_created", "author_id", text("created_at DESC")),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Post(id={self.id}, title={self.title!r}, author_id={self.author_id})>"
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    post_id: Mapped[int] = mapped_column(
+        ForeignKey("posts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    author_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    post: Mapped["Post"] = relationship("Post", back_populates="comments")
+    author: Mapped["User"] = relationship("User", back_populates="comments")
+
+    __table_args__ = (
+        Index("ix_comments_created_at", text("created_at DESC")),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Comment(id={self.id}, post_id={self.post_id}, author_id={self.author_id})>"
+
+
+class Like(Base):
+    __tablename__ = "likes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    post_id: Mapped[int] = mapped_column(
+        ForeignKey("posts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+
+    post: Mapped["Post"] = relationship("Post", back_populates="likes")
+    user: Mapped["User"] = relationship("User")
+
+    __table_args__ = (
+        UniqueConstraint("post_id", "user_id", name="uq_like_post_user"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Like(id={self.id}, post_id={self.post_id}, user_id={self.user_id})>"
+
+
+class Subscriber(Base):
+    __tablename__ = "subscribers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<Subscriber(id={self.id}, email={self.email!r}, is_active={self.is_active})>"
+
+
+class NotificationRequest(Base):
+    __tablename__ = "notification_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<NotificationRequest(id={self.id}, email={self.email!r})>"
+
+
+class Course(Base):
+    __tablename__ = "courses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<Course(id={self.id}, title={self.title!r}, is_active={self.is_active})>"
+
 
 class LearnBlock(Base):
     __tablename__ = "learn_blocks"
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    body_md = Column(Text, nullable=False)
-    image_url = Column(String, nullable=True)
-    author_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    body_md: Mapped[str] = mapped_column(Text, nullable=False)
+    image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    author_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
 
-    # Relationships
-    author = relationship("User")
+    author: Mapped["User"] = relationship("User")
+
+    def __repr__(self) -> str:
+        return f"<LearnBlock(id={self.id}, title={self.title!r}, author_id={self.author_id})>"
+
 
 class PageProgress(Base):
     __tablename__ = "page_progress"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    page_key = Column(String, nullable=False, index=True)
-    read_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    # Relationships
-    user = relationship("User")
-
-    # Ensure one entry per user per page (or just keep latest)
-    __table_args__ = (
-        UniqueConstraint('user_id', 'page_key', name='uq_user_page_progress'),
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    page_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    read_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
     )
 
-class RefreshToken(Base):
+    user: Mapped["User"] = relationship("User")
 
+    __table_args__ = (
+        UniqueConstraint("user_id", "page_key", name="uq_user_page_progress"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PageProgress(id={self.id}, user_id={self.user_id}, page_key={self.page_key!r})>"
+
+
+class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    jti = Column(String, unique=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
-    revoked = Column(Boolean, default=False, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    jti: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    user: Mapped["User"] = relationship("User", back_populates="refresh_tokens")
+
+    def __repr__(self) -> str:
+        return f"<RefreshToken(id={self.id}, user_id={self.user_id}, jti={self.jti!r}, revoked={self.revoked})>"
 

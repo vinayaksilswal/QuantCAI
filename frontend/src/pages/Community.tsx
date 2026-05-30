@@ -30,8 +30,8 @@ const Community = () => {
 
   // Mutations
   const createPostMutation = useMutation({
-    mutationFn: ({ title, body, userId }: { title: string, body: string, userId: number }) =>
-      api.createPost(title, body, userId),
+    mutationFn: ({ title, body }: { title: string, body: string }) =>
+      api.createPost(title, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       setTitle('');
@@ -45,8 +45,8 @@ const Community = () => {
   });
 
   const addCommentMutation = useMutation({
-    mutationFn: ({ postId, body, userId }: { postId: number, body: string, userId: number }) =>
-      api.createComment(postId, body, userId),
+    mutationFn: ({ postId, body }: { postId: number, body: string }) =>
+      api.createComment(postId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Comment added!');
@@ -54,8 +54,8 @@ const Community = () => {
   });
 
   const toggleLikeMutation = useMutation({
-    mutationFn: ({ postId, userId }: { postId: number, userId: number }) =>
-      api.toggleLike(postId, userId),
+    mutationFn: ({ postId }: { postId: number }) =>
+      api.toggleLike(postId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     }
@@ -80,17 +80,17 @@ const Community = () => {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !title.trim() || !body.trim()) return;
-    createPostMutation.mutate({ title, body, userId: parseInt(user.id) });
+    createPostMutation.mutate({ title, body });
   };
 
-  const addComment = async (postId: string, commentBody: string) => {
+  const addComment = async (postId: number, commentBody: string) => {
     if (!user || !commentBody.trim()) return;
-    addCommentMutation.mutate({ postId: parseInt(postId), body: commentBody, userId: parseInt(user.id) });
+    addCommentMutation.mutate({ postId, body: commentBody });
   };
 
-  const toggleLike = async (postId: string) => {
+  const toggleLike = async (postId: number) => {
     if (!user) return;
-    toggleLikeMutation.mutate({ postId: parseInt(postId), userId: parseInt(user.id) });
+    toggleLikeMutation.mutate({ postId });
   };
 
   const canModerate = (authorId: string | null | undefined) => {
@@ -99,16 +99,16 @@ const Community = () => {
     return authorId === user.id.toString();
   };
 
-  const deletePost = async (postId: string) => {
+  const deletePost = async (postId: number) => {
     if (!user) return;
     if (window.confirm("Are you sure you want to delete this post?")) {
-      deletePostMutation.mutate(parseInt(postId));
+      deletePostMutation.mutate(postId);
     }
   };
 
-  const deleteComment = async (commentId: string) => {
+  const deleteComment = async (commentId: number) => {
     if (!user) return;
-    deleteCommentMutation.mutate(parseInt(commentId));
+    deleteCommentMutation.mutate(commentId);
   };
 
   const getInitials = (name: string) => {

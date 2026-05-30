@@ -40,16 +40,16 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         }
 
         try {
-            const historyPayload = messages.map(m => ({ role: m.role, content: m.content }));
             const token = api.getAuthToken();
+            const conversationId = localStorage.getItem('tutor_conversation_id') || null;
 
-            const response = await fetch(`${API_BASE}/api/chat`, {
+            const response = await fetch(`${API_BASE}/tutor/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`
                 },
-                body: JSON.stringify({ message: content, history: historyPayload }),
+                body: JSON.stringify({ message: content, conversation_id: conversationId }),
             });
 
             if (response.status === 401) {
@@ -66,50 +66,18 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                 throw new Error(errorData.detail || "Failed to send message");
             }
 
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder();
-            if (!reader) throw new Error("No reader");
+            const data = await response.json();
+            
+            if (data.conversation_id) {
+                localStorage.setItem('tutor_conversation_id', data.conversation_id);
+            }
 
-            let done = false;
-            let currentAiMessage = "";
-            let buffer = "";
+            setMessages(prev => [...prev, { role: "assistant", content: data.response }]);
 
-            // Add initial empty AI message
-            setMessages(prev => [...prev, { role: "assistant", content: "" }]);
-
-            while (!done) {
-                const { value, done: doneReading } = await reader.read();
-                done = doneReading;
-                if (value) {
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split("\n");
-                    buffer = lines.pop() || ""; // Keep the last partial line in buffer
-
-                    for (const line of lines) {
-                        const trimmedLine = line.trim();
-                        if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
-
-                        try {
-                            const data = JSON.parse(trimmedLine.substring(6));
-                            if (data.type === "text") {
-                                currentAiMessage += data.content;
-                                setMessages(prev => {
-                                    const next = [...prev];
-                                    const last = next[next.length - 1];
-                                    if (last && last.role === "assistant") {
-                                        last.content = currentAiMessage;
-                                    }
-                                    return next;
-                                });
-                            } else if (data.type === "tool_call") {
-                                const { name, args } = data;
-                                handleToolCall(name, args);
-                            }
-                        } catch (e) {
-                            console.error("Failed to parse stream packet", e, trimmedLine);
-                        }
-                    }
-                }
+            if (data.intent === "build_circuit" || data.intent === "simulate") {
+                handleToolCall("open_tool", { tool_name: "circuit-builder" });
+            } else if (data.intent === "interactive_states") {
+                handleToolCall("open_tool", { tool_name: "quantum-states" });
             }
 
         } catch (error: any) {

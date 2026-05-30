@@ -79,7 +79,7 @@ export const removeBackground = async (imageElement: HTMLImageElement): Promise<
     if (!ctx) throw new Error('Could not get canvas context');
 
     // Resize image if needed and draw it to canvas
-    const wasResized = resizeImageIfNeeded(canvas, ctx, imageElement);
+    resizeImageIfNeeded(canvas, ctx, imageElement);
 
     // Apply enhanced background and text removal
     const processedCanvas = removeBlackBackgroundAndText(canvas, ctx);

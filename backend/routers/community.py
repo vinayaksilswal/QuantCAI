@@ -207,7 +207,7 @@ def toggle_like(
             return {"liked": False, "message": "Like removed"}
         else:
             new_like = DBmodels.Like(
-                post_id=request.post_id,
+                post_id=body.post_id,
                 user_id=current_user.id
             )
             db.add(new_like)

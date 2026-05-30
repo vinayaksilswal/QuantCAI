@@ -8,7 +8,20 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        syne: ['Syne', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+        inter: ['Inter', 'sans-serif'],
+      },
       colors: {
+        'qc-bg': '#0a0a0b',
+        'qc-surface': '#111113',
+        'qc-border': '#1e1e22',
+        'qc-text': '#f0f0f0',
+        'qc-muted': '#888888',
+        'qc-accent': '#00d4aa',
+        'qc-accent-dim': '#00d4aa1a',
+        'qc-danger': '#ff4444',
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

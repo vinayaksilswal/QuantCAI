@@ -1,7 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
-import { Target, RotateCw, Zap, Shuffle, ArrowRight, Activity, GitCommit, Move, Maximize, MousePointerClick } from 'lucide-react';
+import { Target, RotateCw, Zap, Shuffle, ArrowRight, Activity, GitCommit, Move, Maximize } from 'lucide-react';
 import { GateType } from '@/types/circuit';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const gates: GateType[] = [

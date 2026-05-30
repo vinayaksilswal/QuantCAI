@@ -51,6 +51,7 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-query": "^5.90.12",
+    "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -64,12 +65,14 @@
     "react-dom": "^19.2.3",
     "react-hook-form": "^7.69.0",
     "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^4.11.2",
     "react-router-dom": "^7.11.0",
     "recharts": "^3.6.0",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "zod": "^4.4.3"
   }
 }

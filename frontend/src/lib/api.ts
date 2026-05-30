@@ -5,10 +5,17 @@
 const API_URL = import.meta.env.VITE_API_URL || 'https://quantcai.onrender.com';
 export const API_BASE = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
 
-let authToken: string | null = null;
+let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
 export const setToken = (token: string | null) => {
   authToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('access_token', token);
+    } else {
+      localStorage.removeItem('access_token');
+    }
+  }
 };
 
 export const getAuthToken = () => authToken;
@@ -98,6 +105,7 @@ export const contentApi = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  subscribe: (email: string) => fetchApi<{ message: string; subscribed: boolean }>(`/api/subscribe?email=${encodeURIComponent(email)}`, { method: 'POST' }),
 };
 
 export const communityApi = {

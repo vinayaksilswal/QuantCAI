@@ -34,4 +34,4 @@ ENV ENV=production
 EXPOSE 8000
 
 # Run migrations and start server
-CMD ["sh", "-c", "python scripts/migrate_db.py && uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"]

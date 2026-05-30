@@ -40,7 +40,7 @@ def create_or_update_root_user(email: str = None):
             # Create new user
             new_user = DBmodels.User(
                 email=email,
-                password=hash_password(password),
+                hashed_password=hash_password(password),
                 name=name,
                 role='root',
                 is_active=True,

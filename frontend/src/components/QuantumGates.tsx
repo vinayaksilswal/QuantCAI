@@ -4,11 +4,11 @@ import { QubitState } from '@/pages/QuantumStates';
 import { Zap, RotateCw, Shuffle, Target } from 'lucide-react';
 
 interface QuantumGatesProps {
-  qubitState: QubitState;
+  qubitState?: QubitState;
   onApplyGate: (gateName: string) => void;
 }
 
-export const QuantumGates = ({ qubitState, onApplyGate }: QuantumGatesProps) => {
+export const QuantumGates = ({ qubitState: _qubitState, onApplyGate }: QuantumGatesProps) => {
 
   // Gates call the API handler
   const applyXGate = () => onApplyGate('X (NOT)');

@@ -1,4 +1,3 @@
-import { GateType } from "@/types/circuit";
 
 export type TutorialStep = {
     title: string;

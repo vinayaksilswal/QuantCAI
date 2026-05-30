@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 import models as DBmodels
 from core import database as db
+from core.config import settings as core_settings
 
 
 # Remove CryptContext and usage of passlib
@@ -22,10 +23,10 @@ from core import database as db
 class AuthSettings(BaseModel):
     """Auth-related settings loaded from environment variables."""
 
-    secret_key: str = Field(default_factory=lambda: os.getenv("AUTH_SECRET_KEY", "change-me"))
-    algorithm: str = Field(default_factory=lambda: os.getenv("AUTH_ALGORITHM", "HS256"))
-    access_token_minutes: int = Field(default_factory=lambda: int(os.getenv("ACCESS_TOKEN_MINUTES", "1440")))
-    refresh_token_minutes: int = Field(default_factory=lambda: int(os.getenv("REFRESH_TOKEN_MINUTES", "10080")))
+    secret_key: str = Field(default_factory=lambda: core_settings.SECRET_KEY)
+    algorithm: str = Field(default_factory=lambda: core_settings.ALGORITHM)
+    access_token_minutes: int = Field(default_factory=lambda: core_settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_minutes: int = Field(default_factory=lambda: core_settings.REFRESH_TOKEN_EXPIRE_DAYS * 1440)
     google_client_id: Optional[str] = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_ID"))
     google_client_secret: Optional[str] = Field(default_factory=lambda: os.getenv("GOOGLE_CLIENT_SECRET"))
     google_redirect_uri: Optional[str] = Field(default_factory=lambda: os.getenv("GOOGLE_REDIRECT_URI"))
@@ -38,10 +39,10 @@ class AuthSettings(BaseModel):
 settings = AuthSettings()
 
 # Security warning for production
-if settings.secret_key == "change-me":
+if settings.secret_key == "change-me" or "change-me" in settings.secret_key:
     # In a real production scenario, you might want to raise an error.
     # For now, we print a warning so local dev works but the risk is known.
-    print("WARNING: AUTH_SECRET_KEY is set to default 'change-me'. This is unsafe for production!")
+    print("WARNING: AUTH_SECRET_KEY is set to default 'change-me' value. This is unsafe for production!")
 
 
 def get_db_session():

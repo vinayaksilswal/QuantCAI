@@ -32,3 +32,13 @@ logfile.txt
 # OS
 .DS_Store
 Thumbs.db
+.env.local
+.env.production
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+**/.pytest_cache/
+celerybeat-schedule
+celerybeat.pid
+scripts/verify_db.py

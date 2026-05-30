@@ -1,0 +1,95 @@
+from typing import Any
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator, model_validator
+
+class Settings(BaseSettings):
+    # Database and Caching
+    DATABASE_URL: str = "postgresql+asyncpg://user:password@host/dbname"
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Celery
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    
+    # Authentication
+    SECRET_KEY: str = "change-me-temporary-key-that-is-at-least-32-chars-long"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    
+    # Stripe Payments
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRO_PRICE_ID: str = ""
+    STRIPE_ENTERPRISE_PRICE_ID: str = ""
+    
+    # External APIs
+    GEMINI_API_KEY: str = ""
+    RAPIDAPI_PROXY_SECRET: str = ""
+    
+    # Environment Configurations
+    FRONTEND_URL: str = "https://quantcai.in"
+    ENVIRONMENT: str = "development"
+    LOG_LEVEL: str = "INFO"
+    
+    model_config = SettingsConfigDict(
+        env_file=".env", 
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_auth_env_vars(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Map AUTH_SECRET_KEY -> SECRET_KEY
+            auth_key = data.get("auth_secret_key") or data.get("AUTH_SECRET_KEY")
+            if auth_key and not data.get("SECRET_KEY"):
+                data["SECRET_KEY"] = auth_key
+            
+            # Map AUTH_ALGORITHM -> ALGORITHM
+            auth_alg = data.get("auth_algorithm") or data.get("AUTH_ALGORITHM")
+            if auth_alg and not data.get("ALGORITHM"):
+                data["ALGORITHM"] = auth_alg
+
+            # Map ACCESS_TOKEN_MINUTES -> ACCESS_TOKEN_EXPIRE_MINUTES
+            access_min = data.get("access_token_minutes") or data.get("ACCESS_TOKEN_MINUTES")
+            if access_min and not data.get("ACCESS_TOKEN_EXPIRE_MINUTES"):
+                data["ACCESS_TOKEN_EXPIRE_MINUTES"] = int(access_min)
+
+            # Map REFRESH_TOKEN_MINUTES -> REFRESH_TOKEN_EXPIRE_DAYS (minutes to days)
+            refresh_min = data.get("refresh_token_minutes") or data.get("REFRESH_TOKEN_MINUTES")
+            if refresh_min and not data.get("REFRESH_TOKEN_EXPIRE_DAYS"):
+                data["REFRESH_TOKEN_EXPIRE_DAYS"] = int(refresh_min) // 1440
+                
+            # Align ENVIRONMENT with ENV if specified in .env
+            env_val = data.get("env") or data.get("ENV")
+            if env_val and not data.get("ENVIRONMENT"):
+                data["ENVIRONMENT"] = "production" if env_val == "production" else "development"
+        return data
+
+    @field_validator("ENVIRONMENT")
+    @classmethod
+    def validate_environment(cls, v: str) -> str:
+        if v not in ("development", "production"):
+            raise ValueError("ENVIRONMENT must be 'development' or 'production'")
+        return v
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        if len(v) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters")
+        return v
+
+    @model_validator(mode="after")
+    def validate_prod_secret(self):
+        if self.ENVIRONMENT == "production" and "change-me" in self.SECRET_KEY:
+            raise ValueError("SECRET_KEY cannot contain 'change-me' in production")
+        return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
+
+settings = Settings()

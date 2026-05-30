@@ -140,7 +140,6 @@ export const QuantumVisualizer = ({ qubitState }: QuantumVisualizerProps) => {
 
     // Convert to Cartesian coordinates with better projection
     const x = sphereRadius * Math.sin(theta) * Math.cos(phi);
-    const y = sphereRadius * Math.sin(theta) * Math.sin(phi);
     const z = sphereRadius * Math.cos(theta);
 
     // Enhanced 3D projection
@@ -201,7 +200,6 @@ export const QuantumVisualizer = ({ qubitState }: QuantumVisualizerProps) => {
     const drawProbabilityBars = () => {
       const barWidth = 60;
       const barMaxHeight = 120;
-      const barSpacing = 30;
       
       // |0⟩ probability bar
       const bar0Height = prob0 * barMaxHeight;

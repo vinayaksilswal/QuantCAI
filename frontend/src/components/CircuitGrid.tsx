@@ -14,18 +14,7 @@ export const CircuitGrid = ({ placedGates, numWires, numSteps }: CircuitGridProp
 
     return (
         <div className="min-w-[800px] select-none relative">
-            {/* Connection Lines Layer (Rendered absolutely over the grid) */}
-            <svg className="absolute inset-0 pointer-events-none z-0 w-full h-full">
-                {placedGates.filter(g => g.targetWire !== undefined && g.targetWire !== g.wire).map(gate => {
-                    // Calculate positions based on wire index and step
-                    // Assuming row height 64px (mb-4 + h-12 approx?), step width roughly 64px?
-                    // We need precise offsets.
-                    // Instead of full absolute, let's render lines within the column if possible?
-                    // No, SVG overlay is cleaner if we know dimensions.
-                    // For now, let's stick to DOM-based lines within the step column.
-                    return null;
-                })}
-            </svg>
+
 
             {wires.map((wire) => (
                 <div key={wire} className="flex mb-6 items-center h-12">

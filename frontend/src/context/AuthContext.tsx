@@ -2,10 +2,30 @@ import { useEffect, useMemo, useState, ReactNode } from 'react';
 import { api, User as ApiUser } from '@/lib/api';
 import { AuthContext, Role, FrontendUser } from './AuthContextInstance';
 
+// JWT decode helper function
+function decodeJwt(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error decoding JWT:', error);
+    return null;
+  }
+}
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<ApiUser | null>(null);
   const [user, setUser] = useState<FrontendUser | null>(null);
   const [role, setRole] = useState<Role>(null);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<'free' | 'pro' | 'enterprise' | null>('free');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,7 +44,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               name: currentUser.name,
             });
             setRole((currentUser.role as Role) ?? 'user');
+            
+            const decoded = decodeJwt(tokenData.access_token);
+            const plan = decoded?.subscription_plan || 'free';
+            setSubscriptionPlan(plan);
+            
             localStorage.setItem('auth_user', JSON.stringify(currentUser));
+            localStorage.setItem('subscription_plan', plan);
             setLoading(false);
             return;
           }
@@ -32,15 +58,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } catch (error) {
         console.log('Refresh token failed or expired. Clearing session.');
         localStorage.removeItem('auth_user');
+        localStorage.removeItem('subscription_plan');
       }
 
       // 2. Fallback to localStorage if offline or refresh failed (for UI state)
       const storedUser = localStorage.getItem('auth_user');
+      const storedPlan = localStorage.getItem('subscription_plan') as any;
       if (storedUser) {
         try {
           const userData: ApiUser = JSON.parse(storedUser);
-          // Only trust localStorage if we didn't just fail a refresh (the fail above clears it)
-          // But if we are offline, it might still be here.
           setSession(userData);
           setUser({
             id: userData.id?.toString() ?? '',
@@ -48,9 +74,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             name: userData.name,
           });
           setRole((userData.role as Role) ?? 'user');
+          setSubscriptionPlan(storedPlan || 'free');
         } catch (error) {
           console.error('Error parsing stored user:', error);
           localStorage.removeItem('auth_user');
+          localStorage.removeItem('subscription_plan');
         }
       }
 
@@ -72,7 +100,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name: userData.name,
         });
         setRole((userData.role as Role) ?? 'user');
+        
+        const decoded = decodeJwt(tokenData.access_token);
+        const plan = decoded?.subscription_plan || 'free';
+        setSubscriptionPlan(plan);
+        
         localStorage.setItem('auth_user', JSON.stringify(userData));
+        localStorage.setItem('subscription_plan', plan);
       }
     } catch (error) {
       throw error;
@@ -92,7 +126,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           name: userData.name,
         });
         setRole((userData.role as Role) ?? 'user');
+        
+        const decoded = decodeJwt(tokenData.access_token);
+        const plan = decoded?.subscription_plan || 'free';
+        setSubscriptionPlan(plan);
+        
         localStorage.setItem('auth_user', JSON.stringify(userData));
+        localStorage.setItem('subscription_plan', plan);
       }
     } catch (error) {
       throw error;
@@ -108,14 +148,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setSession(null);
       setRole(null);
+      setSubscriptionPlan('free');
       api.setToken(null);
       localStorage.removeItem('auth_user');
+      localStorage.removeItem('subscription_plan');
     }
   };
 
   const value = useMemo(
-    () => ({ user, session, role, loading, signOut, login, register }),
-    [user, session, role, loading]
+    () => ({ user, session, role, loading, subscriptionPlan, signOut, login, register }),
+    [user, session, role, loading, subscriptionPlan]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

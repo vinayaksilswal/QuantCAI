@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Target, Facebook, Twitter, Linkedin } from 'lucide-react';
+import { Facebook, Twitter, Linkedin } from 'lucide-react';
 import { NewsletterForm } from './NewsletterForm';
 import { LogoProcessor } from './LogoProcessor';
 

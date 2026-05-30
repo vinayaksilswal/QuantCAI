@@ -20,15 +20,14 @@ import { TutorialOverlay } from '@/components/TutorialOverlay';
 
 const CircuitBuilder = () => {
     const { user } = useAuth();
-    const { circuitActions, ackCircuitAction, activeTool } = useAI();
+    const { circuitActions, ackCircuitAction } = useAI();
 
-    const [circuitName, setCircuitName] = useState("Untitled Circuit");
     const [placedGates, setPlacedGates] = useState<PlacedGate[]>([]);
     const [results, setResults] = useState<any>(null);
     const [activeDragGate, setActiveDragGate] = useState<GateType | null>(null);
     const [useNoise, setUseNoise] = useState(false);
     const [isSimulating, setIsSimulating] = useState(false);
-    const [numWires, setNumWires] = useState(5);
+    const [numWires] = useState(5);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
