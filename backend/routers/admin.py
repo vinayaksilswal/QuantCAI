@@ -8,6 +8,7 @@ from sqlalchemy import func, desc
 from typing import List, Optional
 import logging
 from datetime import datetime, timedelta
+import psutil
 
 from core.auth import get_current_user
 import models as DBmodels

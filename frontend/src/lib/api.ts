@@ -97,11 +97,11 @@ export const authApi = {
 
 export const contentApi = {
   getLearnBlocks: () => fetchApi<LearnBlock[]>('/api/learn-blocks'),
-  createLearnBlock: (data: Partial<LearnBlock>) => fetchApi<LearnBlock>('/content/learn-blocks', {
+  createLearnBlock: (data: Partial<LearnBlock>) => fetchApi<LearnBlock>('/api/learn-blocks', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  sendContactMessage: (data: { email: string; message: string }) => fetchApi('/notify', {
+  sendContactMessage: (data: { email: string; message: string }) => fetchApi('/api/notify', {
     method: 'POST',
     body: JSON.stringify(data),
   }),

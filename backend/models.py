@@ -698,3 +698,30 @@ class RefreshToken(Base):
     def __repr__(self) -> str:
         return f"<RefreshToken(id={self.id}, user_id={self.user_id}, jti={self.jti!r}, revoked={self.revoked})>"
 
+
+class Log(Base):
+    __tablename__ = "logtable"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, index=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False,
+        index=True
+    )
+    level: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    logger_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    module: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    function: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    line_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    request_method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    request_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    request_ip: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    response_status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    exception: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<Log(id={self.id}, level={self.level!r}, message={self.message[:30]!r})>"
+
+
