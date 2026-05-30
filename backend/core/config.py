@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     RAPIDAPI_PROXY_SECRET: str = ""
     
     # Environment Configurations
+    ALLOWED_ORIGINS: str = ""
     FRONTEND_URL: str = "https://quantcai.in"
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
@@ -91,5 +92,13 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        if self.ALLOWED_ORIGINS:
+            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+        if self.is_production:
+            return [self.FRONTEND_URL]
+        return ["http://localhost:5173", "http://localhost:3000"]
 
 settings = Settings()

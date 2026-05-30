@@ -21,6 +21,8 @@ class RapidAPIValidationMiddleware(BaseHTTPMiddleware):
     for a cached active session corresponding to the X-RapidAPI-User header (30s TTL).
     """
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.method == "OPTIONS":
+            return await call_next(request)
         path = request.url.path
         
         # Exclude paths that do not require proxy validation (e.g. root, health, docs, and authentication routes)

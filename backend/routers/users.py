@@ -88,7 +88,7 @@ def track_progress(
         existing = db.query(DBmodels.PageProgress).filter(
             DBmodels.PageProgress.user_id == current_user.id,
             DBmodels.PageProgress.page_key == body.page_key
-        ).first()
+        ).with_for_update().first()
         
         if existing:
             existing.read_at = datetime.utcnow()

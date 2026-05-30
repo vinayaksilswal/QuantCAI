@@ -5,6 +5,7 @@ import structlog
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -88,14 +89,9 @@ app = FastAPI(
 )
 
 # CORS configuration
-if settings.is_production:
-    allow_origins = [settings.FRONTEND_URL]
-else:
-    allow_origins = ["http://localhost:5173", "http://localhost:3000"]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -124,7 +120,7 @@ async def add_security_headers(request: Request, call_next):
 # Request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    if request.url.path == "/health":
+    if request.url.path in ("/health", "/healthz", "/ready"):
         return await call_next(request)
         
     start_time = time.perf_counter()
@@ -143,16 +139,48 @@ async def log_requests(request: Request, call_next):
     )
     return response
 
-# Global exception handler
+# Standardized Validation Error Exception Handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(f"Validation error on {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY if hasattr(status, "HTTP_422_UNPROCESSABLE_ENTITY") else 422,
+        content={
+            "status": "error",
+            "message": "Validation failed",
+            "detail": exc.errors(),
+            "details": exc.errors()
+        }
+    )
+
+# Standardized HTTP Exception Handler
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    headers = exc.headers if hasattr(exc, "headers") else None
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": "error",
+            "message": exc.detail,
+            "detail": exc.detail,
+            "details": None
+        },
+        headers=headers
+    )
+
+# Standardized Global Catch-All Exception Handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    if not settings.is_production:
-        raise exc
-    
-    logger.error("Unhandled exception occurred:", exc_info=exc)
+    logger.error(f"Unhandled exception occurred on {request.url.path}: {str(exc)}", exc_info=exc)
+    message = "Internal server error" if settings.is_production else str(exc)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error"}
+        content={
+            "status": "error",
+            "message": message,
+            "detail": message,
+            "details": None
+        }
     )
 
 # Include API routers
@@ -192,10 +220,24 @@ app.include_router(admin_router)
 from tutor import router as tutor_router
 app.include_router(tutor_router)
 
-@app.get("/health")
-async def health_check(db: AsyncSession = Depends(get_db)):
+@app.get("/healthz")
+def liveness_check():
     """
-    Hardened health check endpoint.
+    Fast liveness check endpoint.
+    Returns 200 OK immediately if the web process is running.
+    """
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "service": "QuantCAI API"
+    }
+
+@app.get("/ready")
+@app.get("/health")
+async def readiness_check(db: AsyncSession = Depends(get_db)):
+    """
+    Detailed readiness check endpoint.
+    Validates database and Redis cache connectivity.
     """
     db_ok = "ok"
     redis_ok = "ok"
@@ -228,7 +270,8 @@ async def health_check(db: AsyncSession = Depends(get_db)):
             "database": db_ok,
             "redis": redis_ok,
             "version": "1.0.0",
-            "environment": settings.ENVIRONMENT
+            "environment": settings.ENVIRONMENT,
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     )
 

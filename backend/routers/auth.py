@@ -76,7 +76,7 @@ class GoogleOAuthRequest(BaseModel):
 
 @router.post("/login")
 @limiter.limit("5/minute")
-async def login(request: Request, login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(request: Request, login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """User login with rate limiting and account lockout"""
     logger.info(f"Login attempt for email: {login_data.email}")
     try:
@@ -126,7 +126,7 @@ async def login(request: Request, login_data: LoginRequest, response: Response, 
 
 @router.post("/register")
 @limiter.limit("5/minute")
-async def register(request: Request, reg_data: RegisterRequest, response: Response, db: Session = Depends(get_db)):
+def register(request: Request, reg_data: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """User registration with rate limiting and password complexity validation"""
     logger.info(f"Registration attempt for email: {reg_data.email}")
     try:
@@ -201,7 +201,7 @@ def logout(response: Response, current_user: DBmodels.User = Depends(get_current
 
 @router.post("/refresh")
 @limiter.limit("10/minute")
-async def refresh_tokens(request: Request, response: Response, db: Session = Depends(get_db)):
+def refresh_tokens(request: Request, response: Response, db: Session = Depends(get_db)):
     """Refresh access token using httpOnly cookie. Rate limited."""
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:

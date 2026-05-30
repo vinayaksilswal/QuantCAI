@@ -1,0 +1,135 @@
+# Render Blueprint Specification for QuantCAI platform
+# Hardened for high-availability (99.9% Uptime SLA) and production scaling
+
+services:
+  # 1. FastAPI Web Server (Backend)
+  - type: web
+    name: quantcai-backend
+    env: docker
+    dockerContext: backend
+    dockerfilePath: Dockerfile
+    plan: standard # Production tier plan
+    healthCheckPath: /healthz
+    numInstances: 2 # Scale horizontally to ensure high availability and zero-downtime rolling deploys
+    autoScale:
+      enabled: true
+      minInstances: 2
+      maxInstances: 10
+      cpuPercent: 70 # Scale out when CPU utilization exceeds 70%
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quantcai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: quantcai-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: quantcai-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: quantcai-redis
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: "https://quantcai.in,https://www.quantcai.in"
+      - key: FRONTEND_URL
+        value: "https://quantcai.in"
+      - key: SECRET_KEY
+        generateValue: true # Securely generate at deployment time
+      - key: ALGORITHM
+        value: HS256
+      - key: STRIPE_SECRET_KEY
+        sync: false # Configured in the dashboard
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # 2. Celery Worker (Background tasks)
+  - type: worker
+    name: quantcai-worker
+    env: docker
+    dockerContext: backend
+    dockerfilePath: Dockerfile
+    plan: standard
+    # Override CMD to launch celery instead of fastapi server
+    dockerCommand: celery -A worker.celery_app worker --loglevel=info -c 4
+    numInstances: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quantcai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: quantcai-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: quantcai-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: quantcai-redis
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: ENV
+        value: production
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: quantcai-backend
+          property: envVar/SECRET_KEY
+      - key: GEMINI_API_KEY
+        sync: false
+
+  # 3. Static Site (Frontend React App)
+  - type: web
+    name: quantcai-frontend
+    env: static
+    plan: free
+    buildCommand: npm ci && npm run build
+    publishPath: frontend/dist # The build artifact directory
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable # Aggressive browser caching for production speed
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: quantcai-backend
+          property: url
+      - key: VITE_ENVIRONMENT
+        value: production
+
+# 4. Redis Cache & Message Broker
+databases:
+  - type: redis
+    name: quantcai-redis
+    plan: standard
+    ipAllowList: [] # Strict access: only internal services
+
+  # 5. PostgreSQL Production Database
+  - type: postgres
+    name: quantcai-db
+    plan: standard
+    databaseName: quantcai
+    user: quantcai_user
+    ipAllowList: [] # Strict access: only internal services
