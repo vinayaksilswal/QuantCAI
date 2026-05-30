@@ -157,7 +157,7 @@ def register(request: Request, reg_data: RegisterRequest, response: Response, db
             name=reg_data.name.strip(),
             is_active=True,
             is_blocked=False,
-            role="user"
+            role=DBmodels.UserRole.LEARNER
         )
         db.add(new_user)
         db.commit()
