@@ -141,12 +141,12 @@ def unblock_user(
 @router.post("/users/{user_id}/role")
 def change_user_role(
     user_id: int,
-    role: str = Query(..., description="New role: admin, user, root"),
+    role: str = Query(..., description="New role: admin, user, developer, root"),
     db: Session = Depends(get_db),
     _: DBmodels.User = Depends(get_admin_user)
 ):
     """Change a user's role."""
-    if role not in ("admin", "user", "root"):
+    if role not in ("admin", "user", "developer", "root"):
         raise HTTPException(status_code=400, detail="Invalid role")
     user = db.query(DBmodels.User).filter(DBmodels.User.id == user_id).first()
     if not user:
@@ -154,10 +154,16 @@ def change_user_role(
     if user.id == _.id and role != _.role:
         # Admin can't demote themselves through this endpoint
         raise HTTPException(status_code=400, detail="Cannot change your own role via this endpoint")
-    user.role = role
+    
+    # Map input 'user' role to database enum value 'learner'
+    db_role = role
+    if role == "user":
+        db_role = "learner"
+        
+    user.role = db_role
     db.add(user)
     db.commit()
-    logger.info(f"Admin changed role for {user.email} to {role}")
+    logger.info(f"Admin changed role for {user.email} to {db_role}")
     return {"message": f"User {user.email} role changed to {role}"}
 
 # ======================

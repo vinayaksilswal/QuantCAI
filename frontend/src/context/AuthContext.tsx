@@ -21,6 +21,16 @@ function decodeJwt(token: string): any {
   }
 }
 
+const mapRole = (backendRole: string | null | undefined): Role => {
+  if (!backendRole) return 'user';
+  const r = backendRole.toLowerCase();
+  if (r === 'root') return 'root';
+  if (r === 'admin') return 'admin';
+  if (r === 'developer') return 'developer';
+  if (r === 'learner' || r === 'enterprise_user' || r === 'user') return 'user';
+  return 'user';
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<ApiUser | null>(null);
   const [user, setUser] = useState<FrontendUser | null>(null);
@@ -43,7 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               email: currentUser.email,
               name: currentUser.name,
             });
-            setRole((currentUser.role as Role) ?? 'user');
+            setRole(mapRole(currentUser.role));
             
             const decoded = decodeJwt(tokenData.access_token);
             const plan = decoded?.subscription_plan || 'free';
@@ -73,7 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: userData.email,
             name: userData.name,
           });
-          setRole((userData.role as Role) ?? 'user');
+          setRole(mapRole(userData.role));
           setSubscriptionPlan(storedPlan || 'free');
         } catch (error) {
           console.error('Error parsing stored user:', error);
@@ -99,7 +109,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: userData.email,
           name: userData.name,
         });
-        setRole((userData.role as Role) ?? 'user');
+        setRole(mapRole(userData.role));
         
         const decoded = decodeJwt(tokenData.access_token);
         const plan = decoded?.subscription_plan || 'free';
@@ -125,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: userData.email,
           name: userData.name,
         });
-        setRole((userData.role as Role) ?? 'user');
+        setRole(mapRole(userData.role));
         
         const decoded = decodeJwt(tokenData.access_token);
         const plan = decoded?.subscription_plan || 'free';

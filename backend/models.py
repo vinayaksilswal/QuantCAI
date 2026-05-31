@@ -22,6 +22,8 @@ class UserRole(str, enum.Enum):
     DEVELOPER = "developer"
     LEARNER = "learner"
     ENTERPRISE_USER = "enterprise_user"
+    ROOT = "root"
+
 
 class OrgPlan(str, enum.Enum):
     STARTER = "starter"

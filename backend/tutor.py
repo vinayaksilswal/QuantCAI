@@ -33,9 +33,9 @@ api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 if not api_key:
     logger.warning("Neither GEMINI_API_KEY nor GOOGLE_API_KEY found in environment.")
 
-# Initialize primary tutor LLM (Gemini 1.5 Pro)
+# Initialize primary tutor LLM (Gemini 2.5 Flash)
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-pro",
+    model="gemini-2.5-flash",
     google_api_key=api_key,
     temperature=0
 )
