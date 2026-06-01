@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     STRIPE_PRO_PRICE_ID: str = ""
     STRIPE_ENTERPRISE_PRICE_ID: str = ""
     
+    # Razorpay Payments
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    
     # External APIs
     GEMINI_API_KEY: str = ""
     RAPIDAPI_PROXY_SECRET: str = ""

@@ -1,7 +1,7 @@
 import { createContext } from 'react';
 import { User as ApiUser } from '@/lib/api';
 
-export type Role = 'root' | 'admin' | 'developer' | 'user' | null;
+export type Role = 'root' | 'admin' | 'developer' | 'user' | 'learner' | 'enterprise_user' | null;
 
 export interface FrontendUser {
     id: string;

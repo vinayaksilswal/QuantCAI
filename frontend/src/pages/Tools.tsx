@@ -2,7 +2,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Link } from 'react-router-dom';
-import { Zap, ArrowRight, Wrench } from 'lucide-react';
+import { Zap, ArrowRight, Wrench, Shield, Cpu } from 'lucide-react';
 import { usePageTracking } from '@/hooks/usePageTracking';
 
 const Tools = () => {
@@ -23,11 +23,31 @@ const Tools = () => {
             id: 'circuit-builder',
             title: 'Multi-Qubit Circuit Builder',
             description: 'Design and simulate complex quantum circuits with multiple qubits. Drag and drop gates, run experiments, and save your work.',
-            icon: Zap, // Using Zap for now, or could vary
+            icon: Zap,
             path: '/circuit-builder',
             color: 'text-purple-400',
             bgColor: 'bg-purple-400/10',
             borderColor: 'border-purple-400/20'
+        },
+        {
+            id: 'quantum-simulator',
+            title: 'Quantum Simulator',
+            description: 'Write OpenQASM 2.0 circuits, configure parameters, and execute them on a remote quantum simulator.',
+            icon: Cpu,
+            path: '/quantum-simulator',
+            color: 'text-cyan-400',
+            bgColor: 'bg-cyan-400/10',
+            borderColor: 'border-cyan-400/20'
+        },
+        {
+            id: 'pqc-scanner',
+            title: 'PQC Vulnerability Scanner',
+            description: 'Evaluate domains against Post-Quantum Cryptography vulnerability metrics. Receive instant NIST-aligned risk reports and mitigation guidelines.',
+            icon: Shield,
+            path: '/pqc-scanner',
+            color: 'text-emerald-400',
+            bgColor: 'bg-emerald-400/10',
+            borderColor: 'border-emerald-400/20'
         }
     ];
 

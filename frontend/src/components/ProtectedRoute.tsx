@@ -1,9 +1,10 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ReactElement } from 'react';
 
-export function ProtectedRoute({ children, roles }: { children: ReactElement; roles?: Array<'root' | 'developer' | 'user'> }) {
+export function ProtectedRoute({ children, roles }: { children: ReactElement; roles?: Array<'root' | 'admin' | 'developer' | 'user' | 'learner' | 'enterprise_user'> }) {
   const { user, role, loading } = useAuth();
+  const location = useLocation();
 
   // Show loading state while checking authentication
   if (loading) {
@@ -16,7 +17,7 @@ export function ProtectedRoute({ children, roles }: { children: ReactElement; ro
 
   // Redirect to login if not authenticated
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Check role-based access
@@ -36,8 +37,8 @@ export function ProtectedRoute({ children, roles }: { children: ReactElement; ro
     }
 
     // Normalize role to lowercase for comparison
-    const normalizedRole = role.toLowerCase() as 'root' | 'developer' | 'user';
-    const normalizedRoles = roles.map(r => r.toLowerCase() as 'root' | 'developer' | 'user');
+    const normalizedRole = role.toLowerCase() as any;
+    const normalizedRoles = roles.map(r => r.toLowerCase() as any);
 
     if (!normalizedRoles.includes(normalizedRole)) {
       // User doesn't have required role - show error message instead of silent redirect

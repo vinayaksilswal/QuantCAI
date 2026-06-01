@@ -265,6 +265,18 @@ export const Navbar = () => {
               </div>
 
               <Link
+                to="/tools"
+                className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/tools')
+                  ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
+                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  }`}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <Zap className="h-5 w-5" />
+                Tools
+              </Link>
+
+              <Link
                 to="/community"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/community')
                   ? 'bg-blue-600/30 text-white font-medium'

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { ReactElement, lazy, Suspense } from "react";
 import Index from "./pages/Index";
@@ -21,9 +21,11 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Login = lazy(() => import("./pages/Login"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-
+const PqcScanner = lazy(() => import("./pages/PqcScanner"));
 import { AuthProvider } from "./context/AuthContext";
+
 import { useAuth } from "./hooks/useAuth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { QuantumBackground } from "./components/QuantumBackground";
@@ -63,12 +65,13 @@ const App = () => (
                   }>
                     <Routes>
                       <Route path="/" element={<RootRedirect><Index /></RootRedirect>} />
-                      <Route path="/dashboard" element={<ProtectedRoute roles={["root", "developer", "user"]}><Dashboard /></ProtectedRoute>} />
+                      <Route path="/dashboard" element={<Navigate to="/profile" replace />} />
+                      <Route path="/quantum-simulator" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />
                       <Route path="/learn" element={<Learn />} />
                       <Route path="/quantum-computing" element={<QuantumComputing />} />
-                      <Route path="/quantum-states" element={<ProtectedRoute roles={["root", "developer", "user"]}><QuantumStates /></ProtectedRoute>} />
+                      <Route path="/quantum-states" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumStates /></ProtectedRoute>} />
                       <Route path="/tools" element={<Tools />} />
-                      <Route path="/circuit-builder" element={<ProtectedRoute roles={["root", "developer", "user"]}><CircuitBuilder /></ProtectedRoute>} />
+                      <Route path="/circuit-builder" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><CircuitBuilder /></ProtectedRoute>} />
                       <Route path="/get-started" element={<GetStarted />} />
                       <Route path="/soon" element={<Soon />} />
                       <Route path="/community" element={<Community />} />
@@ -76,7 +79,9 @@ const App = () => (
                       <Route path="/admin" element={<ProtectedRoute roles={["root"]}><Admin /></ProtectedRoute>} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/signup" element={<Login />} />
-                      <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user"]}><Profile /></ProtectedRoute>} />
+                      <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><Profile /></ProtectedRoute>} />
+                      <Route path="/pqc-scanner" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
+
                       <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
                     </Routes>
                   </Suspense>

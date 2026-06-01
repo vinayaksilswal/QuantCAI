@@ -187,6 +187,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 from billing import router as billing_router
 app.include_router(billing_router)
 
+from routers.payment import router as payment_router
+app.include_router(payment_router)
+
 from quantum_engine import router as quantum_sim_router
 app.include_router(quantum_sim_router)
 

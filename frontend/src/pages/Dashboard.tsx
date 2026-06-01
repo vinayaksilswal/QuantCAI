@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { OverviewTab } from '@/components/dashboard/OverviewTab';
 import { QuantumSimulatorTab } from '@/components/dashboard/QuantumSimulatorTab';
-import { PqcScannerTab } from '@/components/dashboard/PqcScannerTab';
 import { ApiKeysTab } from '@/components/dashboard/ApiKeysTab';
 import { BillingTab } from '@/components/dashboard/BillingTab';
 import { SettingsTab } from '@/components/dashboard/SettingsTab';
@@ -39,7 +38,6 @@ export default function Dashboard() {
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'ai-tutor', label: 'AI Tutor', icon: BookOpen, locked: isFree },
     { id: 'simulator', label: 'Quantum Simulator', icon: Cpu },
-    { id: 'pqc-scanner', label: 'PQC Scanner', icon: ShieldAlert },
     { id: 'api-keys', label: 'API Keys', icon: Key },
     { id: 'billing', label: 'Billing', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -70,8 +68,6 @@ export default function Dashboard() {
         return <OverviewTab />;
       case 'simulator':
         return <QuantumSimulatorTab />;
-      case 'pqc-scanner':
-        return <PqcScannerTab />;
       case 'api-keys':
         return <ApiKeysTab />;
       case 'billing':

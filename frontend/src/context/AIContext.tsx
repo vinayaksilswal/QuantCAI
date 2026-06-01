@@ -3,6 +3,55 @@ import { api, API_BASE } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { AIContext, Message } from './AIContextInstance';
 
+const parseQasm = (qasm: string) => {
+    const lines = qasm.split('\n');
+    const actions: { action: string; params: any }[] = [];
+    
+    // Always clear first
+    actions.push({ action: 'clear', params: {} });
+    
+    for (let line of lines) {
+        line = line.trim().replace(/;$/, '');
+        if (!line || line.startsWith('OPENQASM') || line.startsWith('include') || line.startsWith('qreg') || line.startsWith('creg') || line.startsWith('//') || line.startsWith('barrier')) {
+            continue;
+        }
+        
+        // Skip measure gates as they are simulated automatically
+        if (line.startsWith('measure')) {
+            continue;
+        }
+        
+        // Match 1-qubit gates, e.g. "h q[0]" or "x q[1]"
+        const oneQubitMatch = line.match(/^([a-z0-9]+)\s+q\[(\d+)\]$/i);
+        if (oneQubitMatch) {
+            const gate = oneQubitMatch[1].toLowerCase();
+            const qubit = parseInt(oneQubitMatch[2], 10);
+            actions.push({
+                action: 'add_gate',
+                params: { gate, qubit }
+            });
+            continue;
+        }
+        
+        // Match 2-qubit gates, e.g. "cx q[0],q[1]"
+        const twoQubitMatch = line.match(/^([a-z0-9]+)\s+q\[(\d+)\]\s*,\s*q\[(\d+)\]$/i);
+        if (twoQubitMatch) {
+            const gate = twoQubitMatch[1].toLowerCase();
+            const control = parseInt(twoQubitMatch[2], 10);
+            const target = parseInt(twoQubitMatch[3], 10);
+            actions.push({
+                action: 'add_gate',
+                params: { gate, control, target }
+            });
+            continue;
+        }
+    }
+    
+    // Always run at the end
+    actions.push({ action: 'run', params: {} });
+    return actions;
+};
+
 export const AIProvider = ({ children }: { children: ReactNode }) => {
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
@@ -74,8 +123,34 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
 
             setMessages(prev => [...prev, { role: "assistant", content: data.response }]);
 
-            if (data.intent === "build_circuit" || data.intent === "simulate") {
-                handleToolCall("open_tool", { tool_name: "circuit-builder" });
+            if (data.intent === "simulation_request" || data.intent === "build_circuit" || data.intent === "simulate") {
+                // Extract QASM code
+                const qasmRegex = /```qasm\s*([\s\S]*?)\s*```/i;
+                const match = data.response.match(qasmRegex);
+                let qasmCode = "";
+                if (match) {
+                    qasmCode = match[1];
+                } else if (data.response.includes("OPENQASM")) {
+                    const openqasmIndex = data.response.indexOf("OPENQASM");
+                    qasmCode = data.response.substring(openqasmIndex);
+                }
+
+                if (qasmCode) {
+                    // Open the circuit builder tool
+                    handleToolCall("open_tool", { tool_name: "circuit-builder" });
+                    
+                    // Parse QASM lines
+                    const parsedActions = parseQasm(qasmCode);
+                    
+                    // Enqueue actions
+                    setCircuitActions(parsedActions.map(act => ({
+                        id: Math.random().toString(36).substring(7),
+                        action: act.action,
+                        params: act.params
+                    })));
+                } else {
+                    handleToolCall("open_tool", { tool_name: "circuit-builder" });
+                }
             } else if (data.intent === "interactive_states") {
                 handleToolCall("open_tool", { tool_name: "quantum-states" });
             }

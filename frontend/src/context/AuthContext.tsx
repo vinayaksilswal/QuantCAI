@@ -27,7 +27,9 @@ const mapRole = (backendRole: string | null | undefined): Role => {
   if (r === 'root') return 'root';
   if (r === 'admin') return 'admin';
   if (r === 'developer') return 'developer';
-  if (r === 'learner' || r === 'enterprise_user' || r === 'user') return 'user';
+  if (r === 'learner') return 'learner';
+  if (r === 'enterprise_user') return 'enterprise_user';
+  if (r === 'user') return 'user';
   return 'user';
 };
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { Button } from '@/components/ui/button';
 import {
@@ -96,13 +96,16 @@ const trustItems = [
    ═══════════════════════════════════════════════════════════════════════ */
 export default function LandingPage() {
   usePageTracking('home');
+  const navigate = useNavigate();
 
   const [scanDomain, setScanDomain] = useState('');
   const [showResult, setShowResult] = useState(false);
 
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (scanDomain.trim()) setShowResult(true);
+    if (scanDomain.trim()) {
+      navigate(`/pqc-scanner?domain=${encodeURIComponent(scanDomain.trim())}`);
+    }
   };
 
   return (
@@ -256,17 +259,17 @@ export default function LandingPage() {
 
             {/* ── RIGHT: PQC Scanner ── */}
             <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-blue-400/20 shadow-2xl shadow-blue-500/10 hover:border-blue-400/40 hover:shadow-blue-500/20 transition-all duration-300 p-6 sm:p-8 group">
-              <div className="flex items-center gap-3 mb-4">
+              <Link to="/pqc-scanner" className="flex items-center gap-3 mb-4 cursor-pointer hover:opacity-85 transition-opacity">
                 <div className="w-9 h-9 rounded-lg border border-cyan-400/30 flex items-center justify-center text-qc-accent bg-cyan-500/10">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-white drop-shadow-md">
+                  <h3 className="font-bold text-lg text-white drop-shadow-md hover:text-cyan-300 transition-colors">
                     PQC Vulnerability Scanner
                   </h3>
                   <p className="text-blue-200 text-xs">For security teams</p>
                 </div>
-              </div>
+              </Link>
 
               <p className="text-blue-200 text-sm mb-6 leading-relaxed drop-shadow-sm">
                 Is your TLS stack quantum-safe? We'll tell you in 30 seconds.
