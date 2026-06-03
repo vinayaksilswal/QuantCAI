@@ -1,6 +1,7 @@
 import time
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 import razorpay
@@ -18,20 +19,22 @@ router = APIRouter(tags=["Razorpay Payments"])
 logger = logging.getLogger("quantcai.payments")
 
 class CreateOrderRequest(BaseModel):
-    amount: float  # Amount in USD
+    amount: int  # Amount in paise
+    currency: str = "INR"
+    receipt: Optional[str] = None
 
 class VerifyPaymentRequest(BaseModel):
-    razorpay_payment_id: str
-    razorpay_order_id: str
-    razorpay_signature: str
+    razorpay_payment_id: Optional[str] = None
+    razorpay_order_id: Optional[str] = None
+    razorpay_signature: Optional[str] = None
 
-@router.post("/create-order")
+@router.post("/api/create-order")
 async def create_order(
     request: CreateOrderRequest,
     current_user: DBmodels.User = Depends(get_current_user)
 ):
     """
-    Creates a Razorpay order with currency='USD' and amount in cents.
+    Creates a Razorpay order with currency and amount in paise/cents.
     """
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
         logger.error("Razorpay API key or secret not configured.")
@@ -40,18 +43,22 @@ async def create_order(
             detail="Razorpay is not configured on the backend."
         )
 
+    # Validate amount >= 100 paise
+    if request.amount < 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Amount must be at least 100 paise."
+        )
+
     try:
         # Initialize Razorpay Client
         client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
-        # Convert USD to cents (multiply by 100) and round to avoid floating point inaccuracies
-        amount_in_cents = int(round(request.amount * 100))
-
         # Order creation details
         order_data = {
-            "amount": amount_in_cents,
-            "currency": "USD",
-            "receipt": f"receipt_order_{current_user.id}_{int(time.time())}",
+            "amount": request.amount,
+            "currency": request.currency,
+            "receipt": request.receipt or f"receipt_order_{current_user.id}_{int(time.time())}",
             "notes": {
                 "user_id": str(current_user.id),
                 "user_email": current_user.email
@@ -61,16 +68,29 @@ async def create_order(
         # Call Razorpay SDK to create the order
         order = client.order.create(data=order_data)
         logger.info(f"Successfully created Razorpay order {order.get('id')} for user {current_user.email}")
-        return order
+        
+        # Return exactly { order_id, amount, currency }
+        return {
+            "order_id": order.get("id"),
+            "amount": order.get("amount"),
+            "currency": order.get("currency")
+        }
 
     except Exception as e:
         logger.error(f"Failed to create Razorpay order: {str(e)}", exc_info=True)
+        # Check if it was an authentication/credentials failure from Razorpay side
+        err_msg = str(e).lower()
+        if "auth" in err_msg or "unauthorized" in err_msg or "401" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Razorpay authentication failed: {str(e)}"
+            )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Order creation failed: {str(e)}"
         )
 
-@router.post("/verify-payment")
+@router.post("/api/verify-payment")
 async def verify_payment(
     request: VerifyPaymentRequest,
     current_user: DBmodels.User = Depends(get_current_user),
@@ -84,6 +104,13 @@ async def verify_payment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Razorpay is not configured on the backend."
+        )
+
+    # Missing fields: return 400
+    if not request.razorpay_payment_id or not request.razorpay_order_id or not request.razorpay_signature:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing fields: razorpay_payment_id, razorpay_order_id, and razorpay_signature are required."
         )
 
     try:
@@ -150,3 +177,4 @@ async def verify_payment(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Verification failed: {str(e)}"
         )
+

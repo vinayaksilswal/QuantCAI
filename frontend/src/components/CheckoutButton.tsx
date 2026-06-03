@@ -3,7 +3,8 @@ import { axiosClient } from '@/lib/axiosClient';
 import { toast } from 'sonner';
 
 interface CheckoutButtonProps {
-  amount: number; // in USD
+  amount: number; // in paise/cents
+  currency?: string; // defaults to 'INR'
   planName: string;
   onSuccess?: (payload: any) => void;
   onError?: (error: any) => void;
@@ -13,6 +14,7 @@ interface CheckoutButtonProps {
 
 export function CheckoutButton({
   amount,
+  currency = 'INR',
   planName,
   onSuccess,
   onError,
@@ -68,13 +70,14 @@ export function CheckoutButton({
 
     try {
       // 1. Create order on FastAPI backend
-      // Specify amount in USD as requested
-      const orderResponse = await axiosClient.post('/create-order', {
+      // Specify amount in paise/cents as requested
+      const orderResponse = await axiosClient.post('/api/create-order', {
         amount: amount,
+        currency: currency,
       });
 
       const orderData = orderResponse.data;
-      if (!orderData || !orderData.id) {
+      if (!orderData || !orderData.order_id) {
         throw new Error('Failed to create order on the backend.');
       }
 
@@ -86,11 +89,11 @@ export function CheckoutButton({
       // 2. Open Razorpay Checkout Modal
       const options = {
         key: razorpayKey,
-        amount: orderData.amount, // amount in cents (returned from backend order)
-        currency: 'USD',
+        amount: orderData.amount, // amount in paise/cents (returned from backend order)
+        currency: orderData.currency || 'INR',
         name: 'QuantCAI',
         description: `Upgrade to ${planName.toUpperCase()} Plan`,
-        order_id: orderData.id,
+        order_id: orderData.order_id,
         // Optional pre-fill info - can be customized or retrieved from auth context if needed
         prefill: {
           name: '',
@@ -108,7 +111,7 @@ export function CheckoutButton({
           // 3. On successful payment, send payload to backend verify endpoint
           setLoading(true);
           try {
-            const verifyResponse = await axiosClient.post('/verify-payment', {
+            const verifyResponse = await axiosClient.post('/api/verify-payment', {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_order_id: response.razorpay_order_id,
               razorpay_signature: response.razorpay_signature,

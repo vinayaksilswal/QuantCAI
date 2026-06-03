@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { axiosClient } from '@/lib/axiosClient';
 import { toast } from 'sonner';
 import { Sparkles, Shield, Cpu, BookOpen, FileText, Check, X } from 'lucide-react';
+import { CheckoutButton } from '@/components/CheckoutButton';
 
 export function UpgradeModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -127,13 +128,14 @@ export function UpgradeModal() {
 
         {/* CTA Actions */}
         <div className="flex flex-col gap-3">
-          <button
-            onClick={handleUpgrade}
-            disabled={loading}
-            className="w-full py-3 rounded bg-qc-accent text-qc-bg font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-qc-accent/10 disabled:opacity-50"
+          <CheckoutButton
+            amount={2900}
+            currency="USD"
+            planName="pro"
+            className="w-full py-3 text-sm"
           >
-            {loading ? 'Initializing Stripe...' : 'Upgrade to Pro — $29/mo'}
-          </button>
+            Upgrade to Pro — $29/mo
+          </CheckoutButton>
           
           <button
             onClick={() => setIsOpen(false)}

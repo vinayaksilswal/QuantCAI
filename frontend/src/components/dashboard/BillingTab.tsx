@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { axiosClient } from '@/lib/axiosClient';
 import { toast } from 'sonner';
 import { CreditCard, Check, Sparkles, ExternalLink } from 'lucide-react';
+import { CheckoutButton } from '@/components/CheckoutButton';
 
 export function BillingTab() {
   const { subscriptionPlan } = useAuth();
@@ -89,14 +90,15 @@ export function BillingTab() {
             <ExternalLink className="w-3.5 h-3.5 text-qc-muted" />
           </button>
         ) : (
-          <button
-            onClick={() => handleCheckout('pro')}
-            disabled={loading !== null}
-            className="px-5 py-2.5 rounded bg-qc-accent text-qc-bg font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 self-start md:self-center disabled:opacity-50 shadow-lg shadow-qc-accent/10"
+          <CheckoutButton
+            amount={2900}
+            currency="USD"
+            planName="pro"
+            className="px-5 py-2.5 text-xs self-start md:self-center"
           >
             <Sparkles className="w-4 h-4 fill-current" />
-            {loading === 'checkout' ? 'Redirecting...' : 'Upgrade to Pro'}
-          </button>
+            Upgrade to Pro
+          </CheckoutButton>
         )}
       </div>
 
@@ -176,13 +178,14 @@ export function BillingTab() {
               </ul>
             </div>
             {subscriptionPlan === 'free' || !subscriptionPlan ? (
-              <button
-                onClick={() => handleCheckout('pro')}
-                disabled={loading !== null}
-                className="mt-8 w-full py-2 rounded bg-qc-accent text-qc-bg font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
+              <CheckoutButton
+                amount={2900}
+                currency="USD"
+                planName="pro"
+                className="mt-8 w-full py-2"
               >
                 Upgrade to Pro
-              </button>
+              </CheckoutButton>
             ) : subscriptionPlan === 'pro' ? (
               <div className="mt-8 text-center py-2 text-xs font-semibold text-qc-accent font-mono">
                 Your Active Subscription
@@ -228,21 +231,23 @@ export function BillingTab() {
               </ul>
             </div>
             {subscriptionPlan === 'free' || !subscriptionPlan ? (
-              <button
-                onClick={() => handleCheckout('enterprise')}
-                disabled={loading !== null}
-                className="mt-8 w-full py-2 rounded border border-qc-border text-qc-text font-semibold text-xs hover:border-qc-accent hover:bg-qc-accent/5 transition-all disabled:opacity-50"
+              <CheckoutButton
+                amount={29900}
+                currency="USD"
+                planName="enterprise"
+                className="mt-8 w-full py-2 bg-transparent border border-qc-border text-qc-text hover:border-qc-accent hover:bg-qc-accent/5 hover:text-qc-bg"
               >
                 Get Enterprise
-              </button>
+              </CheckoutButton>
             ) : subscriptionPlan === 'pro' ? (
-              <button
-                onClick={() => handleCheckout('enterprise')}
-                disabled={loading !== null}
-                className="mt-8 w-full py-2 rounded bg-qc-accent text-qc-bg font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
+              <CheckoutButton
+                amount={29900}
+                currency="USD"
+                planName="enterprise"
+                className="mt-8 w-full py-2"
               >
                 Upgrade to Enterprise
-              </button>
+              </CheckoutButton>
             ) : (
               <div className="mt-8 text-center py-2 text-xs font-semibold text-qc-accent font-mono">
                 Your Enterprise Workspace
