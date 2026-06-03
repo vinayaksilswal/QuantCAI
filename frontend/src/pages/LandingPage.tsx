@@ -11,6 +11,8 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { NewsletterForm } from '@/components/NewsletterForm';
 import { LogoProcessor } from '@/components/LogoProcessor';
+import { useAuth } from '@/hooks/useAuth';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 /* ─────────────────────────── CODE SNIPPETS ─────────────────────────── */
 const curlSnippet = `curl -X POST https://api.quantcai.in/v1/simulate \\
@@ -38,11 +40,13 @@ interface PlanProps {
   badge?: string;
   features: string[];
   cta: string;
-  ctaHref: string;
+  ctaHref?: string;
+  onClick?: () => void;
   highlighted?: boolean;
+  loading?: boolean;
 }
 
-const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, highlighted }: PlanProps) => (
+const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick, highlighted, loading }: PlanProps) => (
   <div
     className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col backdrop-blur-xl transition-all duration-300 ${
       highlighted
@@ -70,16 +74,35 @@ const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, highligh
         </li>
       ))}
     </ul>
-    <a
-      href={ctaHref}
-      className={`block text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-        highlighted
-          ? 'bg-qc-accent text-black hover:brightness-110 shadow-lg shadow-cyan-500/25'
-          : 'border border-blue-400/30 text-white hover:border-blue-400/50 hover:bg-white/10'
-      }`}
-    >
-      {cta}
-    </a>
+    {onClick ? (
+      <button
+        onClick={onClick}
+        disabled={loading}
+        className={`block w-full text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 disabled:opacity-50 ${
+          highlighted
+            ? 'bg-qc-accent text-black hover:brightness-110 shadow-lg shadow-cyan-500/25'
+            : 'border border-blue-400/30 text-white hover:border-blue-400/50 hover:bg-white/10'
+        }`}
+      >
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-black" />
+            Processing...
+          </span>
+        ) : cta}
+      </button>
+    ) : (
+      <a
+        href={ctaHref}
+        className={`block text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+          highlighted
+            ? 'bg-qc-accent text-black hover:brightness-110 shadow-lg shadow-cyan-500/25'
+            : 'border border-blue-400/30 text-white hover:border-blue-400/50 hover:bg-white/10'
+        }`}
+      >
+        {cta}
+      </a>
+    )}
   </div>
 );
 
@@ -97,9 +120,25 @@ const trustItems = [
 export default function LandingPage() {
   usePageTracking('home');
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { startCheckout, loading } = useRazorpayCheckout();
+
+  const handleProClick = async () => {
+    if (user) {
+      try {
+        await startCheckout('pro', 2900, 'USD');
+        window.location.reload();
+      } catch (err) {
+        console.error('Checkout failed:', err);
+      }
+    } else {
+      localStorage.setItem('pending_checkout', 'pro');
+      navigate('/signup?plan=pro');
+    }
+  };
 
   const [scanDomain, setScanDomain] = useState('');
-  const [showResult, setShowResult] = useState(false);
+  const showResult = false;
 
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -405,7 +444,8 @@ export default function LandingPage() {
                 'Priority email support',
               ]}
               cta="Start Pro Trial"
-              ctaHref="/signup?plan=pro"
+              onClick={handleProClick}
+              loading={loading}
             />
             <PlanCard
               name="Enterprise"

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────── */
 const ShieldIcon = () => (
@@ -32,12 +33,18 @@ const responseSnippet = `{
 }`;
 
 export const FeatureSplit = () => {
+  const navigate = useNavigate();
   const [scanDomain, setScanDomain] = useState('');
-  const [showResult, setShowResult] = useState(false);
 
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (scanDomain.trim()) setShowResult(true);
+    e.stopPropagation();
+    const domain = scanDomain.trim();
+    if (domain) {
+      navigate(`/pqc-scanner?domain=${encodeURIComponent(domain)}`);
+    } else {
+      navigate('/pqc-scanner');
+    }
   };
 
   return (
@@ -96,7 +103,10 @@ export const FeatureSplit = () => {
           </div>
 
           {/* ── RIGHT: PQC Scanner ── */}
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 sm:p-8 group hover:border-teal-400/30 transition-all duration-300 shadow-2xl shadow-purple-500/10">
+          <div 
+            onClick={() => navigate('/pqc-scanner')}
+            className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 sm:p-8 group hover:border-teal-400/40 hover:bg-white/[0.08] cursor-pointer transition-all duration-300 shadow-2xl shadow-purple-500/10"
+          >
             <div className="flex items-center gap-3 mb-4">
               <div className="w-9 h-9 rounded-lg border border-teal-400/30 flex items-center justify-center text-teal-400 bg-teal-400/10">
                 <ShieldIcon />
@@ -121,6 +131,7 @@ export const FeatureSplit = () => {
                   placeholder="Enter a domain to scan"
                   value={scanDomain}
                   onChange={e => setScanDomain(e.target.value)}
+                  onClick={e => e.stopPropagation()}
                   className="flex-1 px-3 py-2.5 rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm text-white text-sm font-mono placeholder:text-blue-300/40 focus:outline-none focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 transition-all"
                 />
                 <button
@@ -134,9 +145,9 @@ export const FeatureSplit = () => {
             </form>
 
             {/* Demo result */}
-            <div className={`rounded-xl border overflow-hidden transition-all duration-500 backdrop-blur-sm ${showResult ? 'border-red-400/40 opacity-100' : 'border-white/10 opacity-60'}`}>
+            <div className="rounded-xl border border-red-400/20 overflow-hidden backdrop-blur-sm bg-black/30 transition-all duration-300 group-hover:border-red-400/40">
               <div className="px-4 py-2.5 border-b border-white/10 bg-black/20 flex items-center justify-between">
-                <span className="text-sm font-mono text-white">{showResult && scanDomain ? scanDomain : 'example.com'}</span>
+                <span className="text-sm font-mono text-white">example.com</span>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 tracking-wider">CRITICAL</span>
               </div>
               <div className="p-4 bg-black/20 space-y-3">

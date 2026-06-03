@@ -77,7 +77,7 @@ class IntentClassifier(PydanticBaseModel):
 class SimulationResponse(PydanticBaseModel):
     openqasm_code: str = Field(
         ...,
-        description="Valid OpenQASM 2.0 code starting with 'OPENQASM 2.0;' and including 'qelib1.h'. Must include measurements."
+        description="Valid OpenQASM 2.0 code starting with 'OPENQASM 2.0;' and including 'qelib1.inc'. Must include measurements."
     )
     explanation: str = Field(
         ...,
@@ -228,7 +228,7 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
                 SystemMessage(content=(
                     "You are the QuantCAI Quantum Computing Tutor. The student wants to simulate a quantum circuit.\n"
                     "Generate valid OpenQASM 2.0 code that implements their request, and write a line-by-line explanation of the gates.\n"
-                    "Remember: OpenQASM 2.0 must begin with 'OPENQASM 2.0;' and include 'qelib1.h';. "
+                    "Remember: OpenQASM 2.0 must begin with 'OPENQASM 2.0;' and include 'qelib1.inc';. "
                     "It must declare qreg and creg. Include measurement gates (e.g. measure q[0] -> c[0];) so measurement results can be simulated.\n"
                     "Provide the response inside the requested JSON format containing 'openqasm_code' and 'explanation'."
                 )),
@@ -282,7 +282,7 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
             if not qasm_code:
                 qasm_code = (
                     'OPENQASM 2.0;\n'
-                    'include "qelib1.h";\n'
+                    'include "qelib1.inc";\n'
                     'qreg q[2];\n'
                     'creg c[2];\n'
                     'h q[0];\n'

@@ -99,7 +99,7 @@ class SimulateRequest(BaseModel):
         ...,
         min_length=10,
         description="OpenQASM 2.0 circuit string",
-        json_schema_extra={"example": 'OPENQASM 2.0;\ninclude "qelib1.h";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0],q[1];\nmeasure q -> c;'},
+        json_schema_extra={"example": 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0],q[1];\nmeasure q -> c;'},
     )
     shots: int = Field(
         default=1024,
@@ -231,6 +231,10 @@ async def submit_simulation(
 ):
     request_start = time.monotonic()
     job_id = str(uuid.uuid4())
+
+    # Normalize standard QASM include library if legacy .h extension is used
+    if "qelib1.h" in body.circuit_qasm:
+        body.circuit_qasm = body.circuit_qasm.replace("qelib1.h", "qelib1.inc")
 
     # --- Resolve subscription tier -------------------------------------------
     tier = await get_subscription_plan(

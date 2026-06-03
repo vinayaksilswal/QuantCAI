@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { axiosClient } from '@/lib/axiosClient';
 import { toast } from 'sonner';
-import { Shield, Search, FileText, Info, ArrowLeft, ShieldAlert, CheckCircle2, AlertTriangle, XOctagon } from 'lucide-react';
+import { Shield, Search, FileText, Info, ArrowLeft, CheckCircle2, AlertTriangle, XOctagon } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { usePageTracking } from '@/hooks/usePageTracking';

@@ -11,7 +11,6 @@ import {
   LayoutDashboard, 
   BookOpen, 
   Cpu, 
-  ShieldAlert, 
   Key, 
   CreditCard, 
   Settings, 

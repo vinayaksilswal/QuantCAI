@@ -287,7 +287,7 @@ async def test_tutor_simulation_request(
         mock_structured_classifier.ainvoke.return_value = MockIntent("simulation_request")
         
         # Simulation output from LLM
-        qasm_str = "OPENQASM 2.0;\ninclude \"qelib1.h\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0],q[1];\nmeasure q -> c;"
+        qasm_str = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0],q[1];\nmeasure q -> c;"
         mock_structured_simulation.ainvoke.return_value = MockSimulation(
             qasm=qasm_str,
             explanation="Explanation of Bell State."

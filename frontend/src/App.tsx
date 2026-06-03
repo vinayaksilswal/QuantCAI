@@ -20,7 +20,7 @@ const Vision = lazy(() => import("./pages/Vision"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Login = lazy(() => import("./pages/Login"));
 const Profile = lazy(() => import("./pages/Profile"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
+// const Dashboard = lazy(() => import("./pages/Dashboard"));
 const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PqcScanner = lazy(() => import("./pages/PqcScanner"));
@@ -33,6 +33,7 @@ import { AIProvider } from "./context/AIContext";
 import { AIAssistant } from "./components/AIAssistant";
 import { TeachingOverlay } from "./components/TeachingOverlay";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PaymentAutoTrigger } from "./components/PaymentAutoTrigger";
 
 const queryClient = new QueryClient();
 
@@ -88,6 +89,7 @@ const App = () => (
                 </div>
                 <AIAssistant />
                 <TeachingOverlay />
+                <PaymentAutoTrigger />
               </AIProvider>
             </BrowserRouter>
           </ErrorBoundary>

@@ -9,23 +9,23 @@ export function BillingTab() {
   const { subscriptionPlan } = useAuth();
   const [loading, setLoading] = useState<string | null>(null);
 
-  const handleCheckout = async (planName: string) => {
-    setLoading('checkout');
-    try {
-      const response = await axiosClient.post<{ url: string }>(`/billing/checkout?plan=${planName}`);
-      if (response.data && response.data.url) {
-        window.location.href = response.data.url;
-      } else {
-        toast.error('Failed to initiate checkout. Please try again.');
-      }
-    } catch (error: any) {
-      console.error('Checkout error:', error);
-      const msg = error.response?.data?.detail || 'Billing checkout failed. Please verify Stripe configuration on the backend.';
-      toast.error(msg);
-    } finally {
-      setLoading(null);
-    }
-  };
+  // const handleCheckout = async (planName: string) => {
+  //   setLoading('checkout');
+  //   try {
+  //     const response = await axiosClient.post<{ url: string }>(`/billing/checkout?plan=${planName}`);
+  //     if (response.data && response.data.url) {
+  //       window.location.href = response.data.url;
+  //     } else {
+  //       toast.error('Failed to initiate checkout. Please try again.');
+  //     }
+  //   } catch (error: any) {
+  //     console.error('Checkout error:', error);
+  //     const msg = error.response?.data?.detail || 'Billing checkout failed. Please verify Stripe configuration on the backend.';
+  //     toast.error(msg);
+  //   } finally {
+  //     setLoading(null);
+  //   }
+  // };
 
   const handlePortal = async () => {
     setLoading('portal');

@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
-import { axiosClient } from '@/lib/axiosClient';
-import { toast } from 'sonner';
 import { Sparkles, Shield, Cpu, BookOpen, FileText, Check, X } from 'lucide-react';
 import { CheckoutButton } from '@/components/CheckoutButton';
 
 export function UpgradeModal() {
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     const handleShowModal = () => setIsOpen(true);
     window.addEventListener('show-upgrade-modal', handleShowModal);
@@ -15,25 +11,6 @@ export function UpgradeModal() {
       window.removeEventListener('show-upgrade-modal', handleShowModal);
     };
   }, []);
-
-  const handleUpgrade = async () => {
-    setLoading(true);
-    try {
-      // Calls billing checkout redirect endpoint
-      const response = await axiosClient.post<{ url: string }>('/billing/checkout?plan=pro');
-      if (response.data && response.data.url) {
-        window.location.href = response.data.url;
-      } else {
-        toast.error('Failed to initialize checkout. Please try again.');
-      }
-    } catch (error: any) {
-      console.error('Upgrade error:', error);
-      const msg = error.response?.data?.detail || 'Upgrade session failed. Please ensure you are logged in.';
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (!isOpen) return null;
 

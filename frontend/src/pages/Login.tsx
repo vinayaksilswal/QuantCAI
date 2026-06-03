@@ -13,7 +13,7 @@ const Login = () => {
   const [mode, setMode] = useState<'signin' | 'signup'>(location.pathname === '/signup' ? 'signup' : 'signin');
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { role, user, login, register } = useAuth();
+  const { user, login, register } = useAuth();
 
   useEffect(() => {
     if (location.pathname === '/signup') {
