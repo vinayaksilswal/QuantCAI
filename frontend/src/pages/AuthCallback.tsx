@@ -9,13 +9,19 @@ const AuthCallback = () => {
   const { loginWithGoogle } = useAuth() as any;
 
   useEffect(() => {
-    let active = true;
+    // If the user is already authenticated (either from a previous session or from the first mount's completed callback),
+    // redirect them to their target path immediately.
+    if (user) {
+      const redirectPath = localStorage.getItem('oauth_redirect_path') || '/profile';
+      localStorage.removeItem('oauth_redirect_path');
+      navigate(redirectPath, { replace: true });
+      return;
+    }
 
     const handleCallback = async () => {
       const storedState = localStorage.getItem('oauth_state');
       if (!storedState) {
-        // Exit early if the first run has already cleared the stored state.
-        // This prevents React 18/19 StrictMode duplicate execution from throwing errors.
+        // Exit early if the first mount's execution already cleared the stored state.
         return;
       }
 
@@ -40,33 +46,21 @@ const AuthCallback = () => {
           throw new Error('OAuth state mismatch. Request may have been compromised.');
         }
         
-        // Clear OAuth state from storage
+        // Clear OAuth state from storage so no other run/mount can trigger it
+        localStorage.setItem('oauth_state', ''); // set empty to prevent other check while removing
         localStorage.removeItem('oauth_state');
         localStorage.removeItem('oauth_nonce');
         
-        // Call login with Google to complete authentication with backend
+        // Execute Google login. This updates the global 'user' context state upon completion.
         await loginWithGoogle(idToken);
-        
-        if (active) {
-          // Redirect to intended page or profile
-          const redirectPath = localStorage.getItem('oauth_redirect_path') || '/profile';
-          localStorage.removeItem('oauth_redirect_path');
-          navigate(redirectPath, { replace: true });
-        }
       } catch (err: any) {
-        if (active) {
-          console.error('OAuth callback error:', err);
-          setError(err?.message || 'Authentication failed. Please try again.');
-        }
+        console.error('OAuth callback error:', err);
+        setError(err?.message || 'Authentication failed. Please try again.');
       }
     };
     
     handleCallback();
-
-    return () => {
-      active = false;
-    };
-  }, [navigate, loginWithGoogle]);
+  }, [navigate, loginWithGoogle, user]);
 
   return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-[#0a0f1d] text-white">
