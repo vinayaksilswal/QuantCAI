@@ -73,6 +73,7 @@ async def create_order(
             "order_id": order.get("id"),
             "amount": order.get("amount"),
             "currency": order.get("currency"),
+            "razorpay_key": settings.RAZORPAY_KEY_ID,
         }
 
     except razorpay.errors.BadRequestError as e:

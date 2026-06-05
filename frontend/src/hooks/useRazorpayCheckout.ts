@@ -62,7 +62,7 @@ export function useRazorpayCheckout() {
       // 3. Open Razorpay Checkout Modal
       return new Promise((resolve, reject) => {
         const options = {
-          key: razorpayKey,
+          key: orderData.razorpay_key || razorpayKey,
           amount: orderData.amount,
           currency: orderData.currency || 'INR',
           name: 'QuantCAI',
