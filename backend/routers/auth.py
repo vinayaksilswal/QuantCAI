@@ -261,3 +261,95 @@ def refresh_tokens(request: Request, response: Response, db: Session = Depends(g
 def me(current_user: DBmodels.User = Depends(get_current_user)):
     logger.info("Me endpoint accessed")
     return UserResponse.model_validate(current_user)
+
+@router.get("/config")
+def get_auth_config():
+    """Expose public authentication settings to the frontend"""
+    return {
+        "google_client_id": auth_settings.google_client_id,
+        "google_redirect_uri": auth_settings.google_redirect_uri
+    }
+
+@router.post("/oauth/google")
+@limiter.limit("5/minute")
+def oauth_google(request: Request, data: GoogleOAuthRequest, response: Response, db: Session = Depends(get_db)):
+    """Google OAuth registration/login endpoint"""
+    logger.info("Google OAuth login/registration attempt")
+    try:
+        if not data.id_token:
+            # Check if we are in development and want to support email/name directly as a backup
+            if not is_production and data.email:
+                email = data.email
+                name = data.name or email.split("@")[0]
+            else:
+                raise HTTPException(status_code=400, detail="Google id_token is required")
+        else:
+            # Verify the ID Token
+            try:
+                idinfo = verify_google_id_token(data.id_token)
+            except Exception as e:
+                logger.error(f"Google ID token verification failed: {e}")
+                raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {e}")
+            
+            email = idinfo.get("email")
+            name = idinfo.get("name") or email.split("@")[0]
+            
+            if not email:
+                raise HTTPException(status_code=400, detail="Google token does not contain email")
+
+        # Find or create user
+        user = db.query(DBmodels.User).filter(DBmodels.User.email == email).first()
+        if not user:
+            # Register a new user
+            import secrets
+            random_password = secrets.token_urlsafe(32)
+            user = DBmodels.User(
+                email=email,
+                hashed_password=hash_password(random_password),
+                name=name.strip(),
+                is_active=True,
+                is_blocked=False,
+                role=DBmodels.UserRole.LEARNER,
+                email_verified=True
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            logger.info(f"Google OAuth registered new user: {user.email} (ID: {user.id})")
+        else:
+            # User exists
+            if user.is_blocked or not user.is_active:
+                raise HTTPException(status_code=401, detail="Account is disabled")
+            
+            # Reset failed attempts
+            reset_failed_attempts(user, db)
+            
+            # Update name if changed or empty
+            if name and not user.name:
+                user.name = name.strip()
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                
+            logger.info(f"Google OAuth login successful for user: {user.email} (ID: {user.id})")
+
+        # Issue tokens
+        access, refresh = issue_tokens(db, user)
+
+        secure_val, samesite_val = get_cookie_settings(request)
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh,
+            httponly=True,
+            secure=secure_val,
+            samesite=samesite_val,
+            max_age=auth_settings.refresh_token_minutes * 60
+        )
+
+        return TokenResponse(access_token=access, refresh_token="")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Google OAuth error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+

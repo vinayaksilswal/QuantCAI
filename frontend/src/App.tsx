@@ -20,6 +20,7 @@ const Vision = lazy(() => import("./pages/Vision"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Login = lazy(() => import("./pages/Login"));
 const Profile = lazy(() => import("./pages/Profile"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 // const Dashboard = lazy(() => import("./pages/Dashboard"));
 const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -80,6 +81,7 @@ const App = () => (
                       <Route path="/admin" element={<ProtectedRoute roles={["root"]}><Admin /></ProtectedRoute>} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/signup" element={<Login />} />
+                      <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><Profile /></ProtectedRoute>} />
                       <Route path="/pqc-scanner" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
 

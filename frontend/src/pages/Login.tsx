@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Mail, Lock, User, ShieldAlert, ArrowRight } from 'lucide-react';
+import { api } from '@/lib/api';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -60,8 +61,40 @@ const Login = () => {
   const signInWithGoogle = async () => {
     setLoading(true);
     setError(null);
-    setError('Google OAuth is not yet implemented in the backend.');
-    setLoading(false);
+    try {
+      const config = await api.getAuthConfig();
+      if (!config.google_client_id) {
+        throw new Error('Google OAuth is not configured on the backend server.');
+      }
+      
+      const state = Math.random().toString(36).substring(2, 15);
+      const nonce = Math.random().toString(36).substring(2, 15);
+      
+      localStorage.setItem('oauth_state', state);
+      localStorage.setItem('oauth_nonce', nonce);
+      
+      const from = (location.state as any)?.from;
+      if (from) {
+        localStorage.setItem('oauth_redirect_path', from.pathname + (from.search || ''));
+      } else {
+        localStorage.setItem('oauth_redirect_path', '/profile');
+      }
+      
+      const redirectUri = config.google_redirect_uri || (window.location.origin + '/auth/callback');
+      const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + 
+        `client_id=${config.google_client_id}` + 
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` + 
+        `&response_type=id_token` + 
+        `&scope=openid%20email%20profile` + 
+        `&state=${state}` + 
+        `&nonce=${nonce}`;
+        
+      window.location.href = googleAuthUrl;
+    } catch (err: any) {
+      console.error('Google OAuth init failed:', err);
+      setError(err?.message || 'Failed to initialize Google login.');
+      setLoading(false);
+    }
   };
 
   return (

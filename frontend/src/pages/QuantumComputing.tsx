@@ -15,10 +15,6 @@ const QuantumComputing = () => {
   usePageTracking('quantum-computing');
   useEffect(() => {
     // Load MathJax
-    const script = document.createElement('script');
-    script.src = 'https://polyfill.io/v3/polyfill.min.js?features=es6';
-    document.head.appendChild(script);
-
     const mathJaxScript = document.createElement('script');
     mathJaxScript.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
     mathJaxScript.id = 'MathJax-script';
@@ -38,9 +34,6 @@ const QuantumComputing = () => {
     };
 
     return () => {
-      if (script.parentNode) {
-        document.head.removeChild(script);
-      }
       if (mathJaxScript.parentNode) {
         document.head.removeChild(mathJaxScript);
       }

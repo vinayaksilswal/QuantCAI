@@ -165,6 +165,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const loginWithGoogle = async (idToken: string) => {
+    try {
+      const tokenData = await api.loginWithGoogle(idToken);
+      if (tokenData.access_token) {
+        api.setToken(tokenData.access_token);
+        const userData = await api.getMe();
+        setSession(userData);
+        setUser({
+          id: userData.id?.toString() ?? '',
+          email: userData.email,
+          name: userData.name,
+        });
+        setRole(mapRole(userData.role));
+        
+        const decoded = decodeJwt(tokenData.access_token);
+        const plan = decoded?.subscription_plan || 'free';
+        setSubscriptionPlan(plan);
+        
+        localStorage.setItem('auth_user', JSON.stringify(userData));
+        localStorage.setItem('subscription_plan', plan);
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     try {
       await api.logout();
@@ -182,7 +208,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const value = useMemo(
-    () => ({ user, session, role, loading, subscriptionPlan, signOut, login, register }),
+    () => ({ user, session, role, loading, subscriptionPlan, signOut, login, register, loginWithGoogle }),
     [user, session, role, loading, subscriptionPlan]
   );
 
