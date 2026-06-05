@@ -106,12 +106,12 @@ export function UpgradeModal() {
         {/* CTA Actions */}
         <div className="flex flex-col gap-3">
           <CheckoutButton
-            amount={2900}
-            currency="USD"
+            amount={240000}
+            currency="INR"
             planName="pro"
             className="w-full py-3 text-sm"
           >
-            Upgrade to Pro — $29/mo
+            Upgrade to Pro — ₹2,400/mo
           </CheckoutButton>
           
           <button

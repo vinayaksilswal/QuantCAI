@@ -211,17 +211,22 @@ def reset_failed_attempts(user: DBmodels.User, db: Session) -> None:
         db.refresh(user)
 
 
-def is_account_locked(user: DBmodels.User) -> bool:
+def is_account_locked(user: DBmodels.User, db: Optional[Session] = None) -> bool:
     """Check if account is currently locked."""
     if user.locked_until:
         if user.locked_until > datetime.utcnow():
             return True
-        # Lock expired, reset
-        user.locked_until = None
-        user.failed_login_attempts = 0
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        # Lock expired, reset if db session is available
+        if db is not None:
+            user.locked_until = None
+            user.failed_login_attempts = 0
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        else:
+            # No db session to clear expired lock; treat as unlocked
+            user.locked_until = None
+            user.failed_login_attempts = 0
     return False
 
 

@@ -33,65 +33,36 @@ export function useRazorpayCheckout() {
   const startCheckout = async (planName: string, amount: number, currency: string = 'INR') => {
     setLoading(true);
     try {
+      // 1. Load the Razorpay SDK
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded || !(window as any).Razorpay) {
-        toast.error('Failed to load Razorpay SDK. Please check your internet connection.');
+        toast.error('Failed to load payment gateway. Please check your internet connection and try again.');
         setLoading(false);
         return;
       }
 
       const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
-      const isTestKey = razorpayKey?.startsWith('rzp_test_');
+      if (!razorpayKey) {
+        toast.error('Payment gateway is not configured. Please contact support.');
+        setLoading(false);
+        return;
+      }
 
-      // 1. Create order on FastAPI backend
+      // 2. Create order on the backend (real Razorpay order, no mocks)
       const orderResponse = await axiosClient.post('/api/create-order', {
         amount,
         currency,
-        mock: isTestKey,
       });
 
       const orderData = orderResponse.data;
       if (!orderData || !orderData.order_id) {
-        throw new Error('Failed to create order on the backend.');
+        throw new Error('Failed to create payment order. Please try again.');
       }
 
-      // If backend returned a mock simulation order
-      if (orderData.mock) {
-        toast.info('[Sandbox] Processing trial subscription...');
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        try {
-          const verifyResponse = await axiosClient.post('/api/verify-payment', {
-            razorpay_payment_id: `pay_mock_${orderData.order_id.split('_').slice(2).join('_')}`,
-            razorpay_order_id: orderData.order_id,
-            razorpay_signature: 'sandbox_mock_signature',
-          });
-
-          if (verifyResponse.data && verifyResponse.data.status === 'success') {
-            localStorage.setItem('subscription_plan', planName.toLowerCase());
-            toast.success('Subscription upgraded successfully via Sandbox!');
-            setLoading(false);
-            return verifyResponse.data;
-          } else {
-            throw new Error('Sandbox payment verification failed.');
-          }
-        } catch (verifyErr: any) {
-          console.error('Sandbox verification error:', verifyErr);
-          const errMsg = verifyErr.response?.data?.detail || 'Sandbox verification failed.';
-          toast.error(errMsg);
-          setLoading(false);
-          throw verifyErr;
-        }
-      }
-
-      if (!razorpayKey) {
-        throw new Error('Razorpay public key (VITE_RAZORPAY_KEY_ID) is not configured.');
-      }
-
-      // 2. Open Razorpay Checkout Modal
+      // 3. Open Razorpay Checkout Modal
       return new Promise((resolve, reject) => {
         const options = {
-          key: orderData.razorpay_key || razorpayKey,
+          key: razorpayKey,
           amount: orderData.amount,
           currency: orderData.currency || 'INR',
           name: 'QuantCAI',
@@ -106,6 +77,7 @@ export function useRazorpayCheckout() {
             color: '#00d4aa',
           },
           handler: async function (response: any) {
+            // Payment succeeded — verify on backend
             setLoading(true);
             try {
               const verifyResponse = await axiosClient.post('/api/verify-payment', {
@@ -116,14 +88,16 @@ export function useRazorpayCheckout() {
 
               if (verifyResponse.data && verifyResponse.data.status === 'success') {
                 localStorage.setItem('subscription_plan', planName.toLowerCase());
-                toast.success('Subscription upgraded successfully!');
+                // Notify the app that subscription changed
+                window.dispatchEvent(new CustomEvent('subscription-updated', { detail: { plan: planName } }));
+                toast.success('Payment successful! Your plan has been upgraded.');
                 resolve(verifyResponse.data);
               } else {
-                throw new Error('Payment verification failed.');
+                throw new Error('Payment verification failed. Please contact support.');
               }
             } catch (verifyErr: any) {
               console.error('Payment verification error:', verifyErr);
-              const errMsg = verifyErr.response?.data?.detail || 'Verification failed. Please contact support.';
+              const errMsg = verifyErr.response?.data?.detail || 'Payment verification failed. Please contact support.';
               toast.error(errMsg);
               reject(verifyErr);
             } finally {

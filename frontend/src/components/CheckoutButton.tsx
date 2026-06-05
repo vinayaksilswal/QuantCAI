@@ -28,8 +28,9 @@ export function CheckoutButton({
       const payload = await startCheckout(planName, amount, currency);
       if (onSuccess && payload) {
         onSuccess(payload);
-      } else {
-        window.location.reload();
+      } else if (payload) {
+        // Notify the app that subscription changed without a full page reload
+        window.dispatchEvent(new CustomEvent('subscription-updated', { detail: { plan: planName } }));
       }
     } catch (err) {
       if (onError) {

@@ -99,6 +99,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     init();
   }, []);
 
+  // Listen for subscription-updated events from CheckoutButton
+  useEffect(() => {
+    const handleSubscriptionUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const plan = detail?.plan?.toLowerCase();
+      if (plan === 'pro' || plan === 'enterprise') {
+        setSubscriptionPlan(plan);
+        localStorage.setItem('subscription_plan', plan);
+      }
+    };
+    window.addEventListener('subscription-updated', handleSubscriptionUpdate);
+    return () => window.removeEventListener('subscription-updated', handleSubscriptionUpdate);
+  }, []);
+
   const login = async (email: string, password: string) => {
     try {
       const tokenData = await api.login(email, password);

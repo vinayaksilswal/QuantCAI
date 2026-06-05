@@ -74,7 +74,7 @@ export function BillingTab() {
           </h2>
           <p className="text-xs text-qc-muted leading-relaxed font-mono">
             {subscriptionPlan === 'enterprise' ? 'Unlimited quantum circuit simulations and cryptographic audits.' :
-             subscriptionPlan === 'pro' ? '$29 per month · Up to 500 API calls daily and 50 PQC scans monthly.' :
+             subscriptionPlan === 'pro' ? '₹2,400 per month · Up to 500 API calls daily and 50 PQC scans monthly.' :
              'Free forever · 20 API calls daily, 3 PQC scans monthly, 1,024 simulator shots.'}
           </p>
         </div>
@@ -91,8 +91,8 @@ export function BillingTab() {
           </button>
         ) : (
           <CheckoutButton
-            amount={2900}
-            currency="USD"
+            amount={240000}
+            currency="INR"
             planName="pro"
             className="px-5 py-2.5 text-xs self-start md:self-center"
           >
@@ -112,7 +112,7 @@ export function BillingTab() {
             <div className="space-y-4">
               <div>
                 <h4 className="font-syne font-bold text-sm text-qc-text">Free Plan</h4>
-                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">$0</p>
+                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">₹0</p>
               </div>
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">
@@ -152,7 +152,7 @@ export function BillingTab() {
                     <span className="px-1.5 py-0.5 rounded bg-qc-accent text-qc-bg text-[8px] font-bold uppercase tracking-wider">Active</span>
                   )}
                 </h4>
-                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">$29 <span className="text-xs font-light text-qc-muted">/ month</span></p>
+                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">₹2,400 <span className="text-xs font-light text-qc-muted">/ month</span></p>
               </div>
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">
@@ -179,8 +179,8 @@ export function BillingTab() {
             </div>
             {subscriptionPlan === 'free' || !subscriptionPlan ? (
               <CheckoutButton
-                amount={2900}
-                currency="USD"
+                amount={240000}
+                currency="INR"
                 planName="pro"
                 className="mt-8 w-full py-2"
               >
@@ -205,7 +205,7 @@ export function BillingTab() {
                     <span className="px-1.5 py-0.5 rounded bg-qc-accent text-qc-bg text-[8px] font-bold uppercase tracking-wider">Active</span>
                   )}
                 </h4>
-                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">$299 <span className="text-xs font-light text-qc-muted">/ month</span></p>
+                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">₹24,999 <span className="text-xs font-light text-qc-muted">/ month</span></p>
               </div>
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">
@@ -232,8 +232,8 @@ export function BillingTab() {
             </div>
             {subscriptionPlan === 'free' || !subscriptionPlan ? (
               <CheckoutButton
-                amount={29900}
-                currency="USD"
+                amount={2499900}
+                currency="INR"
                 planName="enterprise"
                 className="mt-8 w-full py-2 bg-transparent border border-qc-border text-qc-text hover:border-qc-accent hover:bg-qc-accent/5 hover:text-qc-bg"
               >
@@ -241,8 +241,8 @@ export function BillingTab() {
               </CheckoutButton>
             ) : subscriptionPlan === 'pro' ? (
               <CheckoutButton
-                amount={29900}
-                currency="USD"
+                amount={2499900}
+                currency="INR"
                 planName="enterprise"
                 className="mt-8 w-full py-2"
               >

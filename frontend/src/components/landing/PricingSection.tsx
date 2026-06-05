@@ -1,5 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
+import { api } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────── */
@@ -90,8 +91,21 @@ export const PricingSection = () => {
   const handleProClick = async () => {
     if (user) {
       try {
-        await startCheckout('pro', 240000, 'INR');
-        window.location.reload();
+        const result = await startCheckout('pro', 240000, 'INR');
+        if (result) {
+          // Subscription plan already set in localStorage by useRazorpayCheckout.
+          // Force a token refresh to get updated JWT claims with the new plan.
+          try {
+            const tokenData = await api.refresh();
+            if (tokenData.access_token) {
+              api.setToken(tokenData.access_token);
+            }
+          } catch {
+            // Token refresh failed, but subscription is still active server-side.
+            // The user will get the updated plan on next login.
+          }
+          navigate('/profile');
+        }
       } catch (err) {
         console.error('Checkout failed:', err);
       }
@@ -118,7 +132,7 @@ export const PricingSection = () => {
         <div className="grid md:grid-cols-3 gap-6">
           <PlanCard
             name="Free"
-            price="$0"
+            price="₹0"
             features={[
               '20 API calls / day',
               'Max 1,024 shots per circuit',
@@ -130,7 +144,7 @@ export const PricingSection = () => {
           />
           <PlanCard
             name="Pro"
-            price="$29"
+            price="₹2,400"
             period="month"
             badge="Most Popular"
             highlighted
@@ -142,13 +156,13 @@ export const PricingSection = () => {
               'CBOM PDF export',
               'Priority email support',
             ]}
-            cta="Start Pro Trial"
+            cta="Upgrade to Pro"
             onClick={handleProClick}
             loading={loading}
           />
           <PlanCard
             name="Enterprise"
-            price="$299"
+            price="₹24,999"
             period="month"
             features={[
               'Unlimited API calls',

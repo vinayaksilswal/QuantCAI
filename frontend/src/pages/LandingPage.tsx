@@ -13,6 +13,7 @@ import { NewsletterForm } from '@/components/NewsletterForm';
 import { LogoProcessor } from '@/components/LogoProcessor';
 import { useAuth } from '@/hooks/useAuth';
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
+import { api } from '@/lib/api';
 
 /* ─────────────────────────── CODE SNIPPETS ─────────────────────────── */
 const curlSnippet = `curl -X POST https://api.quantcai.in/v1/simulate \\
@@ -126,8 +127,18 @@ export default function LandingPage() {
   const handleProClick = async () => {
     if (user) {
       try {
-        await startCheckout('pro', 240000, 'INR');
-        window.location.reload();
+        const result = await startCheckout('pro', 240000, 'INR');
+        if (result) {
+          try {
+            const tokenData = await api.refresh();
+            if (tokenData.access_token) {
+              api.setToken(tokenData.access_token);
+            }
+          } catch {
+            // Token refresh failed, but subscription is active server-side.
+          }
+          navigate('/profile');
+        }
       } catch (err) {
         console.error('Checkout failed:', err);
       }
@@ -419,7 +430,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-6">
             <PlanCard
               name="Free"
-              price="$0"
+              price="₹0"
               features={[
                 '20 API calls / day',
                 'Max 1,024 shots per circuit',
@@ -431,7 +442,7 @@ export default function LandingPage() {
             />
             <PlanCard
               name="Pro"
-              price="$29"
+              price="₹2,400"
               period="month"
               badge="Most Popular"
               highlighted
@@ -443,13 +454,13 @@ export default function LandingPage() {
                 'CBOM PDF export',
                 'Priority email support',
               ]}
-              cta="Start Pro Trial"
+              cta="Upgrade to Pro"
               onClick={handleProClick}
               loading={loading}
             />
             <PlanCard
               name="Enterprise"
-              price="$299"
+              price="₹24,999"
               period="month"
               features={[
                 'Unlimited API calls',

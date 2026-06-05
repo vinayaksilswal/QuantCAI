@@ -62,9 +62,20 @@ axiosClient.interceptors.response.use(
                               originalRequest?.url?.includes('/api/auth/login') ||
                               originalRequest?.url?.includes('/api/auth/register');
         
-        if (!isAuthRequest) {
-          localStorage.clear();
-          if (!window.location.pathname.startsWith('/login')) {
+        // Don't redirect during payment operations — let the payment handler deal with it
+        const isPaymentRequest = originalRequest?.url?.includes('/api/create-order') ||
+                                 originalRequest?.url?.includes('/api/verify-payment');
+        
+        if (!isAuthRequest && !isPaymentRequest) {
+          // Only remove auth-specific keys instead of wiping everything
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('auth_user');
+          localStorage.removeItem('subscription_plan');
+
+          const publicPaths = ['/', '/login', '/signup', '/learn', '/quantum-computing', '/get-started', '/vision', '/tools', '/community'];
+          const isPublicPage = publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith('/learn'));
+          
+          if (!isPublicPage) {
             window.location.href = '/login';
           }
         }

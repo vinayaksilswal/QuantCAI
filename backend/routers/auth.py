@@ -101,7 +101,7 @@ def login(request: Request, login_data: LoginRequest, response: Response, db: Se
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Check if account is locked
-        if is_account_locked(user):
+        if is_account_locked(user, db):
             raise HTTPException(status_code=403, detail="Account is temporarily locked due to multiple failed login attempts. Please try again later.")
 
         # Verify password
