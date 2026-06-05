@@ -107,12 +107,13 @@ def login(request: Request, login_data: LoginRequest, response: Response, db: Se
 
         access, refresh = issue_tokens(db, user)
 
+        samesite_val = "none" if is_production else "lax"
         response.set_cookie(
             key="refresh_token",
             value=refresh,
             httponly=True,
             secure=is_production,  # Dynamic based on env
-            samesite="lax" if not is_production else "strict",
+            samesite=samesite_val,
             max_age=auth_settings.refresh_token_minutes * 60
         )
 
@@ -165,12 +166,13 @@ def register(request: Request, reg_data: RegisterRequest, response: Response, db
         logger.info(f"Registration successful for user: {new_user.email} (ID: {new_user.id})")
         access, refresh = issue_tokens(db, new_user)
 
+        samesite_val = "none" if is_production else "lax"
         response.set_cookie(
             key="refresh_token",
             value=refresh,
             httponly=True,
             secure=is_production,
-            samesite="lax",
+            samesite=samesite_val,
             max_age=auth_settings.refresh_token_minutes * 60
         )
 
@@ -196,7 +198,13 @@ def logout(response: Response, current_user: DBmodels.User = Depends(get_current
     except Exception as e:
         logger.error(f"Logout error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Logout failed")
-    response.delete_cookie(key="refresh_token")
+    samesite_val = "none" if is_production else "lax"
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=is_production,
+        samesite=samesite_val
+    )
     return {"message": "logout successful"}
 
 @router.post("/refresh")
@@ -218,12 +226,13 @@ def refresh_tokens(request: Request, response: Response, db: Session = Depends(g
 
         access, new_refresh = rotate_refresh_token(db, payload, user)
 
+        samesite_val = "none" if is_production else "lax"
         response.set_cookie(
             key="refresh_token",
             value=new_refresh,
             httponly=True,
             secure=is_production,
-            samesite="lax",
+            samesite=samesite_val,
             max_age=auth_settings.refresh_token_minutes * 60
         )
 

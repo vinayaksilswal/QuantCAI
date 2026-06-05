@@ -74,6 +74,7 @@ async def create_order(
             "order_id": order.get("id"),
             "amount": order.get("amount"),
             "currency": order.get("currency"),
+            "razorpay_key": settings.RAZORPAY_KEY_ID,
             "mock": False
         }
 
@@ -89,6 +90,7 @@ async def create_order(
                 "order_id": f"order_mock_{current_user.id}_{int(time.time())}",
                 "amount": request.amount,
                 "currency": request.currency,
+                "razorpay_key": settings.RAZORPAY_KEY_ID,
                 "mock": True
             }
 

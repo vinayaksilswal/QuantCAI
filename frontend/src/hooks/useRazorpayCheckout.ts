@@ -64,6 +64,7 @@ export function useRazorpayCheckout() {
           });
 
           if (verifyResponse.data && verifyResponse.data.status === 'success') {
+            localStorage.setItem('subscription_plan', planName.toLowerCase());
             toast.success('Subscription upgraded successfully via Sandbox!');
             setLoading(false);
             return verifyResponse.data;
@@ -87,7 +88,7 @@ export function useRazorpayCheckout() {
       // 2. Open Razorpay Checkout Modal
       return new Promise((resolve, reject) => {
         const options = {
-          key: razorpayKey,
+          key: orderData.razorpay_key || razorpayKey,
           amount: orderData.amount,
           currency: orderData.currency || 'INR',
           name: 'QuantCAI',
@@ -111,6 +112,7 @@ export function useRazorpayCheckout() {
               });
 
               if (verifyResponse.data && verifyResponse.data.status === 'success') {
+                localStorage.setItem('subscription_plan', planName.toLowerCase());
                 toast.success('Subscription upgraded successfully!');
                 resolve(verifyResponse.data);
               } else {

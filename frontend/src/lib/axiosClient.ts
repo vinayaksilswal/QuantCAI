@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { toast } from 'sonner';
+import { api } from '@/lib/api';
 
 // Support VITE_API_URL as base URL
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -30,16 +31,42 @@ axiosClient.interceptors.request.use(
 // Response interceptor to handle errors globally
 axiosClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response) {
       const { status } = error.response;
+      const originalRequest = error.config as any;
+
+      if (status === 401 && originalRequest && !originalRequest._retry) {
+        // Prevent infinite loops if refreshing also returns 401
+        const isRefreshUrl = originalRequest.url?.includes('/api/auth/refresh');
+        if (!isRefreshUrl) {
+          originalRequest._retry = true;
+          try {
+            const tokenData = await api.refresh();
+            if (tokenData.access_token) {
+              api.setToken(tokenData.access_token);
+              if (originalRequest.headers) {
+                originalRequest.headers['Authorization'] = `Bearer ${tokenData.access_token}`;
+              }
+              return axiosClient(originalRequest);
+            }
+          } catch (refreshErr) {
+            console.error('Session expired during auto-refresh, clearing session.', refreshErr);
+          }
+        }
+      }
+
+      // If refresh failed, or it's a 401 on refresh/login itself, clear session
       if (status === 401) {
-        // Token expired or invalid, clear localStorage and redirect to /login
-        localStorage.clear();
+        const isAuthRequest = originalRequest?.url?.includes('/api/auth/refresh') || 
+                              originalRequest?.url?.includes('/api/auth/login') ||
+                              originalRequest?.url?.includes('/api/auth/register');
         
-        // Simple client-side redirect if not already on the login page
-        if (!window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
+        if (!isAuthRequest) {
+          localStorage.clear();
+          if (!window.location.pathname.startsWith('/login')) {
+            window.location.href = '/login';
+          }
         }
       } else if (status === 429) {
         toast.error("Rate limit reached. Try again in 60 seconds.");

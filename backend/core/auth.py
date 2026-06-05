@@ -76,14 +76,48 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
+def get_subscription_plan_sync(db: Session, user_id: int, org_id: Optional[int]) -> str:
+    from datetime import datetime, timedelta
+    from sqlalchemy import desc
+    sub = (
+        db.query(DBmodels.Subscription)
+        .filter(
+            (DBmodels.Subscription.user_id == user_id) |
+            ((DBmodels.Subscription.org_id == org_id) & (DBmodels.Subscription.org_id.is_not(None)))
+        )
+        .filter(
+            (DBmodels.Subscription.status == DBmodels.SubscriptionStatus.ACTIVE) |
+            (
+                (DBmodels.Subscription.status == DBmodels.SubscriptionStatus.PAST_DUE) &
+                (DBmodels.Subscription.updated_at >= datetime.utcnow() - timedelta(days=3))
+            )
+        )
+        .order_by(desc(DBmodels.Subscription.created_at))
+        .first()
+    )
+    if sub:
+        return sub.plan.value if hasattr(sub.plan, "value") else str(sub.plan)
+    return "free"
+
+
 def _create_token(
-    user: DBmodels.User, token_type: str, expires_minutes: int, jti: Optional[str] = None
+    user: DBmodels.User,
+    token_type: str,
+    expires_minutes: int,
+    jti: Optional[str] = None,
+    db: Optional[Session] = None,
 ) -> str:
     expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
+    
+    plan = "free"
+    if db is not None:
+        plan = get_subscription_plan_sync(db, user.id, user.org_id)
+
     to_encode = {
         "sub": str(user.id),
         "type": token_type,
         "role": user.role,
+        "subscription_plan": plan,
         "token_version": user.token_version,
         "exp": expire,
     }
@@ -92,12 +126,12 @@ def _create_token(
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
-def create_access_token(user: DBmodels.User) -> str:
-    return _create_token(user, "access", settings.access_token_minutes)
+def create_access_token(user: DBmodels.User, db: Optional[Session] = None) -> str:
+    return _create_token(user, "access", settings.access_token_minutes, db=db)
 
 
-def create_refresh_token(user: DBmodels.User, jti: str) -> str:
-    return _create_token(user, "refresh", settings.refresh_token_minutes, jti=jti)
+def create_refresh_token(user: DBmodels.User, jti: str, db: Optional[Session] = None) -> str:
+    return _create_token(user, "refresh", settings.refresh_token_minutes, jti=jti, db=db)
 
 
 def decode_token(token: str, expected_type: str) -> dict:
@@ -221,8 +255,8 @@ def issue_tokens(db: Session, user: DBmodels.User) -> Tuple[str, str]:
     db.commit()
     db.refresh(refresh_row)
 
-    access = create_access_token(user)
-    refresh = create_refresh_token(user, jti=jti)
+    access = create_access_token(user, db=db)
+    refresh = create_refresh_token(user, jti=jti, db=db)
     return access, refresh
 
 
@@ -267,8 +301,8 @@ def rotate_refresh_token(db: Session, payload: dict, user: DBmodels.User) -> Tup
     db.commit()
     db.refresh(new_row)
 
-    access = create_access_token(user)
-    refresh = create_refresh_token(user, jti=new_jti)
+    access = create_access_token(user, db=db)
+    refresh = create_refresh_token(user, jti=new_jti, db=db)
     return access, refresh
 
 
