@@ -6,7 +6,7 @@ import { ShieldAlert } from 'lucide-react';
 const AuthCallback = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { loginWithGoogle } = useAuth() as any;
+  const { loginWithGoogle, user } = useAuth() as any;
 
   useEffect(() => {
     // If the user is already authenticated (either from a previous session or from the first mount's completed callback),
