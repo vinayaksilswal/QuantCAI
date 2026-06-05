@@ -77,7 +77,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_subscription_plan_sync(db: Session, user_id: int, org_id: Optional[int]) -> str:
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from sqlalchemy import desc
     sub = (
         db.query(DBmodels.Subscription)
@@ -89,7 +89,7 @@ def get_subscription_plan_sync(db: Session, user_id: int, org_id: Optional[int])
             (DBmodels.Subscription.status == DBmodels.SubscriptionStatus.ACTIVE) |
             (
                 (DBmodels.Subscription.status == DBmodels.SubscriptionStatus.PAST_DUE) &
-                (DBmodels.Subscription.updated_at >= datetime.utcnow() - timedelta(days=3))
+                (DBmodels.Subscription.updated_at >= datetime.now(timezone.utc) - timedelta(days=3))
             )
         )
         .order_by(desc(DBmodels.Subscription.created_at))

@@ -40,10 +40,14 @@ export function useRazorpayCheckout() {
         return;
       }
 
+      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const isTestKey = razorpayKey?.startsWith('rzp_test_');
+
       // 1. Create order on FastAPI backend
       const orderResponse = await axiosClient.post('/api/create-order', {
         amount,
         currency,
+        mock: isTestKey,
       });
 
       const orderData = orderResponse.data;
@@ -80,7 +84,6 @@ export function useRazorpayCheckout() {
         }
       }
 
-      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
       if (!razorpayKey) {
         throw new Error('Razorpay public key (VITE_RAZORPAY_KEY_ID) is not configured.');
       }

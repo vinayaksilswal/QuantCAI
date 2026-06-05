@@ -22,6 +22,7 @@ class CreateOrderRequest(BaseModel):
     amount: int  # Amount in paise
     currency: str = "INR"
     receipt: Optional[str] = None
+    mock: Optional[bool] = None
 
 class VerifyPaymentRequest(BaseModel):
     razorpay_payment_id: Optional[str] = None
@@ -49,6 +50,17 @@ async def create_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Amount must be at least 100 paise."
         )
+
+    # If mock mode is explicitly requested, return a mock order immediately
+    if request.mock:
+        logger.info(f"Sandbox mock order explicitly requested for user {current_user.email}")
+        return {
+            "order_id": f"order_mock_{current_user.id}_{int(time.time())}",
+            "amount": request.amount,
+            "currency": request.currency,
+            "razorpay_key": settings.RAZORPAY_KEY_ID,
+            "mock": True
+        }
 
     try:
         # Initialize Razorpay Client
