@@ -33,6 +33,20 @@ auth_settings = AuthSettings()
 ENV = os.getenv("ENV", "production").lower()
 is_production = ENV == "production"
 
+def get_cookie_settings(request: Request) -> tuple[bool, str]:
+    """
+    Returns (secure, samesite) values based on host.
+    If running on localhost/127.0.0.1, SameSite=Lax and Secure=False.
+    Otherwise (e.g. Render/production), SameSite=None and Secure=True to support cross-domain cookies.
+    """
+    host = request.headers.get("host", "").lower()
+    is_localhost = "localhost" in host or "127.0.0.1" in host
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    
+    if not is_localhost and is_https:
+        return True, "none"
+    return False, "lax"
+
 def get_db():
     ses = db.SessionLocal()
     try:
@@ -107,12 +121,12 @@ def login(request: Request, login_data: LoginRequest, response: Response, db: Se
 
         access, refresh = issue_tokens(db, user)
 
-        samesite_val = "none" if is_production else "lax"
+        secure_val, samesite_val = get_cookie_settings(request)
         response.set_cookie(
             key="refresh_token",
             value=refresh,
             httponly=True,
-            secure=is_production,  # Dynamic based on env
+            secure=secure_val,
             samesite=samesite_val,
             max_age=auth_settings.refresh_token_minutes * 60
         )
@@ -166,12 +180,12 @@ def register(request: Request, reg_data: RegisterRequest, response: Response, db
         logger.info(f"Registration successful for user: {new_user.email} (ID: {new_user.id})")
         access, refresh = issue_tokens(db, new_user)
 
-        samesite_val = "none" if is_production else "lax"
+        secure_val, samesite_val = get_cookie_settings(request)
         response.set_cookie(
             key="refresh_token",
             value=refresh,
             httponly=True,
-            secure=is_production,
+            secure=secure_val,
             samesite=samesite_val,
             max_age=auth_settings.refresh_token_minutes * 60
         )
@@ -185,7 +199,7 @@ def register(request: Request, reg_data: RegisterRequest, response: Response, db
         raise HTTPException(status_code=500, detail="Internal server error")
 
 @router.post("/logout")
-def logout(response: Response, current_user: DBmodels.User = Depends(get_current_user), db: Session = Depends(get_db)):
+def logout(request: Request, response: Response, current_user: DBmodels.User = Depends(get_current_user), db: Session = Depends(get_db)):
     logger.info(f"Logout request for user {current_user.email}")
     try:
         # Re-fetch user in the local db session to avoid cross-session errors
@@ -198,11 +212,11 @@ def logout(response: Response, current_user: DBmodels.User = Depends(get_current
     except Exception as e:
         logger.error(f"Logout error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Logout failed")
-    samesite_val = "none" if is_production else "lax"
+    secure_val, samesite_val = get_cookie_settings(request)
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=is_production,
+        secure=secure_val,
         samesite=samesite_val
     )
     return {"message": "logout successful"}
@@ -226,12 +240,12 @@ def refresh_tokens(request: Request, response: Response, db: Session = Depends(g
 
         access, new_refresh = rotate_refresh_token(db, payload, user)
 
-        samesite_val = "none" if is_production else "lax"
+        secure_val, samesite_val = get_cookie_settings(request)
         response.set_cookie(
             key="refresh_token",
             value=new_refresh,
             httponly=True,
-            secure=is_production,
+            secure=secure_val,
             samesite=samesite_val,
             max_age=auth_settings.refresh_token_minutes * 60
         )
