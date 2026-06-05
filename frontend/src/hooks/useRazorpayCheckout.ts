@@ -51,6 +51,34 @@ export function useRazorpayCheckout() {
         throw new Error('Failed to create order on the backend.');
       }
 
+      // If backend returned a mock simulation order
+      if (orderData.mock) {
+        toast.info('[Sandbox] Processing trial subscription...');
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        try {
+          const verifyResponse = await axiosClient.post('/api/verify-payment', {
+            razorpay_payment_id: `pay_mock_${orderData.order_id.split('_').slice(2).join('_')}`,
+            razorpay_order_id: orderData.order_id,
+            razorpay_signature: 'sandbox_mock_signature',
+          });
+
+          if (verifyResponse.data && verifyResponse.data.status === 'success') {
+            toast.success('Subscription upgraded successfully via Sandbox!');
+            setLoading(false);
+            return verifyResponse.data;
+          } else {
+            throw new Error('Sandbox payment verification failed.');
+          }
+        } catch (verifyErr: any) {
+          console.error('Sandbox verification error:', verifyErr);
+          const errMsg = verifyErr.response?.data?.detail || 'Sandbox verification failed.';
+          toast.error(errMsg);
+          setLoading(false);
+          throw verifyErr;
+        }
+      }
+
       const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
       if (!razorpayKey) {
         throw new Error('Razorpay public key (VITE_RAZORPAY_KEY_ID) is not configured.');

@@ -164,3 +164,60 @@ async def test_verify_payment_success(mock_razorpay_client, seed_user):
             assert sub is not None
             assert sub.plan == DBmodels.SubscriptionPlan.PRO
             assert sub.status == DBmodels.SubscriptionStatus.ACTIVE
+
+@pytest.mark.asyncio
+@patch("razorpay.Client")
+async def test_create_order_mock_fallback_on_auth_failure(mock_razorpay_client, seed_user):
+    user_id, headers = seed_user
+    # Mock order.create raising authentication failure exception
+    mock_instance = MagicMock()
+    mock_instance.order.create.side_effect = Exception("Authentication failed")
+    mock_razorpay_client.return_value = mock_instance
+
+    from core.config import settings
+    # Ensure test key starts with rzp_test_
+    original_key_id = settings.RAZORPAY_KEY_ID
+    settings.RAZORPAY_KEY_ID = "rzp_test_mock_id"
+
+    try:
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            response = await client.post(
+                "/api/create-order",
+                json={"amount": 2900, "currency": "USD"},
+                headers=headers
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["mock"] is True
+            assert data["order_id"].startswith("order_mock_")
+            assert data["amount"] == 2900
+            assert data["currency"] == "USD"
+    finally:
+        settings.RAZORPAY_KEY_ID = original_key_id
+
+@pytest.mark.asyncio
+async def test_verify_payment_mock_success(seed_user):
+    user_id, headers = seed_user
+    
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(
+            "/api/verify-payment",
+            json={
+                "razorpay_order_id": "order_mock_test123",
+                "razorpay_payment_id": "pay_mock_test123",
+                "razorpay_signature": "mock_signature"
+            },
+            headers=headers
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["status"] == "success"
+        
+        # Verify db updated subscription to PRO
+        async with async_session_factory() as session:
+            from sqlalchemy import select
+            stmt = select(DBmodels.Subscription).where(DBmodels.Subscription.user_id == user_id)
+            res = await session.execute(stmt)
+            sub = res.scalar_one_or_none()
+            assert sub is not None
+            assert sub.plan == DBmodels.SubscriptionPlan.PRO
+            assert sub.status == DBmodels.SubscriptionStatus.ACTIVE
