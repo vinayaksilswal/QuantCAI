@@ -107,9 +107,12 @@ services:
     buildCommand: npm ci && npm run build
     publishPath: frontend/dist # The build artifact directory
     headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
       - path: /*
         name: Cache-Control
-        value: public, max-age=31536000, immutable # Aggressive browser caching for production speed
+        value: no-cache, no-store, must-revalidate
     envVars:
       - key: VITE_API_URL
         fromService:
