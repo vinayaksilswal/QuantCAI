@@ -9,9 +9,18 @@ const AuthCallback = () => {
   const { loginWithGoogle } = useAuth() as any;
 
   useEffect(() => {
+    let active = true;
+
     const handleCallback = async () => {
+      const storedState = localStorage.getItem('oauth_state');
+      if (!storedState) {
+        // Exit early if the first run has already cleared the stored state.
+        // This prevents React 18/19 StrictMode duplicate execution from throwing errors.
+        return;
+      }
+
       try {
-        // Parse fragment parameters (Google implicit flow returns credentials in URL fragment hash)
+        // Parse fragment parameters
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         
@@ -27,8 +36,6 @@ const AuthCallback = () => {
           throw new Error('No identity token received from Google.');
         }
         
-        // Validate state to prevent CSRF
-        const storedState = localStorage.getItem('oauth_state');
         if (!state || state !== storedState) {
           throw new Error('OAuth state mismatch. Request may have been compromised.');
         }
@@ -40,17 +47,25 @@ const AuthCallback = () => {
         // Call login with Google to complete authentication with backend
         await loginWithGoogle(idToken);
         
-        // Redirect to intended page or profile
-        const redirectPath = localStorage.getItem('oauth_redirect_path') || '/profile';
-        localStorage.removeItem('oauth_redirect_path');
-        navigate(redirectPath, { replace: true });
+        if (active) {
+          // Redirect to intended page or profile
+          const redirectPath = localStorage.getItem('oauth_redirect_path') || '/profile';
+          localStorage.removeItem('oauth_redirect_path');
+          navigate(redirectPath, { replace: true });
+        }
       } catch (err: any) {
-        console.error('OAuth callback error:', err);
-        setError(err?.message || 'Authentication failed. Please try again.');
+        if (active) {
+          console.error('OAuth callback error:', err);
+          setError(err?.message || 'Authentication failed. Please try again.');
+        }
       }
     };
     
     handleCallback();
+
+    return () => {
+      active = false;
+    };
   }, [navigate, loginWithGoogle]);
 
   return (
