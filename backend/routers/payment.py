@@ -82,7 +82,7 @@ async def create_order(
         err_msg = str(e).lower()
         if "auth" in err_msg or "unauthorized" in err_msg or "401" in err_msg:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Razorpay authentication failed: {str(e)}"
             )
         raise HTTPException(
