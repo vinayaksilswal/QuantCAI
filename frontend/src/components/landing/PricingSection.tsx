@@ -90,7 +90,7 @@ export const PricingSection = () => {
   const handleProClick = async () => {
     if (user) {
       try {
-        await startCheckout('pro', 2900, 'USD');
+        await startCheckout('pro', 240000, 'INR');
         window.location.reload();
       } catch (err) {
         console.error('Checkout failed:', err);

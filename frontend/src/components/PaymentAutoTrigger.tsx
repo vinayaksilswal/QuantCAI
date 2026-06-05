@@ -13,7 +13,7 @@ export function PaymentAutoTrigger() {
 
       const triggerPayment = async () => {
         try {
-          await startCheckout('pro', 2900, 'USD');
+          await startCheckout('pro', 240000, 'INR');
           window.location.reload();
         } catch (err) {
           console.error('Auto payment checkout failed:', err);

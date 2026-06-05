@@ -196,14 +196,20 @@ def _build_thermal_noise(num_qubits: int) -> Any:
     reject_on_worker_lost=True,
     max_retries=0,
 )
-def run_simulation(self, job_id: str) -> dict[str, Any]:
+def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
     """
     Execute a quantum circuit simulation.
 
     Lifecycle:
       queued → running → complete | failed
     """
-    log.info("worker.task_started", job_id=job_id, celery_task_id=self.request.id)
+    # Support direct calling where first argument is job_id instead of self task instance
+    if job_id is None:
+        job_id = self
+        self = None
+
+    celery_task_id = self.request.id if self and hasattr(self, "request") else None
+    log.info("worker.task_started", job_id=job_id, celery_task_id=celery_task_id)
 
     # ---- 1. Read job payload from Redis -----------------------------------
     try:

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    USE_CELERY: bool = False
     
     # Authentication
     SECRET_KEY: str = "change-me-temporary-key-that-is-at-least-32-chars-long"

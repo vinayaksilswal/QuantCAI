@@ -15,7 +15,7 @@ import time
 from enum import Enum
 from typing import Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as aioredis
@@ -220,12 +220,13 @@ router = APIRouter(prefix="/api/v1", tags=["quantum-simulation"])
     summary="Submit an OpenQASM circuit for simulation",
     description=(
         "Validates the circuit, checks tier-based feature access, and queues "
-        "the simulation job on a Celery worker. Returns a job_id for polling."
+        "the simulation job. Returns a job_id for polling."
     ),
 )
 async def submit_simulation(
     body: SimulateRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: DBmodels.User = Depends(get_current_user_or_api_key),
 ):
@@ -356,10 +357,16 @@ async def submit_simulation(
         f"sim_job:{job_id}", 3600, json.dumps(job_meta)
     )
 
-    # Dispatch to Celery (import here to avoid circular imports at module load)
+    # Dispatch either to Celery or use FastAPI BackgroundTasks based on configuration
     from worker import run_simulation
+    from core.config import settings
 
-    run_simulation.delay(job_id)
+    if settings.USE_CELERY:
+        run_simulation.delay(job_id)
+        dispatch_method = "celery"
+    else:
+        background_tasks.add_task(run_simulation, job_id)
+        dispatch_method = "background_task"
 
     elapsed_ms = (time.monotonic() - request_start) * 1000
     log.info(
@@ -370,6 +377,7 @@ async def submit_simulation(
         circuit_depth=circuit_depth,
         estimated_seconds=estimated_seconds,
         validation_ms=round(elapsed_ms, 2),
+        dispatch_method=dispatch_method,
     )
 
     return SimulateSubmitResponse(
