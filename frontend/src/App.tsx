@@ -25,6 +25,7 @@ const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PqcScanner = lazy(() => import("./pages/PqcScanner"));
+const Enterprise = lazy(() => import("./pages/Enterprise"));
 import { AuthProvider } from "./context/AuthContext";
 
 import { useAuth } from "./hooks/useAuth";
@@ -84,6 +85,9 @@ const App = () => (
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><Profile /></ProtectedRoute>} />
                       <Route path="/pqc-scanner" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
+                      <Route path="/enterprise/pqc-scanner" element={<ProtectedRoute roles={["root", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
+                      <Route path="/sandbox" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />
+                      <Route path="/enterprise" element={<Enterprise />} />
 
                       <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
                     </Routes>

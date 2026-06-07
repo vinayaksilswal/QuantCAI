@@ -49,11 +49,10 @@ interface PlanProps {
 
 const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick, highlighted, loading }: PlanProps) => (
   <div
-    className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col backdrop-blur-xl transition-all duration-300 ${
-      highlighted
-        ? 'bg-white/10 border-cyan-400/40 shadow-2xl shadow-cyan-500/20 hover:border-cyan-400/60'
-        : 'bg-white/5 border-blue-400/20 shadow-xl shadow-blue-500/10 hover:border-blue-400/40'
-    }`}
+    className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col backdrop-blur-xl transition-all duration-300 ${highlighted
+      ? 'bg-white/10 border-cyan-400/40 shadow-2xl shadow-cyan-500/20 hover:border-cyan-400/60'
+      : 'bg-white/5 border-blue-400/20 shadow-xl shadow-blue-500/10 hover:border-blue-400/40'
+      }`}
   >
     {badge && (
       <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-qc-accent text-black text-[10px] font-bold tracking-wider uppercase shadow-lg shadow-cyan-500/30">
@@ -79,11 +78,10 @@ const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick,
       <button
         onClick={onClick}
         disabled={loading}
-        className={`block w-full text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 disabled:opacity-50 ${
-          highlighted
-            ? 'bg-qc-accent text-black hover:brightness-110 shadow-lg shadow-cyan-500/25'
-            : 'border border-blue-400/30 text-white hover:border-blue-400/50 hover:bg-white/10'
-        }`}
+        className={`block w-full text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 disabled:opacity-50 ${highlighted
+          ? 'bg-qc-accent text-black hover:brightness-110 shadow-lg shadow-cyan-500/25'
+          : 'border border-blue-400/30 text-white hover:border-blue-400/50 hover:bg-white/10'
+          }`}
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
@@ -95,11 +93,10 @@ const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick,
     ) : (
       <a
         href={ctaHref}
-        className={`block text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-          highlighted
-            ? 'bg-qc-accent text-black hover:brightness-110 shadow-lg shadow-cyan-500/25'
-            : 'border border-blue-400/30 text-white hover:border-blue-400/50 hover:bg-white/10'
-        }`}
+        className={`block text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${highlighted
+          ? 'bg-qc-accent text-black hover:brightness-110 shadow-lg shadow-cyan-500/25'
+          : 'border border-blue-400/30 text-white hover:border-blue-400/50 hover:bg-white/10'
+          }`}
       >
         {cta}
       </a>
@@ -185,8 +182,9 @@ export default function LandingPage() {
               <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight text-white drop-shadow-lg">
                 Quantum Visionaries
               </h1>
-              <h2 className="text-2xl md:text-3xl mb-8 font-light text-blue-100 drop-shadow-md">
-                Leap Forward to Innovate, Educate, and Elevate Tech Horizons
+              <h2 className="text-2xl md:text-3xl mb-5 font-light text-blue-100 drop-shadow-md">
+                Leap Forward to Innovate, Educate, and Elevate <br />
+                Tech Horizons
               </h2>
               <p className="text-lg mb-12 max-w-2xl leading-relaxed text-blue-200 drop-shadow-sm">
                 QuantCAI is leading the quantum computer adaptation to the world through
@@ -194,17 +192,21 @@ export default function LandingPage() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button className="bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-2xl shadow-blue-500/30 border border-blue-400/30">
-                  <Rocket className="h-5 w-5" />
-                  Explore Quantum World
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-2 border-blue-400 text-blue-200 hover:bg-blue-500/20 hover:text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center gap-2 backdrop-blur-sm bg-white/5 shadow-xl"
-                >
-                  <Settings className="h-5 w-5" />
-                  Try Simulator
-                </Button>
+                <Link to="/learn" className="w-full sm:w-auto">
+                  <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-2xl shadow-blue-500/30 border border-blue-400/30">
+                    <Rocket className="h-5 w-5" />
+                    Explore Quantum World
+                  </Button>
+                </Link>
+                <Link to="/sandbox" className="w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    className="w-full border-2 border-blue-400 text-blue-200 hover:bg-blue-500/20 hover:text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center gap-2 backdrop-blur-sm bg-white/5 shadow-xl"
+                  >
+                    <Settings className="h-5 w-5" />
+                    Try Simulator
+                  </Button>
+                </Link>
               </div>
             </div>
 
@@ -349,11 +351,10 @@ export default function LandingPage() {
 
               {/* Demo result card */}
               <div
-                className={`rounded-xl border overflow-hidden transition-all duration-500 bg-black/30 backdrop-blur-sm ${
-                  showResult
-                    ? 'border-red-500/40 opacity-100'
-                    : 'border-white/10 opacity-60'
-                }`}
+                className={`rounded-xl border overflow-hidden transition-all duration-500 bg-black/30 backdrop-blur-sm ${showResult
+                  ? 'border-red-500/40 opacity-100'
+                  : 'border-white/10 opacity-60'
+                  }`}
               >
                 <div className="px-4 py-2.5 border-b border-white/10 flex items-center justify-between">
                   <span className="text-sm font-mono text-white">
@@ -432,9 +433,12 @@ export default function LandingPage() {
               name="Free"
               price="₹0"
               features={[
+                'Basic access to Learning Hub',
+                'Standard single-qubit simulations',
                 '20 API calls / day',
-                'Max 1,024 shots per circuit',
-                '3 PQC scans / month',
+                'Max 1,024 shots',
+                '3 PQC domain scans / mo',
+                'Ideal noise simulator only',
                 'Community support',
               ]}
               cta="Start Free"
@@ -448,10 +452,11 @@ export default function LandingPage() {
               highlighted
               features={[
                 '500 API calls / day',
-                '65,536 shots + noise models',
-                '50 PQC scans / month',
-                'Full AI Tutor access',
-                'CBOM PDF export',
+                'Max 65,536 shots + noise models',
+                '50 PQC domain scans / mo',
+                'Thermal & Depolarizing noise',
+                'AI Tutor access (QuantAI)',
+                'Standard static PDF CBOM export',
                 'Priority email support',
               ]}
               cta="Upgrade to Pro"
@@ -463,12 +468,12 @@ export default function LandingPage() {
               price="₹24,999"
               period="month"
               features={[
-                'Unlimited API calls',
-                'Unlimited shots + custom noise',
-                'Unlimited PQC scans',
-                'SSO + multi-user orgs',
-                'SLA + priority support',
-                'Annual contracts available',
+                'Sovereign PQC compliance suite',
+                'CycloneDX 1.6 automated CBOM generation',
+                'Internal network & port scanning',
+                'LQM remediation & vulnerability mapping',
+                'SSO + multi-user organization console',
+                'Dedicated SLA & consultative procurement',
               ]}
               cta="Contact Sales"
               ctaHref="mailto:sales@quantcai.in"

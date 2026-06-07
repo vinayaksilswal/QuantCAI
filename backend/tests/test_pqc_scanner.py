@@ -18,7 +18,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 from datetime import datetime, timezone, timedelta
 
 from cryptography import x509
@@ -389,3 +389,164 @@ class TestRiskScoreBounds:
         total = 20 + (-20)
         clamped = max(0, min(100, total))
         assert clamped == 0
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# New Unit Tests: CycloneDX 1.6, Internal IPs, and Route Gating
+# ──────────────────────────────────────────────────────────────────────────
+
+def test_cyclonedx_cbom_generation_and_validation():
+    from models.cyclonedx_models import CycloneDXCBOM
+    from services.pqc_scanner import generate_cyclonedx_cbom
+    
+    # Construct a valid dummy scan result
+    dummy_scan = {
+        "domain": "test.example.com",
+        "scan_timestamp": "2026-06-07T14:45:00Z",
+        "tls_version": "TLSv1.3",
+        "cipher_suite": "TLS_AES_256_GCM_SHA384",
+        "certificates": [
+            {
+                "index": 0,
+                "subject": "CN=test.example.com",
+                "issuer": "CN=QuantCAI CA",
+                "algorithm": "ECC-secp256r1-256",
+                "signature_algorithm": "ecdsa-with-SHA256",
+                "expires_at": "2027-06-07",
+                "quantum_vulnerable": True
+            }
+        ]
+    }
+    
+    cbom_dict = generate_cyclonedx_cbom(dummy_scan)
+    
+    # Validate structure using the Pydantic model
+    cbom = CycloneDXCBOM(**cbom_dict)
+    
+    assert cbom.bomFormat == "CycloneDX"
+    assert cbom.specVersion == "1.6"
+    assert len(cbom.components) == 3  # TLS protocol, cert-0, and cert-0's algorithm
+    
+    # Check that it contains cryptographic assets
+    assert cbom.components[0].type == "cryptographic-asset"
+    assert cbom.components[0].cryptoProperties.assetType == "protocol"
+    assert cbom.components[0].cryptoProperties.protocolProperties.version == "1.3"
+
+
+@patch("services.pqc_scanner.socket.create_connection")
+@patch("services.pqc_scanner.ssl.create_default_context")
+def test_scan_domain_internal_ip_config(mock_ssl_ctx, mock_create_conn):
+    import ssl
+    # Mock ssl context and wrap_socket
+    mock_ctx_instance = MagicMock()
+    mock_ssl_ctx.return_value = mock_ctx_instance
+    mock_ssock = MagicMock()
+    # Mock cipher() and version() and getpeercert() to avoid exceptions
+    mock_ssock.cipher.return_value = ("ECDHE-RSA-AES256-GCM-SHA384", "TLSv1.3", 256)
+    mock_ssock.version.return_value = "TLSv1.3"
+    mock_ssock.getpeercert.return_value = b"mock_der_bytes"
+    mock_ssock._sslobj.get_verified_chain.return_value = None
+    mock_ctx_instance.wrap_socket.return_value.__enter__.return_value = mock_ssock
+    
+    # Run scan for internal domain
+    result = scan_domain("192.168.1.100", port=8443)
+    
+    # Assert connection was made on custom port
+    mock_create_conn.assert_called_with(("192.168.1.100", 8443), timeout=5)
+    
+    # Assert check_hostname and verify_mode are disabled for internal domain
+    assert mock_ctx_instance.check_hostname is False
+    assert mock_ctx_instance.verify_mode == ssl.CERT_NONE
+    
+    # Run scan for external domain
+    mock_ctx_instance.check_hostname = True
+    mock_ctx_instance.verify_mode = ssl.CERT_REQUIRED
+    scan_domain("google.com")
+    
+    # Assert check_hostname and verify_mode are enabled for external domain
+    assert mock_ctx_instance.check_hostname is True
+    assert mock_ctx_instance.verify_mode == ssl.CERT_REQUIRED
+
+
+@pytest.mark.asyncio
+@patch("routers.pqc.redis_client", new_callable=AsyncMock)
+@patch("routers.pqc.scan_domain_async", new_callable=AsyncMock)
+async def test_enterprise_scan_role_based_access(mock_scan, mock_redis):
+    # Import locally to avoid scope/pollution issues
+    from main import app
+    from security import create_access_token
+    from core.database import async_session_factory
+    from httpx import AsyncClient
+    import models as DBmodels
+    from sqlalchemy import text
+    
+    # Setup test users
+    suffix = os.urandom(4).hex()
+    email_free = f"free_pqc_{suffix}@example.com"
+    email_pro = f"pro_pqc_{suffix}@example.com"
+    email_ent = f"ent_pqc_{suffix}@example.com"
+    email_root = f"root_pqc_{suffix}@example.com"
+    
+    async with async_session_factory() as session:
+        user_free = DBmodels.User(email=email_free, name="Free PQC User", hashed_password="pwd", role=DBmodels.UserRole.LEARNER, is_active=True)
+        user_pro = DBmodels.User(email=email_pro, name="Pro PQC User", hashed_password="pwd", role=DBmodels.UserRole.LEARNER, is_active=True)
+        user_ent = DBmodels.User(email=email_ent, name="Ent PQC User", hashed_password="pwd", role=DBmodels.UserRole.ENTERPRISE_USER, is_active=True)
+        user_root = DBmodels.User(email=email_root, name="Root PQC User", hashed_password="pwd", role=DBmodels.UserRole.ROOT, is_active=True)
+        session.add_all([user_free, user_pro, user_ent, user_root])
+        await session.flush()
+        
+        # Add subscription plans
+        sub_free = DBmodels.Subscription(user_id=user_free.id, plan=DBmodels.SubscriptionPlan.FREE, status=DBmodels.SubscriptionStatus.ACTIVE)
+        sub_pro = DBmodels.Subscription(user_id=user_pro.id, plan=DBmodels.SubscriptionPlan.PRO, status=DBmodels.SubscriptionStatus.ACTIVE)
+        sub_ent = DBmodels.Subscription(user_id=user_ent.id, plan=DBmodels.SubscriptionPlan.ENTERPRISE, status=DBmodels.SubscriptionStatus.ACTIVE)
+        # Root doesn't need a sub as root role is allowed
+        session.add_all([sub_free, sub_pro, sub_ent])
+        await session.commit()
+        
+        free_id, pro_id, ent_id, root_id = user_free.id, user_pro.id, user_ent.id, user_root.id
+        
+    try:
+        # Create JWT tokens
+        token_free = create_access_token({"sub": str(free_id), "type": "access", "role": "learner", "token_version": 0})
+        token_pro = create_access_token({"sub": str(pro_id), "type": "access", "role": "learner", "token_version": 0})
+        token_ent = create_access_token({"sub": str(ent_id), "type": "access", "role": "enterprise_user", "token_version": 0})
+        token_root = create_access_token({"sub": str(root_id), "type": "access", "role": "root", "token_version": 0})
+        
+        # Configure scan mock
+        mock_scan.return_value = {
+            "domain": "test.example.com",
+            "scan_timestamp": "2026-06-07T14:45:00Z",
+            "tls_version": "TLSv1.3",
+            "cipher_suite": "TLS_AES_256_GCM_SHA384",
+            "certificates": []
+        }
+        mock_redis.get.return_value = None
+        mock_redis.setex.return_value = True
+        
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            # 1. Free user request - should return 403 Forbidden
+            res = await client.get("/api/v1/enterprise/scan/test.example.com/cyclonedx", headers={"Authorization": f"Bearer {token_free}"})
+            assert res.status_code == 403
+            
+            # 2. Pro user request - should return 403 Forbidden
+            res = await client.get("/api/v1/enterprise/scan/test.example.com/cyclonedx", headers={"Authorization": f"Bearer {token_pro}"})
+            assert res.status_code == 403
+            
+            # 3. Enterprise user request - should return 200 OK
+            res = await client.get("/api/v1/enterprise/scan/test.example.com/cyclonedx", headers={"Authorization": f"Bearer {token_ent}"})
+            assert res.status_code == 200
+            assert res.json()["bomFormat"] == "CycloneDX"
+            
+            # 4. Root user request - should return 200 OK
+            res = await client.get("/api/v1/enterprise/scan/test.example.com/cyclonedx", headers={"Authorization": f"Bearer {token_root}"})
+            assert res.status_code == 200
+            assert res.json()["bomFormat"] == "CycloneDX"
+            
+    finally:
+        # Cleanup
+        async with async_session_factory() as session:
+            await session.execute(text("DELETE FROM usage_events WHERE user_id IN (:u1, :u2, :u3, :u4)"), {"u1": free_id, "u2": pro_id, "u3": ent_id, "u4": root_id})
+            await session.execute(text("DELETE FROM subscriptions WHERE user_id IN (:u1, :u2, :u3)"), {"u1": free_id, "u2": pro_id, "u3": ent_id})
+            await session.execute(text("DELETE FROM users WHERE id IN (:u1, :u2, :u3, :u4)"), {"u1": free_id, "u2": pro_id, "u3": ent_id, "u4": root_id})
+            await session.commit()
+

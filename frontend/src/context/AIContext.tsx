@@ -82,7 +82,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         if (!user) {
             setMessages(prev => [...prev, {
                 role: "assistant",
-                content: "Please login first to use the QuantAI Assistant. You can find the login button in the top right corner."
+                content: "Please login first to use the Assistant. You can find the login button in the top right corner."
             }]);
             setIsLoading(false);
             return;
@@ -98,7 +98,11 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`
                 },
-                body: JSON.stringify({ message: content, conversation_id: conversationId }),
+                body: JSON.stringify({
+                    message: content,
+                    conversation_id: conversationId,
+                    current_route: window.location.pathname
+                }),
             });
 
             if (response.status === 401) {

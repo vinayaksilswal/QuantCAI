@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket } from 'lucide-react';
+import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket, Shield } from 'lucide-react';
 import { LogoProcessor } from './LogoProcessor';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -121,6 +121,19 @@ export const Navbar = () => {
               <Zap className="h-4 w-4" />
               Tools
             </Link>
+
+            {(role === 'enterprise_user' || role === 'root') && (
+              <Link
+                to="/enterprise/pqc-scanner"
+                className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/enterprise/pqc-scanner')
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-lg shadow-teal-500/30'
+                  : 'text-emerald-400 hover:text-white hover:bg-emerald-600/20'
+                  }`}
+              >
+                <Shield className="h-4 w-4" />
+                PQC Compliance
+              </Link>
+            )}
 
             <Link
               to="/community"
@@ -275,6 +288,20 @@ export const Navbar = () => {
                 <Zap className="h-5 w-5" />
                 Tools
               </Link>
+
+              {(role === 'enterprise_user' || role === 'root') && (
+                <Link
+                  to="/enterprise/pqc-scanner"
+                  className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/enterprise/pqc-scanner')
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-lg shadow-emerald-500/20 border border-emerald-500/30'
+                    : 'text-emerald-400 hover:text-white hover:bg-emerald-600/20'
+                    }`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Shield className="h-5 w-5" />
+                  PQC Compliance
+                </Link>
+              )}
 
               <Link
                 to="/community"

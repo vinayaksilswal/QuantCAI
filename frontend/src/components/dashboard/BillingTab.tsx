@@ -117,6 +117,14 @@ export function BillingTab() {
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
+                  <span>Basic access to Learning Hub</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
+                  <span>Standard single-qubit simulations</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
                   <span>20 API calls / day</span>
                 </li>
                 <li className="flex items-center gap-2">
@@ -130,6 +138,10 @@ export function BillingTab() {
                 <li className="flex items-center gap-2 text-qc-muted/50">
                   <Check className="w-3.5 h-3.5 text-qc-muted/30 flex-shrink-0" />
                   <span>Ideal noise simulator only</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
+                  <span>Community support</span>
                 </li>
               </ul>
             </div>
@@ -161,7 +173,7 @@ export function BillingTab() {
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
-                  <span>Max 65,536 shots</span>
+                  <span>Max 65,536 shots + noise models</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
@@ -173,7 +185,15 @@ export function BillingTab() {
                 </li>
                 <li className="flex items-center gap-2 font-semibold text-qc-text">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
-                  <span>Access to AI Quantum Tutor</span>
+                  <span>AI Tutor access (QuantAI)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
+                  <span>Standard static PDF CBOM export</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
+                  <span>Priority email support</span>
                 </li>
               </ul>
             </div>
@@ -200,58 +220,51 @@ export function BillingTab() {
             <div className="space-y-4">
               <div>
                 <h4 className="font-syne font-bold text-sm text-qc-text flex items-center justify-between">
-                  Enterprise Plan
+                  Enterprise Compliance
                   {subscriptionPlan === 'enterprise' && (
                     <span className="px-1.5 py-0.5 rounded bg-qc-accent text-qc-bg text-[8px] font-bold uppercase tracking-wider">Active</span>
                   )}
                 </h4>
-                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">₹24,999 <span className="text-xs font-light text-qc-muted">/ month</span></p>
+                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">Contact Sales</p>
               </div>
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
-                  <span>Unlimited API calls</span>
+                  <span>Sovereign PQC compliance suite</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
-                  <span>Unlimited shots + custom noise</span>
+                  <span>CycloneDX 1.6 automated CBOM generation</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
-                  <span>Unlimited PQC scans</span>
+                  <span>Internal network & port scanning</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
-                  <span>SSO + multi-user orgs</span>
+                  <span>LQM remediation & vulnerability mapping</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
-                  <span>Export CBOM PDF Reports</span>
+                  <span>SSO + multi-user organization console</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5 text-qc-accent flex-shrink-0" />
+                  <span>Dedicated SLA & consultative procurement</span>
                 </li>
               </ul>
             </div>
-            {subscriptionPlan === 'free' || !subscriptionPlan ? (
-              <CheckoutButton
-                amount={2499900}
-                currency="INR"
-                planName="enterprise"
-                className="mt-8 w-full py-2 bg-transparent border border-qc-border text-qc-text hover:border-qc-accent hover:bg-qc-accent/5 hover:text-qc-bg"
-              >
-                Get Enterprise
-              </CheckoutButton>
-            ) : subscriptionPlan === 'pro' ? (
-              <CheckoutButton
-                amount={2499900}
-                currency="INR"
-                planName="enterprise"
-                className="mt-8 w-full py-2"
-              >
-                Upgrade to Enterprise
-              </CheckoutButton>
-            ) : (
+            {subscriptionPlan === 'enterprise' ? (
               <div className="mt-8 text-center py-2 text-xs font-semibold text-qc-accent font-mono">
                 Your Enterprise Workspace
               </div>
+            ) : (
+              <a
+                href="mailto:sales@quantcai.in?subject=QuantCAI%20Enterprise%20Compliance%20Inquiry"
+                className="mt-8 w-full py-2 text-center text-xs font-semibold rounded bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 hover:brightness-110 shadow-lg transition-all"
+              >
+                Contact Sales
+              </a>
             )}
           </div>
 

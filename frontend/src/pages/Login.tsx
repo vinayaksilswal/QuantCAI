@@ -80,7 +80,7 @@ const Login = () => {
         localStorage.setItem('oauth_redirect_path', '/profile');
       }
       
-      const redirectUri = config.google_redirect_uri || (window.location.origin + '/auth/callback');
+      const redirectUri = window.location.origin + '/auth/callback';
       const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + 
         `client_id=${config.google_client_id}` + 
         `&redirect_uri=${encodeURIComponent(redirectUri)}` + 

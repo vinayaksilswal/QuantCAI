@@ -48,6 +48,16 @@ TUTOR_SYSTEM_PROMPT = (
     "When they request a simulation, generate valid OpenQASM 2.0 code and explain what each gate does line-by-line."
 )
 
+LQM_SYSTEM_PROMPT = (
+    "You are the Large Quantitative Model (LQM), an enterprise-grade AI advisor specialized in "
+    "Post-Quantum Cryptography (PQC) compliance, readiness scoring, and risk remediation. "
+    "Your objective is to help commercial clients assess their cryptographic posture, calculate "
+    "PQC Readiness Scores, and generate remediation strategies to migrate from quantum-vulnerable "
+    "algorithms (such as RSA and ECC) to NIST-standardized post-quantum algorithms (ML-KEM, ML-DSA, SLH-DSA). "
+    "Provide clear, professional, security-focused, and actionable cryptographic remediation plans."
+)
+
+
 # -----------------------------------------------------------------------------
 # LangGraph Definitions
 # -----------------------------------------------------------------------------
@@ -60,6 +70,7 @@ class TutorState(TypedDict):
     is_pro: bool
     db: AsyncSession
     request: Request
+    current_route: Optional[str]
     
     # Execution states & Outputs
     usage_exceeded: bool
@@ -198,6 +209,27 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
     response = ""
     circuit_result = None
     
+    # Retrieve DB user directly using state['user_id']
+    stmt = select(DBmodels.User).where(DBmodels.User.id == user_id)
+    user_result = await db.execute(stmt)
+    current_user_obj = user_result.scalar_one_or_none()
+    
+    plan = "free"
+    role = None
+    if current_user_obj:
+        plan = await get_subscription_plan(db, current_user_obj.id, current_user_obj.org_id)
+        role = current_user_obj.role
+        
+    current_route = state.get("current_route")
+    is_scanner_route = False
+    is_sandbox_route = False
+    if current_route:
+        is_scanner_route = "/pqc-scanner" in current_route or "/enterprise" in current_route
+        is_sandbox_route = current_route == "/sandbox"
+
+    is_user_enterprise = plan.lower() == "enterprise" or role in (DBmodels.UserRole.ROOT, DBmodels.UserRole.ENTERPRISE_USER)
+    is_enterprise = (is_user_enterprise and not is_sandbox_route) or is_scanner_route
+    
     # 1. Fetch conversation history from Redis
     history_key = f"tutor_history:{conversation_id}"
     history = []
@@ -211,7 +243,8 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
     try:
         if intent == "conceptual_question":
             # Call Gemini Pro with System Prompt + History + User Message
-            messages = [SystemMessage(content=TUTOR_SYSTEM_PROMPT)]
+            sys_prompt = LQM_SYSTEM_PROMPT if is_enterprise else TUTOR_SYSTEM_PROMPT
+            messages = [SystemMessage(content=sys_prompt)]
             for turn in history:
                 if turn.get("role") == "user":
                     messages.append(HumanMessage(content=turn["content"]))
@@ -224,14 +257,24 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
             
         elif intent == "simulation_request":
             # Generate valid OpenQASM 2.0 and explanation
-            sim_prompt = [
-                SystemMessage(content=(
+            if is_enterprise:
+                system_content = (
+                    "You are the Large Quantitative Model (LQM), an enterprise-grade AI advisor. The user wants to generate a quantum circuit configuration. "
+                    "Generate valid OpenQASM 2.0 code that implements their request, and write a professional cryptographic analysis explaining the circuit. "
+                    "Remember: OpenQASM 2.0 must begin with 'OPENQASM 2.0;' and include 'qelib1.inc';. "
+                    "It must declare qreg and creg. Include measurement gates (e.g. measure q[0] -> c[0];). "
+                    "Provide the response inside the requested JSON format containing 'openqasm_code' and 'explanation'."
+                )
+            else:
+                system_content = (
                     "You are the QuantCAI Quantum Computing Tutor. The student wants to simulate a quantum circuit.\n"
                     "Generate valid OpenQASM 2.0 code that implements their request, and write a line-by-line explanation of the gates.\n"
                     "Remember: OpenQASM 2.0 must begin with 'OPENQASM 2.0;' and include 'qelib1.inc';. "
                     "It must declare qreg and creg. Include measurement gates (e.g. measure q[0] -> c[0];) so measurement results can be simulated.\n"
                     "Provide the response inside the requested JSON format containing 'openqasm_code' and 'explanation'."
-                )),
+                )
+            sim_prompt = [
+                SystemMessage(content=system_content),
                 HumanMessage(content=message)
             ]
             
@@ -249,11 +292,18 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
                     
             if not structured_simulation or 'structured_sim_failed' in locals():
                 # Fallback manual parsing
-                fallback_sim_prompt = [
-                    SystemMessage(content=(
+                if is_enterprise:
+                    fallback_content = (
+                        "You are the Large Quantitative Model (LQM), an enterprise-grade AI advisor. Generate valid OpenQASM 2.0 code for the user's request, followed by a professional cryptographic explanation of the circuit.\n"
+                        "Make sure you format the OpenQASM code inside a ```qasm block so it can be extracted, and write the explanation in plain text after the code block."
+                    )
+                else:
+                    fallback_content = (
                         "You are the QuantCAI Quantum Computing Tutor. Generate valid OpenQASM 2.0 code for the student's request, followed by a line-by-line explanation of what each gate does.\n"
                         "Make sure you format the OpenQASM code inside a ```qasm block so it can be extracted, and write the explanation in plain text after the code block."
-                    )),
+                    )
+                fallback_sim_prompt = [
+                    SystemMessage(content=fallback_content),
                     HumanMessage(content=message)
                 ]
                 res = await llm.ainvoke(fallback_sim_prompt)
@@ -294,12 +344,6 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
             response = f"Here is the OpenQASM 2.0 circuit representing your request:\n\n```qasm\n{qasm_code}\n```\n\n### Gate Explanation:\n{explanation}"
             
             # Execute simulation internally
-            # Retrieve DB user directly using state['user_id']
-            # We fetch user model since submit_simulation requires a User object
-            stmt = select(DBmodels.User).where(DBmodels.User.id == user_id)
-            user_result = await db.execute(stmt)
-            current_user_obj = user_result.scalar_one_or_none()
-            
             if current_user_obj:
                 try:
                     sim_req = SimulateRequest(circuit_qasm=qasm_code, shots=1024)
@@ -338,31 +382,51 @@ async def generate_response_node(state: TutorState) -> Dict[str, Any]:
                 
         elif intent == "math_help":
             # Step-by-step using LaTeX
-            math_prompt = [
-                SystemMessage(content=(
-                    "You are the QuantCAI Quantum Computing Tutor. Solve the student's mathematical question step-by-step using a clear chain-of-thought.\n"
-                    "Ensure all mathematical equations and formulas are in LaTeX format (e.g., $...$ for inline or $$...$$ for block notation).\n"
-                    "Explain the concepts behind the math, and end with a Socratic follow-up question checking understanding."
-                )),
-                HumanMessage(content=message)
-            ]
+            if is_enterprise:
+                math_prompt = [
+                    SystemMessage(content=(
+                        "You are the Large Quantitative Model (LQM), an enterprise-grade AI advisor. Solve the user's mathematical or cryptographic equation "
+                        "step-by-step using a clear chain-of-thought, focusing on PQC metrics or cryptographic parameter calculations. "
+                        "Ensure all mathematical equations and formulas are in LaTeX format (e.g., $...$ for inline or $$...$$ for block notation)."
+                    )),
+                    HumanMessage(content=message)
+                ]
+            else:
+                math_prompt = [
+                    SystemMessage(content=(
+                        "You are the QuantCAI Quantum Computing Tutor. Solve the student's mathematical question step-by-step using a clear chain-of-thought.\n"
+                        "Ensure all mathematical equations and formulas are in LaTeX format (e.g., $...$ for inline or $$...$$ for block notation).\n"
+                        "Explain the concepts behind the math, and end with a Socratic follow-up question checking understanding."
+                    )),
+                    HumanMessage(content=message)
+                ]
             res = await llm.ainvoke(math_prompt)
             response = res.content
             
         elif intent == "off_topic":
-            # Redirect back to quantum computing
-            off_topic_prompt = [
-                SystemMessage(content=(
-                    "You are the QuantCAI Quantum Computing Tutor. The student has asked something off-topic.\n"
-                    "Politely redirect them back to quantum computing, offering a couple of interesting quantum concepts they might want to learn about instead."
-                )),
-                HumanMessage(content=message)
-            ]
+            # Redirect back to quantum computing / PQC
+            if is_enterprise:
+                off_topic_prompt = [
+                    SystemMessage(content=(
+                        "You are the Large Quantitative Model (LQM), an enterprise-grade AI advisor. The user has asked something off-topic.\n"
+                        "Politely redirect them back to PQC compliance, cryptographic discovery, and enterprise migration strategies."
+                    )),
+                    HumanMessage(content=message)
+                ]
+            else:
+                off_topic_prompt = [
+                    SystemMessage(content=(
+                        "You are the QuantCAI Quantum Computing Tutor. The student has asked something off-topic.\n"
+                        "Politely redirect them back to quantum computing, offering a couple of interesting quantum concepts they might want to learn about instead."
+                    )),
+                    HumanMessage(content=message)
+                ]
             res = await llm.ainvoke(off_topic_prompt)
             response = res.content
             
         else:
             response = "I'm sorry, I'm not sure how to address that. Can we return to discussing quantum computing?"
+
             
     except Exception as e:
         logger.error(f"LLM generation failed for intent {intent}: {e}", exc_info=True)
@@ -435,6 +499,7 @@ tutor_graph = workflow.compile()
 class TutorChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = Field(default=None, description="Optional UUID tracking conversation history.")
+    current_route: Optional[str] = Field(default=None, description="Optional current route in frontend.")
 
 class TutorChatResponse(BaseModel):
     response: str
@@ -475,7 +540,8 @@ async def tutor_chat_endpoint(
         "usage_exceeded": False,
         "intent": None,
         "response": None,
-        "circuit_result": None
+        "circuit_result": None,
+        "current_route": body.current_route
     }
     
     try:

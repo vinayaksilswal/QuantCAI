@@ -113,6 +113,14 @@ export function UpgradeModal() {
           >
             Upgrade to Pro — ₹2,400/mo
           </CheckoutButton>
+
+          <a
+            href="mailto:sales@quantcai.in?subject=QuantCAI%20Enterprise%20Compliance%20Inquiry"
+            className="w-full py-3 text-sm text-center font-semibold rounded bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 hover:brightness-110 shadow-lg transition-all"
+            onClick={() => setIsOpen(false)}
+          >
+            Contact Sales for Enterprise
+          </a>
           
           <button
             onClick={() => setIsOpen(false)}

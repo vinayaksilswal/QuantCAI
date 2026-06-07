@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAI } from "../hooks/useAI";
+import { useAuth } from "../hooks/useAuth";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
-import { MessageCircle, X, Send, Bot, User } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "./ui/card";
 import ReactMarkdown from 'react-markdown';
@@ -14,9 +15,15 @@ import 'katex/dist/katex.min.css';
 
 export const AIAssistant = () => {
     const { isOpen, toggleChat, messages, sendMessage, isLoading, activeTool, closeTool } = useAI();
+    const { subscriptionPlan } = useAuth();
     const [input, setInput] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const isScannerRoute = location.pathname.includes('/pqc-scanner') || location.pathname.includes('/enterprise');
+    const isSandboxRoute = location.pathname === '/sandbox';
+    const isEnterprise = (subscriptionPlan === 'enterprise' && !isSandboxRoute) || isScannerRoute;
 
     // Tool Navigation Handler
     useEffect(() => {
@@ -91,10 +98,12 @@ export const AIAssistant = () => {
                     className={cn(
                         "rounded-full h-14 w-14 shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-500 hover:scale-110 active:scale-95",
                         isOpen ? "scale-0 opacity-0 rotate-90" : "scale-100 opacity-100 rotate-0",
-                        "bg-gradient-to-tr from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white border-0"
+                        isEnterprise 
+                            ? "bg-gradient-to-tr from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 border-0" 
+                            : "bg-gradient-to-tr from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white border-0"
                     )}
                 >
-                    <MessageCircle className="h-6 w-6" />
+                    {isEnterprise ? <Shield className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
                     <span className="sr-only">Talk to AI</span>
                 </Button>
             </div>
@@ -113,11 +122,13 @@ export const AIAssistant = () => {
 
                     <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-white/5 relative z-10 bg-white/5">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-500/20 rounded-xl">
-                                <Bot className="h-5 w-5 text-blue-400" />
+                            <div className={cn("p-2 rounded-xl", isEnterprise ? "bg-emerald-500/20" : "bg-blue-500/20")}>
+                                {isEnterprise ? <Shield className="h-5 w-5 text-emerald-400" /> : <Bot className="h-5 w-5 text-blue-400" />}
                             </div>
                             <div>
-                                <CardTitle className="text-base font-bold tracking-tight">QuantAI</CardTitle>
+                                <CardTitle className="text-base font-bold tracking-tight">
+                                    {isEnterprise ? "LQM Compliance" : "QuantAI"}
+                                </CardTitle>
                                 <div className="flex items-center gap-1.5">
                                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                                     <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Online</span>
@@ -141,21 +152,33 @@ export const AIAssistant = () => {
                                     <div className="text-center my-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
                                         <div className="relative inline-block mb-6">
                                             <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full" />
-                                            <div className="relative h-20 w-20 mx-auto bg-gradient-to-tr from-blue-600 to-purple-600 rounded-3xl flex items-center justify-center shadow-xl rotate-3">
-                                                <Bot className="h-10 w-10 text-white" />
+                                            <div className={cn("relative h-20 w-20 mx-auto rounded-3xl flex items-center justify-center shadow-xl rotate-3", 
+                                                isEnterprise ? "bg-gradient-to-tr from-emerald-600 to-teal-600" : "bg-gradient-to-tr from-blue-600 to-purple-600"
+                                            )}>
+                                                {isEnterprise ? <Shield className="h-10 w-10 text-slate-950" /> : <Bot className="h-10 w-10 text-white" />}
                                             </div>
                                         </div>
-                                        <h3 className="text-xl font-bold mb-2">Welcome to QuantCAI</h3>
-                                        <p className="text-sm text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
-                                            I'm your quantum assistant. Ask me to explain concepts, build circuits, or guide you through tutorials.
+                                        <h3 className="text-xl font-bold mb-2">
+                                            {isEnterprise ? "LQM Compliance Suite" : "Welcome to QuantCAI"}
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
+                                            {isEnterprise 
+                                                ? "I am the Large Quantitative Model. Ask me to compute PQC Readiness Scores, map cryptographic dependencies, or draft remediation plans."
+                                                : "I'm your quantum assistant. Ask me to explain concepts, build circuits, or guide you through tutorials."
+                                            }
                                         </p>
 
                                         <div className="grid grid-cols-1 gap-2 mt-8 max-w-[280px] mx-auto">
-                                            {["Explain Bell States", "Open Circuit Builder", "How do qubits work?"].map((suggestion) => (
+                                            {(isEnterprise 
+                                                ? ["Compute PQC Readiness Score", "Scan for RSA-2048/ECC-256", "Draft remediation roadmap"]
+                                                : ["Explain Bell States", "Open Circuit Builder", "How do qubits work?"]
+                                            ).map((suggestion) => (
                                                 <button
                                                     key={suggestion}
                                                     onClick={() => setInput(suggestion)}
-                                                    className="text-xs text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors text-blue-300 font-medium"
+                                                    className={cn("text-xs text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors font-medium",
+                                                        isEnterprise ? "text-emerald-300" : "text-blue-300"
+                                                    )}
                                                 >
                                                     {suggestion}
                                                 </button>
@@ -182,17 +205,17 @@ export const AIAssistant = () => {
                                                 className={cn(
                                                     "h-7 w-7 rounded-lg flex items-center justify-center shrink-0 mt-1 shadow-md",
                                                     msg.role === "user"
-                                                        ? "bg-blue-600 text-white"
-                                                        : "bg-slate-800 border border-white/10 text-blue-400"
+                                                        ? (isEnterprise ? "bg-emerald-600 text-slate-950" : "bg-blue-600 text-white")
+                                                        : (isEnterprise ? "bg-slate-805 border border-white/10 text-emerald-400" : "bg-slate-800 border border-white/10 text-blue-400")
                                                 )}
                                             >
-                                                {msg.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
+                                                {msg.role === "user" ? <User className="h-3.5 w-3.5" /> : (isEnterprise ? <Shield className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />)}
                                             </div>
                                             <div
                                                 className={cn(
                                                     "px-4 py-3 rounded-2xl text-[13.5px] leading-relaxed relative",
                                                     msg.role === "user"
-                                                        ? "bg-blue-600 text-white rounded-tr-none shadow-blue-900/20 shadow-lg"
+                                                        ? (isEnterprise ? "bg-emerald-600 text-slate-950 rounded-tr-none shadow-emerald-900/20" : "bg-blue-600 text-white rounded-tr-none shadow-blue-900/20") + " shadow-lg"
                                                         : "bg-white/5 text-slate-200 rounded-tl-none border border-white/5 shadow-sm"
                                                 )}
                                             >
@@ -203,7 +226,7 @@ export const AIAssistant = () => {
                                                             rehypePlugins={[rehypeKatex]}
                                                             components={{
                                                                 p: ({ children }) => <p className="m-0 last:mb-0 mb-3">{children}</p>,
-                                                                code: ({ children }) => <code className="bg-white/10 rounded-md px-1.5 py-0.5 font-mono text-xs text-blue-300">{children}</code>,
+                                                                code: ({ children }) => <code className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs", isEnterprise ? "bg-white/10 text-emerald-300" : "bg-white/10 text-blue-300")}>{children}</code>,
                                                                 strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
                                                             }}
                                                         >
@@ -213,16 +236,16 @@ export const AIAssistant = () => {
                                                 ) : (
                                                     isLoading && i === messages.length - 1 ? (
                                                         <div className="flex gap-1.5 h-6 items-center px-1">
-                                                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                                            <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></span>
+                                                            <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.3s]", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
+                                                            <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.15s]", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
+                                                            <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
                                                         </div>
                                                     ) : null
                                                 )}
                                             </div>
                                         </div>
                                         <span className="text-[10px] text-muted-foreground/60 font-medium tracking-wide">
-                                            {msg.role === "user" ? "You" : "QuantAI"}
+                                            {msg.role === "user" ? "You" : (isEnterprise ? "LQM" : "QuantAI")}
                                         </span>
                                     </div>
                                 ))}
@@ -236,7 +259,7 @@ export const AIAssistant = () => {
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault();
-                                handleSend();
+                                  handleSend();
                             }}
                             className="flex w-full gap-2 items-center"
                         >
@@ -244,7 +267,7 @@ export const AIAssistant = () => {
                                 <Input
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
-                                    placeholder="Ask anything quantum..."
+                                    placeholder={isEnterprise ? "Ask about PQC compliance, scan targets, or remediation..." : "Ask anything quantum..."}
                                     className="pr-12 bg-white/5 border-white/10 focus-visible:ring-blue-500/50 h-10 rounded-xl placeholder:text-muted-foreground/50 transition-all focus:bg-white/10"
                                     onKeyDown={handleKeyDown}
                                 />
@@ -258,7 +281,9 @@ export const AIAssistant = () => {
                                 type="submit"
                                 size="icon"
                                 disabled={isLoading || !input.trim()}
-                                className="h-10 w-10 shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/20 disabled:opacity-30 transition-all hover:scale-105 active:scale-95"
+                                className={cn("h-10 w-10 shrink-0 rounded-xl text-white shadow-lg disabled:opacity-30 transition-all hover:scale-105 active:scale-95",
+                                    isEnterprise ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/20" : "bg-blue-600 hover:bg-blue-500 shadow-blue-900/20"
+                                )}
                             >
                                 <Send className="h-4 w-4" />
                             </Button>

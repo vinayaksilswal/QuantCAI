@@ -52,7 +52,7 @@ interface ScanReport {
 
 export default function PqcScanner() {
   usePageTracking('pqc-scanner');
-  const { subscriptionPlan } = useAuth();
+  const { subscriptionPlan, role } = useAuth();
   const [searchParams] = useSearchParams();
   const [domain, setDomain] = useState('');
   const [loading, setLoading] = useState(false);
@@ -157,6 +157,24 @@ export default function PqcScanner() {
       return;
     }
     toast.success('CBOM compliance PDF report generated and downloaded.');
+  };
+
+  const handleExportCycloneDX = async () => {
+    const targetDomain = report?.domain || domain || 'target';
+    try {
+      const response = await axiosClient.get(`/api/v1/enterprise/scan/${targetDomain}/cyclonedx`);
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(response.data, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `cbom-${targetDomain}-cyclonedx.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      toast.success('CycloneDX 1.6 CBOM exported successfully.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to export CycloneDX 1.6 CBOM: ' + (err.response?.data?.detail || err.message));
+    }
   };
 
   // Circular gauge config
@@ -314,23 +332,34 @@ export default function PqcScanner() {
                   </div>
                 </div>
 
-                {/* Export PDF Button */}
-                <div className="w-full mt-6 relative group">
-                  <button
-                    onClick={handleExportPDF}
-                    className="w-full py-3 rounded-lg bg-slate-950 border border-slate-800 text-white font-semibold text-xs hover:border-emerald-500/50 hover:bg-slate-900 transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <FileText className="w-4 h-4 text-slate-400" />
-                    Export CBOM PDF
-                  </button>
-
-                  {isFree && (
-                    <div className="absolute hidden group-hover:flex items-center gap-1.5 bg-black text-[9px] text-slate-400 px-2 py-1 rounded border border-slate-800 -top-8 left-1/2 -translate-x-1/2 w-max z-10">
-                      <Info className="w-3 h-3 text-emerald-400" />
-                      <span>PDF Export requires Pro</span>
-                    </div>
-                  )}
-                </div>
+                 {/* Export Buttons */}
+                 <div className="w-full mt-6 relative group flex flex-col gap-2">
+                   {(subscriptionPlan === 'enterprise' || role === 'root') ? (
+                     <button
+                       onClick={handleExportCycloneDX}
+                       className="w-full py-3 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-300 font-semibold text-xs hover:border-emerald-500 hover:bg-emerald-900 transition-all flex items-center justify-center gap-1.5"
+                     >
+                       <FileText className="w-4 h-4 text-emerald-400" />
+                       Export CycloneDX 1.6 CBOM
+                     </button>
+                   ) : (
+                     <>
+                       <button
+                         onClick={handleExportPDF}
+                         className="w-full py-3 rounded-lg bg-slate-950 border border-slate-800 text-white font-semibold text-xs hover:border-emerald-500/50 hover:bg-slate-900 transition-all flex items-center justify-center gap-1.5"
+                       >
+                         <FileText className="w-4 h-4 text-slate-400" />
+                         Export CBOM PDF
+                       </button>
+                       {isFree && (
+                         <div className="absolute hidden group-hover:flex items-center gap-1.5 bg-black text-[9px] text-slate-400 px-2 py-1 rounded border border-slate-800 -top-8 left-1/2 -translate-x-1/2 w-max z-10">
+                           <Info className="w-3 h-3 text-emerald-400" />
+                           <span>PDF Export requires Pro</span>
+                         </div>
+                       )}
+                     </>
+                   )}
+                 </div>
               </div>
 
               {/* Findings List (2 columns wide) */}

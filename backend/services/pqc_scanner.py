@@ -23,6 +23,8 @@ import asyncio
 import logging
 import socket
 import ssl
+import uuid
+import ipaddress
 from datetime import datetime, timezone
 from typing import Any
 
@@ -37,6 +39,20 @@ from cryptography.hazmat.primitives.asymmetric import (
     x25519,
 )
 from cryptography.x509.oid import ExtensionOID
+
+from models.cyclonedx_models import (
+    CycloneDXCBOM,
+    Component,
+    CryptoProperties,
+    AlgorithmProperties,
+    CertificateProperties,
+    ProtocolProperties,
+    CipherSuiteAlgorithm,
+    Metadata,
+    Tool,
+    Dependency
+)
+
 
 logger = logging.getLogger("quantcai.pqc_scanner")
 
@@ -129,8 +145,8 @@ def _classify_public_key(
                 "algorithm": algo_label,
                 "quantum_vulnerable": True,
                 "vulnerability_reason": (
-                    f"RSA-{key_size} can be factored in polynomial time by "
-                    "Shor's algorithm on a cryptographically relevant quantum computer (CRQC)"
+                    f"RSA-{key_size} is a legacy key size vulnerable to Shor's algorithm on a CRQC. "
+                    "NIST and CNSA 2.0 mandate migrating to post-quantum signature schemes (e.g., ML-DSA / FIPS 204) by 2030."
                 ),
                 "severity": "CRITICAL",
                 "risk_points": _SCORE_RSA_2048 if key_size == 2048 else _SCORE_RSA_2048 + 50.0,
@@ -162,14 +178,19 @@ def _classify_public_key(
         curve_name = public_key.curve.name
         key_size = public_key.key_size
         algo_label = f"ECC-{curve_name}-{key_size}"
+        
+        is_legacy_256 = (key_size == 256 or curve_name in ("secp256r1", "prime256v1", "secp256k1"))
+        
         return {
             "algorithm": algo_label,
             "quantum_vulnerable": True,
             "vulnerability_reason": (
-                f"Elliptic Curve ({curve_name}) is completely broken by Shor's algorithm — "
-                "discrete-log on elliptic curves is solved in polynomial time by a CRQC"
+                f"Elliptic Curve ({curve_name}-{key_size}) is a legacy ECC-256 configuration completely broken by Shor's algorithm on a CRQC. "
+                "Prioritize migration to ML-DSA (FIPS 204) for digital signatures and ML-KEM (FIPS 203) for key exchange per CNSA 2.0."
+                if is_legacy_256 else
+                f"Elliptic Curve ({curve_name}) is broken by Shor's algorithm. Migrate to post-quantum alternatives per NIST guidelines."
             ),
-            "severity": "CRITICAL",
+            "severity": "CRITICAL" if is_legacy_256 else "HIGH",
             "risk_points": _SCORE_ECC,
         }
 
@@ -314,27 +335,10 @@ def _format_subject(name: x509.Name) -> str:
 # Public API — Synchronous
 # ---------------------------------------------------------------------------
 
-def scan_domain(domain: str) -> dict[str, Any]:
+def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
     """
     Perform a comprehensive post-quantum cryptography readiness scan
-    against a TLS-enabled domain.
-
-    Parameters
-    ----------
-    domain : str
-        The target domain name (e.g. ``"example.com"``).
-        Do NOT include protocol or port — port 443 is assumed.
-
-    Returns
-    -------
-    dict
-        A structured JSON-serializable report containing:
-        - ``overall_risk_score`` (0 = safe, 100 = critical)
-        - ``risk_level`` — CRITICAL / HIGH / MEDIUM / LOW / COMPLIANT
-        - TLS and cipher analysis
-        - Per-certificate quantum vulnerability findings
-        - Actionable NIST-referenced remediations
-        - CBOM (Cryptographic Bill of Materials) summary
+    against a TLS-enabled domain or IP target.
     """
 
     scan_start = datetime.now(timezone.utc)
@@ -345,31 +349,73 @@ def scan_domain(domain: str) -> dict[str, Any]:
         domain = domain[len("https://"):]
     if domain.startswith("http://"):
         domain = domain[len("http://"):]
-    domain = domain.split("/")[0].split(":")[0]
+    
+    # Split host and port
+    if ":" in domain:
+        parts = domain.split(":")
+        host = parts[0].split("/")[0]
+        try:
+            port = int(parts[1].split("/")[0])
+        except ValueError:
+            port = port or _DEFAULT_PORT
+    else:
+        host = domain.split("/")[0]
+        port = port or _DEFAULT_PORT
 
     # ── TLS Handshake ─────────────────────────────────────────────────
     try:
         ctx = ssl.create_default_context()
-        # We want the full chain — don't verify for chain download purposes,
-        # but DO verify hostname in production.  Here we keep verification ON.
-        ctx.check_hostname = True
-        ctx.verify_mode = ssl.CERT_REQUIRED
+        
+        # Check if the host is internal (private network or localhost)
+        is_internal = False
+        try:
+            if host.lower() == "localhost" or host.endswith(".local") or host.endswith(".lan"):
+                is_internal = True
+            else:
+                try:
+                    ip = ipaddress.ip_address(host)
+                    if ip.is_private or ip.is_loopback:
+                        is_internal = True
+                except ValueError:
+                    # Resolve domain name to check resolved IP
+                    try:
+                        ip_str = socket.gethostbyname(host)
+                        ip = ipaddress.ip_address(ip_str)
+                        if ip.is_private or ip.is_loopback:
+                            is_internal = True
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        if is_internal:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        else:
+            ctx.check_hostname = True
+            ctx.verify_mode = ssl.CERT_REQUIRED
 
         with socket.create_connection(
-            (domain, _DEFAULT_PORT), timeout=_CONNECTION_TIMEOUT_S
+            (host, port), timeout=_CONNECTION_TIMEOUT_S
         ) as raw_sock:
-            with ctx.wrap_socket(raw_sock, server_hostname=domain) as ssock:
+            server_hostname = host if not is_internal else None
+            # Also avoid passing raw IP as server_hostname to avoid SNI parse failures
+            is_ip = False
+            try:
+                socket.inet_aton(host)
+                is_ip = True
+            except socket.error:
+                pass
+            if is_ip:
+                server_hostname = None
+
+            with ctx.wrap_socket(raw_sock, server_hostname=server_hostname) as ssock:
                 # Cipher suite
                 cipher_info = ssock.cipher()  # (name, version, bits)
                 tls_version_raw = ssock.version()  # e.g. "TLSv1.3"
 
                 # Certificate chain (DER-encoded)
                 der_chain: list[bytes] = ssock.getpeercert(binary_form=True)  # type: ignore[assignment]
-                # getpeercert(binary_form=True) returns only the leaf cert on
-                # the standard library. For a full chain we pull from
-                # SSLSocket's internal state if available.
-                # The standard ssl module only exposes the leaf cert in binary form.
-                # We use getpeercert() (decoded) for SAN/subject + the binary leaf.
                 peer_cert_decoded = ssock.getpeercert()
 
                 # Try to pull the full chain via the undocumented _sslobj
@@ -395,32 +441,32 @@ def scan_domain(domain: str) -> dict[str, Any]:
                         chain_ders = [ssock.getpeercert(binary_form=True)]  # type: ignore
 
     except socket.timeout:
-        logger.warning("Connection to %s timed out after %ds", domain, _CONNECTION_TIMEOUT_S)
+        logger.warning("Connection to %s:%d timed out after %ds", host, port, _CONNECTION_TIMEOUT_S)
         return _error_result(domain, scan_start, "CONNECTION_TIMEOUT",
-                             f"Connection to {domain}:443 timed out after {_CONNECTION_TIMEOUT_S}s")
+                             f"Connection to {host}:{port} timed out after {_CONNECTION_TIMEOUT_S}s")
 
     except ConnectionRefusedError:
-        logger.warning("Connection to %s:443 refused", domain)
+        logger.warning("Connection to %s:%d refused", host, port)
         return _error_result(domain, scan_start, "CONNECTION_REFUSED",
-                             f"Connection to {domain}:443 was refused by the remote host")
+                             f"Connection to {host}:{port} was refused by the remote host")
 
     except ssl.SSLCertVerificationError as exc:
-        logger.warning("Certificate verification failed for %s: %s", domain, exc)
+        logger.warning("Certificate verification failed for %s:%d: %s", host, port, exc)
         return _error_result(domain, scan_start, "CERTIFICATE_ERROR",
                              f"Certificate verification failed: {exc}")
 
     except ssl.SSLError as exc:
-        logger.warning("SSL error for %s: %s", domain, exc)
+        logger.warning("SSL error for %s:%d: %s", host, port, exc)
         return _error_result(domain, scan_start, "SSL_ERROR",
                              f"SSL/TLS handshake error: {exc}")
 
     except OSError as exc:
-        logger.warning("Network error connecting to %s: %s", domain, exc)
+        logger.warning("Network error connecting to %s:%d: %s", host, port, exc)
         return _error_result(domain, scan_start, "NETWORK_ERROR",
                              f"Network error: {exc}")
 
     except Exception as exc:
-        logger.exception("Unexpected error scanning %s", domain)
+        logger.exception("Unexpected error scanning %s:%d", host, port)
         return _error_result(domain, scan_start, "UNEXPECTED_ERROR",
                              f"Unexpected error: {exc}")
 
@@ -571,7 +617,7 @@ def scan_domain(domain: str) -> dict[str, Any]:
             f"Key Exchange: {cipher_name}"
         ),
         "description": cipher_analysis["cipher_reason"],
-        "affected_asset": f"TLS session to {domain}:443",
+        "affected_asset": f"TLS session to {host}:{port}",
         "nist_reference": NIST_REFERENCES.get("KEX", ""),
         "remediation": (
             "Deploy ML-KEM-768 (FIPS 203) hybrid key exchange (e.g. X25519MLKEM768) "
@@ -594,7 +640,7 @@ def scan_domain(domain: str) -> dict[str, Any]:
                 + ("This version is deprecated and insecure. " if tls_meta["risk"] == "CRITICAL" else "")
                 + "TLS 1.3 is required for PQC hybrid key exchange support."
             ),
-            "affected_asset": f"TLS session to {domain}:443",
+            "affected_asset": f"TLS session to {host}:{port}",
             "nist_reference": NIST_REFERENCES["TLS_OLD"],
             "remediation": (
                 "Upgrade to TLS 1.3 to enable PQC hybrid cipher suites. "
@@ -652,7 +698,7 @@ def scan_domain(domain: str) -> dict[str, Any]:
 # Public API — Async wrapper
 # ---------------------------------------------------------------------------
 
-async def scan_domain_async(domain: str) -> dict[str, Any]:
+async def scan_domain_async(domain: str, port: Optional[int] = None) -> dict[str, Any]:
     """
     Async wrapper around :func:`scan_domain`.
 
@@ -664,13 +710,15 @@ async def scan_domain_async(domain: str) -> dict[str, Any]:
     ----------
     domain : str
         Target domain — same semantics as :func:`scan_domain`.
+    port : int, optional
+        Optional custom port to scan.
 
     Returns
     -------
     dict
         Identical output to :func:`scan_domain`.
     """
-    return await asyncio.to_thread(scan_domain, domain)
+    return await asyncio.to_thread(scan_domain, domain, port)
 
 
 # ---------------------------------------------------------------------------
@@ -786,4 +834,150 @@ if __name__ == "__main__":
         icon = severity_icons.get(f["severity"], "[?]")
         print(f"  {icon} [{f['severity']}] {f['title']}")
     print()
+
+
+def generate_cyclonedx_cbom(scan_result: dict[str, Any]) -> dict[str, Any]:
+    """
+    Generate a machine-readable CycloneDX 1.6 compliant Cryptographic Bill of Materials (CBOM)
+    from a standard scan result.
+    """
+    timestamp = scan_result.get("scan_timestamp") or datetime.now(timezone.utc).isoformat()
+    domain = scan_result.get("domain") or "unknown"
+    
+    components = []
+    dependencies = []
+    
+    # 1. Add Protocol (TLS) component
+    tls_version = scan_result.get("tls_version") or "TLSv1.3"
+    cipher_suite = scan_result.get("cipher_suite") or "UNKNOWN"
+    
+    protocol_properties = ProtocolProperties(
+        type="tls",
+        version=tls_version.replace("TLSv", "").replace("TLS ", ""),
+        cipherSuites=[
+            CipherSuiteAlgorithm(
+                name=cipher_suite,
+                algorithms=[]  # Filled in below based on certificates
+            )
+        ]
+    )
+    
+    protocol_component = Component(
+        bom_ref="crypto/protocol/tls",
+        type="cryptographic-asset",
+        name=tls_version,
+        description=f"TLS Session configured for {domain}",
+        cryptoProperties=CryptoProperties(
+            assetType="protocol",
+            protocolProperties=protocol_properties
+        )
+    )
+    components.append(protocol_component)
+    
+    # 2. Add Certificates and Algorithms
+    depends_on = []
+    for idx, cert in enumerate(scan_result.get("certificates", [])):
+        cert_ref = f"crypto/certificate/cert-{idx}"
+        depends_on.append(cert_ref)
+        
+        # Extract metadata
+        expires_at = cert.get("expires_at")
+        subject = cert.get("subject")
+        issuer = cert.get("issuer")
+        sig_algo = cert.get("signature_algorithm") or "sha256WithRSAEncryption"
+        
+        cert_properties = CertificateProperties(
+            subjectName=subject,
+            issuerName=issuer,
+            validTo=expires_at,
+            signatureAlgorithm=sig_algo
+        )
+        
+        cert_component = Component(
+            bom_ref=cert_ref,
+            type="cryptographic-asset",
+            name=f"Certificate {idx}: {subject.split('commonName=')[-1].split(',')[0] if 'commonName=' in subject else subject}",
+            description=f"Certificate in the chain of {domain}",
+            cryptoProperties=CryptoProperties(
+                assetType="certificate",
+                certificateProperties=cert_properties
+            )
+        )
+        components.append(cert_component)
+        
+        # Add the algorithm of the certificate
+        algo_name = cert.get("algorithm") or "UNKNOWN"
+        algo_ref = f"crypto/algorithm/{algo_name.lower().replace('-', '').replace('_', '')}"
+        
+        # Parse algorithm details
+        primitive = "signature"
+        curve = None
+        key_len = None
+        
+        if "rsa" in algo_name.lower():
+            primitive = "signature"
+            try:
+                key_len = int(algo_name.split("-")[-1])
+            except Exception:
+                key_len = 2048
+        elif "ecc" in algo_name.lower() or "ecdsa" in algo_name.lower():
+            primitive = "signature"
+            # e.g., ECC-secp256r1-256
+            parts = algo_name.split("-")
+            if len(parts) >= 2:
+                curve = parts[1]
+            try:
+                key_len = int(parts[-1])
+            except Exception:
+                key_len = 256
+                
+        algo_properties = AlgorithmProperties(
+            primitive=primitive,
+            parameterSetIdentifier=algo_name.lower(),
+            curve=curve,
+            keyLength=key_len
+        )
+        
+        algo_component = Component(
+            bom_ref=algo_ref,
+            type="cryptographic-asset",
+            name=algo_name,
+            description=f"Cryptographic algorithm used by certificate {idx}",
+            cryptoProperties=CryptoProperties(
+                assetType="algorithm",
+                algorithmProperties=algo_properties
+            )
+        )
+        components.append(algo_component)
+        
+        # Link certificate to its signature algorithm
+        dependencies.append(Dependency(
+            ref=cert_ref,
+            dependsOn=[algo_ref]
+        ))
+        
+        # Link algorithm used to the protocol list
+        if protocol_properties.cipherSuites:
+            protocol_properties.cipherSuites[0].algorithms.append(algo_ref)
+            
+    # Add dependency link for protocol pointing to all certs in chain
+    dependencies.append(Dependency(
+        ref="crypto/protocol/tls",
+        dependsOn=depends_on
+    ))
+    
+    # Construct CBOM
+    cbom = CycloneDXCBOM(
+        serialNumber=f"urn:uuid:{uuid.uuid4()}",
+        version=1,
+        metadata=Metadata(timestamp=timestamp),
+        components=components,
+        dependencies=dependencies
+    )
+    
+    try:
+        return cbom.model_dump(by_alias=True)
+    except AttributeError:
+        # Pydantic v1 fallback
+        return cbom.dict(by_alias=True)
 

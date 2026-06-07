@@ -1,7 +1,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 import { api } from '@/lib/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────── */
 const CheckIcon = () => (
@@ -68,6 +68,17 @@ const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick,
           </span>
         ) : cta}
       </button>
+    ) : ctaHref?.startsWith('/') ? (
+      <Link
+        to={ctaHref}
+        className={`block text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-300
+          ${highlighted
+            ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-400 hover:to-cyan-400 shadow-lg shadow-teal-500/30'
+            : 'border border-white/10 text-white hover:border-blue-400/30 hover:bg-white/10 backdrop-blur-sm'
+          }`}
+      >
+        {cta}
+      </Link>
     ) : (
       <a
         href={ctaHref}
@@ -131,29 +142,33 @@ export const PricingSection = () => {
 
         <div className="grid md:grid-cols-3 gap-6">
           <PlanCard
-            name="Free"
+            name="Free Tier"
             price="₹0"
             features={[
+              'Basic access to Learning Hub',
+              'Standard single-qubit simulations',
               '20 API calls / day',
-              'Max 1,024 shots per circuit',
-              '3 PQC scans / month',
+              'Max 1,024 shots',
+              '3 PQC domain scans / mo',
+              'Ideal noise simulator only',
               'Community support',
             ]}
             cta="Start Free"
             ctaHref="/signup"
           />
           <PlanCard
-            name="Pro"
+            name="Pro Tier"
             price="₹2,400"
             period="month"
             badge="Most Popular"
             highlighted
             features={[
               '500 API calls / day',
-              '65,536 shots + noise models',
-              '50 PQC scans / month',
-              'Full AI Tutor access',
-              'CBOM PDF export',
+              'Max 65,536 shots + noise models',
+              '50 PQC domain scans / mo',
+              'Thermal & Depolarizing noise',
+              'AI Tutor access (QuantAI)',
+              'Standard static PDF CBOM export',
               'Priority email support',
             ]}
             cta="Upgrade to Pro"
@@ -161,19 +176,18 @@ export const PricingSection = () => {
             loading={loading}
           />
           <PlanCard
-            name="Enterprise"
-            price="₹24,999"
-            period="month"
+            name="Enterprise Compliance"
+            price="Custom"
             features={[
-              'Unlimited API calls',
-              'Unlimited shots + custom noise',
-              'Unlimited PQC scans',
-              'SSO + multi-user orgs',
-              'SLA + priority support',
-              'Annual contracts available',
+              'Sovereign PQC compliance suite',
+              'CycloneDX 1.6 automated CBOM generation',
+              'Internal network & port scanning',
+              'LQM remediation & vulnerability mapping',
+              'SSO + multi-user organization console',
+              'Dedicated SLA & consultative procurement',
             ]}
             cta="Contact Sales"
-            ctaHref="mailto:sales@quantcai.in"
+            ctaHref="/enterprise"
           />
         </div>
       </div>

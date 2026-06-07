@@ -47,7 +47,7 @@ interface ScanReport {
 }
 
 export function PqcScannerTab() {
-  const { subscriptionPlan } = useAuth();
+  const { subscriptionPlan, role } = useAuth();
   const [domain, setDomain] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<ScanReport | null>(null);
@@ -142,6 +142,24 @@ export function PqcScannerTab() {
       return;
     }
     toast.success('CBOM compliance PDF report generated and downloaded.');
+  };
+
+  const handleExportCycloneDX = async () => {
+    const targetDomain = report?.domain || domain || 'target';
+    try {
+      const response = await axiosClient.get(`/api/v1/enterprise/scan/${targetDomain}/cyclonedx`);
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(response.data, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `cbom-${targetDomain}-cyclonedx.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      toast.success('CycloneDX 1.6 CBOM exported successfully.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to export CycloneDX 1.6 CBOM: ' + (err.response?.data?.detail || err.message));
+    }
   };
 
   // Circular gauge config
@@ -270,21 +288,32 @@ export function PqcScannerTab() {
               </div>
             </div>
 
-            {/* Export PDF Button */}
-            <div className="w-full mt-6 relative group">
-              <button
-                onClick={handleExportPDF}
-                className="w-full py-2.5 rounded bg-qc-surface border border-qc-border text-qc-text font-semibold text-xs hover:border-qc-accent/50 hover:bg-qc-border/20 transition-all flex items-center justify-center gap-1.5"
-              >
-                <FileText className="w-4 h-4 text-qc-muted" />
-                Export CBOM PDF
-              </button>
-
-              {isFree && (
-                <div className="absolute hidden group-hover:flex items-center gap-1.5 bg-black text-[9px] text-qc-muted px-2 py-1 rounded border border-qc-border -top-8 left-1/2 -translate-x-1/2 w-max z-10">
-                  <Info className="w-3 h-3 text-qc-accent" />
-                  <span>PDF Export requires Pro</span>
-                </div>
+            {/* Export Buttons */}
+            <div className="w-full mt-6 relative group flex flex-col gap-2">
+              {(subscriptionPlan === 'enterprise' || role === 'root') ? (
+                <button
+                  onClick={handleExportCycloneDX}
+                  className="w-full py-2.5 rounded bg-qc-surface border border-emerald-500/30 text-emerald-400 font-semibold text-xs hover:border-emerald-500 hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                  Export CycloneDX 1.6 CBOM
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handleExportPDF}
+                    className="w-full py-2.5 rounded bg-qc-surface border border-qc-border text-qc-text font-semibold text-xs hover:border-qc-accent/50 hover:bg-qc-border/20 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <FileText className="w-4 h-4 text-qc-muted" />
+                    Export CBOM PDF
+                  </button>
+                  {isFree && (
+                    <div className="absolute hidden group-hover:flex items-center gap-1.5 bg-black text-[9px] text-qc-muted px-2 py-1 rounded border border-qc-border -top-8 left-1/2 -translate-x-1/2 w-max z-10">
+                      <Info className="w-3 h-3 text-qc-accent" />
+                      <span>PDF Export requires Pro</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
