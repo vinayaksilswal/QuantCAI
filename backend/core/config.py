@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
     
+    # WarriorPlus Integration
+    WARRIORPLUS_SECURITY_KEY: str = ""
+    
     # External APIs
     GEMINI_API_KEY: str = ""
     RAPIDAPI_PROXY_SECRET: str = ""
