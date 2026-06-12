@@ -12,8 +12,6 @@ import { Footer } from '@/components/Footer';
 import { NewsletterForm } from '@/components/NewsletterForm';
 import { LogoProcessor } from '@/components/LogoProcessor';
 import { useAuth } from '@/hooks/useAuth';
-import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
-import { api } from '@/lib/api';
 
 /* ─────────────────────────── CODE SNIPPETS ─────────────────────────── */
 const curlSnippet = `curl -X POST https://api.quantcai.in/v1/simulate \\
@@ -119,30 +117,10 @@ export default function LandingPage() {
   usePageTracking('home');
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { startCheckout, loading } = useRazorpayCheckout();
 
-  const handleProClick = async () => {
-    if (user) {
-      try {
-        const result = await startCheckout('pro', 240000, 'INR');
-        if (result) {
-          try {
-            const tokenData = await api.refresh();
-            if (tokenData.access_token) {
-              api.setToken(tokenData.access_token);
-            }
-          } catch {
-            // Token refresh failed, but subscription is active server-side.
-          }
-          navigate('/profile');
-        }
-      } catch (err) {
-        console.error('Checkout failed:', err);
-      }
-    } else {
-      localStorage.setItem('pending_checkout', 'pro');
-      navigate('/signup?plan=pro');
-    }
+  const handleProClick = () => {
+    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/as/o/466941';
+    window.location.href = wplusCheckoutUrl;
   };
 
   const [scanDomain, setScanDomain] = useState('');
@@ -461,7 +439,7 @@ export default function LandingPage() {
               ]}
               cta="Upgrade to Pro"
               onClick={handleProClick}
-              loading={loading}
+              loading={false}
             />
             <PlanCard
               name="Enterprise"

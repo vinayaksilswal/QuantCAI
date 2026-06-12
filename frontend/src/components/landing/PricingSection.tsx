@@ -1,6 +1,4 @@
 import { useAuth } from '@/hooks/useAuth';
-import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
-import { api } from '@/lib/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────── */
@@ -96,34 +94,11 @@ const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick,
 
 export const PricingSection = () => {
   const { user } = useAuth();
-  const { startCheckout, loading } = useRazorpayCheckout();
   const navigate = useNavigate();
 
-  const handleProClick = async () => {
-    if (user) {
-      try {
-        const result = await startCheckout('pro', 240000, 'INR');
-        if (result) {
-          // Subscription plan already set in localStorage by useRazorpayCheckout.
-          // Force a token refresh to get updated JWT claims with the new plan.
-          try {
-            const tokenData = await api.refresh();
-            if (tokenData.access_token) {
-              api.setToken(tokenData.access_token);
-            }
-          } catch {
-            // Token refresh failed, but subscription is still active server-side.
-            // The user will get the updated plan on next login.
-          }
-          navigate('/profile');
-        }
-      } catch (err) {
-        console.error('Checkout failed:', err);
-      }
-    } else {
-      localStorage.setItem('pending_checkout', 'pro');
-      navigate('/signup?plan=pro');
-    }
+  const handleProClick = () => {
+    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/as/o/466941';
+    window.location.href = wplusCheckoutUrl;
   };
 
   return (
@@ -173,7 +148,7 @@ export const PricingSection = () => {
             ]}
             cta="Upgrade to Pro"
             onClick={handleProClick}
-            loading={loading}
+            loading={false}
           />
           <PlanCard
             name="Enterprise Compliance"
