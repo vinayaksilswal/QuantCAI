@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, timezone, date
 from typing import Optional, Any
 from sqlalchemy import (
-    String, Integer, Boolean, DateTime, Date, ForeignKey, Index, func, text, Text, UniqueConstraint
+    String, Integer, Boolean, DateTime, Date, ForeignKey, Index, func, text, Text, UniqueConstraint, Float
 )
 from sqlalchemy.dialects.postgresql import JSONB, ENUM as PG_ENUM
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -142,12 +142,69 @@ class User(Base):
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )
+    developer_api_keys: Mapped[list["ApiKey"]] = relationship(
+        "ApiKey", back_populates="user", cascade="all, delete-orphan"
+    )
+    wallet_balance: Mapped[Optional["WalletBalance"]] = relationship(
+        "WalletBalance", back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    user_plan: Mapped[Optional["UserPlan"]] = relationship(
+        "UserPlan", back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    feature_usage: Mapped[Optional["FeatureUsage"]] = relationship(
+        "FeatureUsage", back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
 
     def __repr__(self) -> str:
         return (
             f"<User(id={self.id}, email={self.email!r}, role={self.role.value!r}, "
             f"org_id={self.org_id}, stripe_customer_id={self.stripe_customer_id!r})>"
         )
+
+
+class Tier(str, enum.Enum):
+    FREE = "FREE"
+    PRO = "PRO"
+    ENTERPRISE = "ENTERPRISE"
+
+
+class UserPlan(Base):
+    __tablename__ = "user_plans"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True
+    )
+    tier: Mapped[Tier] = mapped_column(
+        PG_ENUM(Tier, name="user_tier_enum", create_type=True),
+        nullable=False,
+        default=Tier.FREE
+    )
+    cycle_reset_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+        default=date.today
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="user_plan")
+
+
+class FeatureUsage(Base):
+    __tablename__ = "feature_usages"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True
+    )
+    daily_ai_chats: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    monthly_pqc_scans: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_compute_overhead: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    user: Mapped["User"] = relationship("User", back_populates="feature_usage")
 
 
 class Organization(Base):
@@ -725,5 +782,10 @@ class Log(Base):
 
     def __repr__(self) -> str:
         return f"<Log(id={self.id}, level={self.level!r}, message={self.message[:30]!r})>"
+
+
+# Import billing models to register them on Base metadata
+from models_billing import ApiKey, WalletBalance, DailyUsageRollup
+
 
 

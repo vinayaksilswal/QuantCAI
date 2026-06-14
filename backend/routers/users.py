@@ -91,7 +91,7 @@ def track_progress(
         ).with_for_update().first()
         
         if existing:
-            existing.read_at = datetime.utcnow()
+            existing.read_at = datetime.now(timezone.utc)
         else:
             new_progress = DBmodels.PageProgress(
                 user_id=current_user.id,

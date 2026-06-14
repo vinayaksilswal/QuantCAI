@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAI } from "../hooks/useAI";
 import { useAuth } from "../hooks/useAuth";
+import { useSubscription } from "@/context/SubscriptionContext";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
@@ -16,7 +17,10 @@ import 'katex/dist/katex.min.css';
 export const AIAssistant = () => {
     const { isOpen, toggleChat, messages, sendMessage, isLoading, activeTool, closeTool } = useAI();
     const { subscriptionPlan } = useAuth();
+    const { tier, usage, refreshEntitlements } = useSubscription();
     const [input, setInput] = useState("");
+    const isFreeUser = tier === 'FREE';
+    const chatLimitReached = isFreeUser && usage.daily_ai_chats >= 10;
     const scrollRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
     const location = useLocation();
@@ -76,9 +80,21 @@ export const AIAssistant = () => {
 
     const handleSend = async () => {
         if (!input.trim()) return;
+        
+        if (isFreeUser && usage.daily_ai_chats >= 10) {
+            window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'chats' } }));
+            toast.error("Daily AI message limit reached. Upgrade to Pro!");
+            return;
+        }
+        
         const msg = input;
         setInput("");
-        await sendMessage(msg);
+        try {
+            await sendMessage(msg);
+            setTimeout(() => refreshEntitlements(), 1000);
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -91,7 +107,7 @@ export const AIAssistant = () => {
     return (
         <>
             {/* Floating Button */}
-            <div className="fixed bottom-6 right-6 z-50">
+            <div className="fixed bottom-4 right-4 z-50">
                 <Button
                     onClick={toggleChat}
                     size="lg"
@@ -111,7 +127,7 @@ export const AIAssistant = () => {
             {/* Chat Interface */}
             <div
                 className={cn(
-                    "fixed bottom-6 right-6 z-50 transition-all duration-500 origin-bottom-right",
+                    "fixed bottom-4 right-4 z-50 transition-all duration-500 origin-bottom-right",
                     isOpen
                         ? "scale-100 opacity-100 translate-y-0"
                         : "scale-90 opacity-0 translate-y-8 pointer-events-none"
@@ -253,6 +269,20 @@ export const AIAssistant = () => {
                                 <div ref={scrollRef} />
                             </div>
                         </ScrollArea>
+                        
+                        {chatLimitReached && (
+                            <div className="mx-4 mb-2 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 font-mono text-center flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-2">
+                                <span className="font-bold uppercase tracking-wider">🔒 Daily Limit Reached</span>
+                                <span>You have reached your 10 free daily chats. Upgrade to Pro for unlimited contextual queries.</span>
+                                <button
+                                    type="button"
+                                    onClick={() => window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'chats' } }))}
+                                    className="mt-1 py-1 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-colors uppercase tracking-wider text-[10px]"
+                                >
+                                    Upgrade to Pro
+                                </button>
+                            </div>
+                        )}
                     </CardContent>
 
                     <CardFooter className="p-4 border-t border-white/5 bg-white/5 relative z-10 mt-auto">
@@ -267,9 +297,10 @@ export const AIAssistant = () => {
                                 <Input
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
-                                    placeholder={isEnterprise ? "Ask about PQC compliance, scan targets, or remediation..." : "Ask anything quantum..."}
+                                    placeholder={chatLimitReached ? "AI chat limit reached for today." : (isEnterprise ? "Ask about PQC compliance, scan targets, or remediation..." : "Ask anything quantum...")}
                                     className="pr-12 bg-white/5 border-white/10 focus-visible:ring-blue-500/50 h-10 rounded-xl placeholder:text-muted-foreground/50 transition-all focus:bg-white/10"
                                     onKeyDown={handleKeyDown}
+                                    disabled={chatLimitReached}
                                 />
                                 {input.trim() && (
                                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -280,7 +311,7 @@ export const AIAssistant = () => {
                             <Button
                                 type="submit"
                                 size="icon"
-                                disabled={isLoading || !input.trim()}
+                                disabled={isLoading || !input.trim() || chatLimitReached}
                                 className={cn("h-10 w-10 shrink-0 rounded-xl text-white shadow-lg disabled:opacity-30 transition-all hover:scale-105 active:scale-95",
                                     isEnterprise ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/20" : "bg-blue-600 hover:bg-blue-500 shadow-blue-900/20"
                                 )}

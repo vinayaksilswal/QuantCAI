@@ -1,33 +1,176 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAI } from '@/hooks/useAI';
 import { Navbar } from '@/components/Navbar';
-import { Footer } from '@/components/Footer';
+
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from '@/hooks/useAuth';
-import { Play, RotateCcw, Download, Zap, Activity } from 'lucide-react';
+import { useSubscription } from '@/context/SubscriptionContext';
+import { Play, RotateCcw, Download, Zap, ChevronDown, Server } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
 import { GatePalette, gates } from '@/components/GatePalette';
 import { CircuitGrid } from '@/components/CircuitGrid';
 import { CircuitResults } from '@/components/CircuitResults';
-import { GateType, PlacedGate } from '@/types/circuit';
+import { TelemetryBar } from '@/components/TelemetryBar';
+import { GateType, PlacedGate, ExecutionBackend, GateInstructionPayload } from '@/types/circuit';
 import { TutorialOverlay } from '@/components/TutorialOverlay';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
+
+// ─── QASM 3.0 Client-Side Generator ──────────────────────────────────
+function generateQASM3(placedGates: PlacedGate[], numWires: number): string {
+    const lines: string[] = [
+        'OPENQASM 3.0;',
+        'include "stdgates.inc";',
+        '',
+        `qubit[${numWires}] q;`,
+        `bit[${numWires}] c;`,
+        '',
+    ];
+
+    const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
+
+    sortedGates.forEach(g => {
+        const name = g.name.toLowerCase();
+        const params = g.params || [];
+
+        if (g.category === 'multi' && g.targetWire !== undefined) {
+            if (name === 'cx') lines.push(`cx q[${g.wire}], q[${g.targetWire}];`);
+            else if (name === 'cz') lines.push(`cz q[${g.wire}], q[${g.targetWire}];`);
+            else if (name === 'swap') lines.push(`swap q[${g.wire}], q[${g.targetWire}];`);
+            else if (name === 'ccx' && g.thirdWire !== undefined) {
+                lines.push(`ccx q[${g.wire}], q[${g.targetWire}], q[${g.thirdWire}];`);
+            } else if (name === 'ccx') {
+                // Fallback: if thirdWire not set, use next available
+                const third = Math.max(g.wire, g.targetWire) + 1;
+                if (third < numWires) {
+                    lines.push(`ccx q[${g.wire}], q[${g.targetWire}], q[${third}];`);
+                }
+            }
+        } else if (['rx', 'ry', 'rz'].includes(name)) {
+            const theta = params[0] !== undefined ? params[0] : (Math.PI / 2);
+            lines.push(`${name}(${theta.toFixed(6)}) q[${g.wire}];`);
+        } else {
+            lines.push(`${name} q[${g.wire}];`);
+        }
+    });
+
+    lines.push('');
+    for (let i = 0; i < numWires; i++) {
+        lines.push(`c[${i}] = measure q[${i}];`);
+    }
+    lines.push('');
+
+    return lines.join('\n');
+}
+
+// ─── Build Backend Payload ───────────────────────────────────────────
+function buildGatePayload(placedGates: PlacedGate[]): GateInstructionPayload[] {
+    const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
+    return sortedGates.map(g => {
+        const qubits = [g.wire];
+        if (g.targetWire !== undefined) qubits.push(g.targetWire);
+        if (g.thirdWire !== undefined) qubits.push(g.thirdWire);
+        return {
+            name: g.name.toLowerCase(),
+            qubits,
+            params: g.params || [],
+        };
+    });
+}
+
+// ─── Bell State Initial Gates ────────────────────────────────────────
+function createBellState(): PlacedGate[] {
+    const hGate = gates.find(g => g.id === 'h')!;
+    const cxGate = gates.find(g => g.id === 'cx')!;
+
+    return [
+        {
+            ...hGate,
+            uid: `bell-h-${Date.now()}`,
+            wire: 0,
+            step: 0,
+        },
+        {
+            ...cxGate,
+            uid: `bell-cx-${Date.now()}`,
+            wire: 0,
+            step: 1,
+            targetWire: 1,
+        },
+    ];
+}
+
+// ─── Execution Backend Config ────────────────────────────────────────
+const BACKENDS: { value: ExecutionBackend; label: string; available: boolean }[] = [
+    { value: 'local', label: 'Local Simulator', available: true },
+    { value: 'aws_braket', label: 'AWS Braket', available: false },
+    { value: 'ibm_quantum', label: 'IBM Quantum', available: false },
+];
+
+// ─── Main Component ─────────────────────────────────────────────────
 const CircuitBuilder = () => {
     const { user } = useAuth();
-    const { circuitActions, ackCircuitAction } = useAI();
+    const { circuitActions, ackCircuitAction, updateClientContext } = useAI();
+    const { tier } = useSubscription();
+    const numWires = tier === 'FREE' ? 6 : 10;
 
-    const [placedGates, setPlacedGates] = useState<PlacedGate[]>([]);
+    const [placedGates, setPlacedGates] = useState<PlacedGate[]>(() => createBellState());
+
+    // Sync active circuit state to AI Context
+    useEffect(() => {
+        const calculateDepth = (gates: PlacedGate[]) => {
+            if (gates.length === 0) return 0;
+            return Math.max(...gates.map(g => g.step)) + 1;
+        };
+
+        const circuitGraph = placedGates.map(g => ({
+            uid: g.uid,
+            name: g.name,
+            wire: g.wire,
+            step: g.step,
+            targetWire: g.targetWire,
+            thirdWire: g.thirdWire,
+            params: g.params
+        }));
+
+        updateClientContext('circuit-builder', {
+            circuit_graph: circuitGraph,
+            total_qubits: numWires,
+            placed_gates_count: placedGates.length,
+            circuit_depth: calculateDepth(placedGates)
+        });
+    }, [placedGates, numWires, updateClientContext]);
     const [results, setResults] = useState<any>(null);
     const [activeDragGate, setActiveDragGate] = useState<GateType | null>(null);
     const [useNoise, setUseNoise] = useState(false);
     const [isSimulating, setIsSimulating] = useState(false);
-    const [numWires] = useState(5);
+    const [shots, setShots] = useState(1024);
+    const [backend, setBackend] = useState<ExecutionBackend>('local');
+    const [resultsTab, setResultsTab] = useState('chart');
+
+    // Auto-disable noise for FREE users
+    useEffect(() => {
+        if (tier === 'FREE') {
+            setUseNoise(false);
+        }
+    }, [tier]);
+
+    // Live QASM — updates whenever gates change
+    const liveQASM = useMemo(
+        () => generateQASM3(placedGates, numWires),
+        [placedGates, numWires]
+    );
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -36,6 +179,46 @@ const CircuitBuilder = () => {
             },
         })
     );
+
+    const runCircuit = useCallback(async () => {
+        setIsSimulating(true);
+        try {
+            if (!user) {
+                toast.error("Please log in to run simulations.");
+                setIsSimulating(false);
+                return;
+            }
+
+            if (placedGates.length === 0) {
+                toast.error("Circuit is empty. Add some gates first!");
+                setIsSimulating(false);
+                return;
+            }
+
+            const payload = {
+                num_qubits: numWires,
+                shots: shots,
+                gates: buildGatePayload(placedGates),
+                use_noise: useNoise,
+            };
+
+            const data = await api.simulateV1(payload);
+            setResults(data);
+            setResultsTab('chart');
+            toast.success("Simulation complete!", { icon: <Zap className="w-4 h-4 text-yellow-400" /> });
+        } catch (error: any) {
+            console.error("Simulation failed:", error);
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error(msg || "Failed to run circuit");
+        } finally {
+            setIsSimulating(false);
+        }
+    }, [user, placedGates, numWires, shots, useNoise]);
+
+    const runCircuitRef = useRef(runCircuit);
+    useEffect(() => {
+        runCircuitRef.current = runCircuit;
+    }, [runCircuit]);
 
     // AI Action Handler
     useEffect(() => {
@@ -59,34 +242,33 @@ const CircuitBuilder = () => {
             );
 
             if (gateDef) {
-                // Determine all wires involved
                 const involvedWires = [controlWire];
                 if (targetWire !== undefined) involvedWires.push(targetWire);
                 else if (gateDef.qubits > 1) {
-                    // Fallback for multi-qubit gates if target not specified
                     const fallbackTarget = controlWire < 4 ? controlWire + 1 : controlWire - 1;
                     involvedWires.push(fallbackTarget);
                 }
 
-                // Find the next available step across ALL involved wires
-                const existingInInvolved = placedGates.filter(g =>
-                    involvedWires.includes(g.wire) ||
-                    (g.targetWire !== undefined && involvedWires.includes(g.targetWire))
-                );
+                setPlacedGates(prev => {
+                    const existingInInvolved = prev.filter(g =>
+                        involvedWires.includes(g.wire) ||
+                        (g.targetWire !== undefined && involvedWires.includes(g.targetWire))
+                    );
 
-                const step = existingInInvolved.length > 0
-                    ? Math.max(...existingInInvolved.map(g => g.step)) + 1
-                    : 0;
+                    const step = existingInInvolved.length > 0
+                        ? Math.max(...existingInInvolved.map(g => g.step)) + 1
+                        : 0;
 
-                const newGate: PlacedGate = {
-                    ...gateDef,
-                    uid: `gate-${Date.now()}-${Math.random()}`,
-                    wire: controlWire,
-                    step: step,
-                    targetWire: targetWire !== undefined ? targetWire : (gateDef.qubits > 1 ? involvedWires[1] : undefined)
-                };
+                    const newGate: PlacedGate = {
+                        ...gateDef,
+                        uid: `gate-${Date.now()}-${Math.random()}`,
+                        wire: controlWire,
+                        step: step,
+                        targetWire: targetWire !== undefined ? targetWire : (gateDef.qubits > 1 ? involvedWires[1] : undefined)
+                    };
 
-                setPlacedGates(prev => [...prev, newGate]);
+                    return [...prev, newGate];
+                });
                 toast.info(`AI added ${gateDef.name} gate on ${involvedWires.length > 1 ? `wires ${involvedWires.join(' & ')}` : `wire ${controlWire}`}`);
             } else {
                 toast.error(`Unknown gate: ${gateName}`);
@@ -96,11 +278,11 @@ const CircuitBuilder = () => {
             setResults(null);
             toast.info("AI cleared the circuit");
         } else if (action === "run") {
-            runCircuit();
+            runCircuitRef.current();
         }
 
         ackCircuitAction(id);
-    }, [circuitActions, placedGates, ackCircuitAction]);
+    }, [circuitActions, ackCircuitAction]);
 
     const handleDragStart = (event: DragStartEvent) => {
         const { active } = event;
@@ -129,12 +311,31 @@ const CircuitBuilder = () => {
             else if (wire > 0) targetWire = wire - 1;
         }
 
+        let thirdWire: number | undefined = undefined;
+        if (gateData.qubits > 2 && targetWire !== undefined) {
+            // For CCX (Toffoli), add a third wire
+            const candidate = Math.max(wire, targetWire) + 1;
+            if (candidate < numWires) thirdWire = candidate;
+            else {
+                const candidate2 = Math.min(wire, targetWire) - 1;
+                if (candidate2 >= 0) thirdWire = candidate2;
+            }
+        }
+
+        // Intercept 6th wire drop for FREE tier
+        if (tier === 'FREE' && (wire >= 5 || (targetWire !== undefined && targetWire >= 5) || (thirdWire !== undefined && thirdWire >= 5))) {
+            window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'qubits' } }));
+            toast.error("Using the 6th qubit wire requires a Pro subscription.");
+            return;
+        }
+
         const newGate: PlacedGate = {
             ...gateData,
             uid: `gate-${Date.now()}-${Math.random()}`,
             wire,
             step,
-            targetWire
+            targetWire,
+            thirdWire,
         };
 
         setPlacedGates(prev => {
@@ -143,63 +344,15 @@ const CircuitBuilder = () => {
         });
     };
 
-    const runCircuit = async () => {
-        setIsSimulating(true);
-        try {
-            const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
-            const backendCircuit = sortedGates.map(g => {
-                const qubits = [g.wire];
-                if (g.targetWire !== undefined) qubits.push(g.targetWire);
-                return {
-                    name: g.name.toLowerCase(),
-                    qubits: qubits,
-                    params: g.params || []
-                };
-            });
+    const handleRemoveGate = useCallback((uid: string) => {
+        setPlacedGates(prev => prev.filter(g => g.uid !== uid));
+        toast.info("Gate removed");
+    }, []);
 
-            if (!user) {
-                toast.error("Please log in to run simulations.");
-                setIsSimulating(false);
-                return;
-            }
 
-            if (backendCircuit.length === 0) {
-                toast.error("Circuit is empty. Add some gates first!");
-                setIsSimulating(false);
-                return;
-            }
-
-            const data = await api.runCircuit(backendCircuit, numWires, useNoise);
-            setResults(data);
-            toast.success("Simulation complete!", { icon: <Zap className="w-4 h-4 text-yellow-400" /> });
-        } catch (error: any) {
-            console.error("Simulation failed:", error);
-            const msg = error instanceof Error ? error.message : String(error);
-            toast.error(msg || "Failed to run circuit");
-        } finally {
-            setIsSimulating(false);
-        }
-    };
 
     const exportQASM = () => {
-        let qasm = 'OPENQASM 2.0;\ninclude "qelib1.inc";\n';
-        qasm += `qreg q[${numWires}];\n`;
-        qasm += `creg c[${numWires}];\n`;
-
-        const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
-        sortedGates.forEach(g => {
-            const name = g.name.toLowerCase();
-            if (g.category === 'multi' && g.targetWire !== undefined) {
-                if (name === 'cx') qasm += `cx q[${g.wire}],q[${g.targetWire}];\n`;
-                else if (name === 'cz') qasm += `cz q[${g.wire}],q[${g.targetWire}];\n`;
-                else if (name === 'swap') qasm += `swap q[${g.wire}],q[${g.targetWire}];\n`;
-                else if (name === 'ccx') qasm += `ccx q[${g.wire}],q[${g.targetWire}],q[?] /* TODO */; \n`;
-            } else {
-                qasm += `${name} q[${g.wire}];\n`;
-            }
-        });
-
-        const blob = new Blob([qasm], { type: 'text/plain' });
+        const blob = new Blob([liveQASM], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -208,7 +361,7 @@ const CircuitBuilder = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        toast.success("Exported to QASM");
+        toast.success("Exported OpenQASM 3.0");
     };
 
     const clearCircuit = () => {
@@ -216,31 +369,97 @@ const CircuitBuilder = () => {
         setResults(null);
     };
 
+    const currentBackend = BACKENDS.find(b => b.value === backend)!;
+
     return (
         <div className="min-h-screen relative overflow-hidden bg-slate-950 text-white font-sans">
             <Navbar />
-            <div className="pt-24 pb-20 px-4 md:px-8 max-w-[1600px] mx-auto">
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div className="pt-20 pb-4 px-3 md:px-4 max-w-[1800px] mx-auto flex flex-col" style={{ height: 'calc(100vh - 0px)' }}>
+
+                {/* ─── HEADER BAR ──────────────────────────────────── */}
+                <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-3 gap-3 shrink-0">
                     <div>
-                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-600">
+                        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500">
                             Circuit Builder
                         </h1>
-                        <p className="text-slate-400 text-sm">Design and simulate multi-qubit circuits</p>
+                        <p className="text-slate-500 text-xs">Enterprise Quantum Circuit Design & Simulation</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
-                            <Switch id="noise-mode" checked={useNoise} onCheckedChange={setUseNoise} />
-                            <Label htmlFor="noise-mode" className="text-sm text-slate-300 cursor-pointer">simulate noise</Label>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {/* Execution Backend Dropdown */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-300 gap-2 h-9">
+                                    <Server className="w-3.5 h-3.5 text-cyan-400" />
+                                    <span className="text-xs">{currentBackend.label}</span>
+                                    <ChevronDown className="w-3 h-3 opacity-50" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="bg-slate-900 border-slate-700">
+                                {BACKENDS.map(b => (
+                                    <DropdownMenuItem
+                                        key={b.value}
+                                        onClick={() => b.available && setBackend(b.value)}
+                                        className={`text-xs ${!b.available ? 'opacity-40 cursor-not-allowed' : 'text-slate-300 focus:text-white focus:bg-slate-800'}`}
+                                        disabled={!b.available}
+                                    >
+                                        <span>{b.label}</span>
+                                        {!b.available && <span className="ml-2 text-[9px] text-cyan-500 font-mono">SOON</span>}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {/* Shots Input */}
+                        <div className="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 h-9">
+                            <label className="text-[10px] text-slate-500 uppercase tracking-wider">Shots</label>
+                            <input
+                                type="number"
+                                min={1}
+                                max={100000}
+                                value={shots}
+                                onChange={e => {
+                                    const val = parseInt(e.target.value) || 1;
+                                    if (tier === 'FREE' && val > 1024) {
+                                        setShots(1024);
+                                        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'shots' } }));
+                                        toast.error("Free tier is limited to a maximum of 1,024 shots.");
+                                        return;
+                                    }
+                                    setShots(Math.max(1, Math.min(100000, val)));
+                                }}
+                                className="w-20 bg-transparent text-sm text-white font-mono text-right focus:outline-none border-none"
+                            />
                         </div>
+
+                        {/* Noise Toggle */}
+                        <div className="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 h-9">
+                            <Switch 
+                                id="noise-mode" 
+                                checked={useNoise} 
+                                onCheckedChange={(val) => {
+                                    if (tier === 'FREE') {
+                                        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'noise' } }));
+                                        toast.error("Noise models require a Pro subscription.");
+                                        return;
+                                    }
+                                    setUseNoise(val);
+                                }} 
+                                className="scale-90" 
+                            />
+                            <Label htmlFor="noise-mode" className="text-[10px] text-slate-400 cursor-pointer uppercase tracking-wider">Noise</Label>
+                        </div>
+
+                        {/* Action Buttons */}
                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={exportQASM} className="border-slate-700 bg-slate-900/50 hover:bg-slate-800 text-slate-300">
-                                <Download className="w-4 h-4 mr-2" /> QASM
+                            <Button variant="outline" size="sm" onClick={exportQASM} className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-300 h-9">
+                                <Download className="w-3.5 h-3.5 mr-1.5" /> QASM
                             </Button>
-                            <Button variant="outline" size="sm" onClick={clearCircuit} className="border-slate-700 bg-slate-900/50 hover:bg-slate-800 text-slate-300">
-                                <RotateCcw className="w-4 h-4 mr-2" /> Clear
+                            <Button variant="outline" size="sm" onClick={clearCircuit} className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-300 h-9">
+                                <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Clear
                             </Button>
                             <Button
-                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25"
+                                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 h-9 px-5 font-semibold"
                                 onClick={runCircuit}
                                 disabled={isSimulating}
                             >
@@ -251,75 +470,55 @@ const CircuitBuilder = () => {
                     </div>
                 </header>
 
+                {/* ─── 4-PANE IDE LAYOUT ──────────────────────────── */}
                 <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                    <div className="grid lg:grid-cols-12 gap-6 h-[calc(100vh-200px)]">
-                        {/* Sidebar: Gates */}
-                        <div className="lg:col-span-2 space-y-4 overflow-y-auto pr-2 custom-scrollbar">
-                            <Card className="bg-slate-900/80 border-slate-800 backdrop-blur">
-                                <CardHeader className="py-3">
-                                    <CardTitle className="text-sm font-medium text-slate-300">Gates</CardTitle>
+                    <div className="grid lg:grid-cols-12 gap-3 flex-1 min-h-0 overflow-hidden">
+
+                        {/* ── LEFT PANE: Gate Library ─────────────────── */}
+                        <div className="lg:col-span-2 overflow-y-auto custom-scrollbar">
+                            <Card className="bg-slate-900/60 border-slate-800/80 backdrop-blur-sm h-full">
+                                <CardHeader className="py-2.5 px-3 border-b border-slate-800/50">
+                                    <CardTitle className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gate Library</CardTitle>
                                 </CardHeader>
-                                <CardContent className="py-2">
+                                <CardContent className="p-3">
                                     <GatePalette />
                                 </CardContent>
                             </Card>
+                        </div>
 
-                            <Card className="bg-blue-900/20 border-blue-800/50">
-                                <CardContent className="p-4">
-                                    <h4 className="text-sm font-bold text-blue-300 mb-1">Tutorial Mode</h4>
-                                    <p className="text-xs text-blue-200/70 mb-3">Learn by doing. Build a Bell State.</p>
-                                    <Button size="sm" variant="secondary" className="w-full h-8 text-xs" onClick={() => toast.info("Click the ? icon below to start.")}>Start Tutorial</Button>
-                                </CardContent>
+                        {/* ── CENTER PANE: Circuit Canvas ─────────────── */}
+                        <div className="lg:col-span-7 flex flex-col min-h-0 overflow-hidden">
+                            <Card className="bg-slate-900/60 border-slate-800/80 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
+                                <div className="flex-1 overflow-auto relative">
+                                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(6,182,212,0.03),transparent_70%)]" />
+                                    <div className="p-6 min-w-[800px] relative z-10">
+                                        <CircuitGrid
+                                            placedGates={placedGates}
+                                            numWires={numWires}
+                                            numSteps={14}
+                                            onRemoveGate={handleRemoveGate}
+                                        />
+                                    </div>
+                                </div>
+                                {/* Telemetry Bar */}
+                                <TelemetryBar placedGates={placedGates} numWires={numWires} shots={shots} />
                             </Card>
                         </div>
 
-                        {/* Main Canvas */}
-                        <div className="lg:col-span-7 flex flex-col gap-6 overflow-hidden">
-                            <Card className="bg-slate-900/80 border-slate-800 flex-1 overflow-auto relative">
-                                <div className="absolute inset-0 bg-[#0f172a] opacity-50 pointer-events-none" />
-                                <CardContent className="p-8 min-w-[800px]">
-                                    <CircuitGrid placedGates={placedGates} numWires={numWires} numSteps={12} />
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* Results Panel */}
-                        <div className="lg:col-span-3 flex flex-col gap-4 overflow-y-auto">
-                            {results ? (
-                                <CircuitResults results={results} />
-                            ) : (
-                                <Card className="bg-slate-900/50 border-slate-800 border-dashed h-64 flex items-center justify-center">
-                                    <div className="text-center text-slate-500">
-                                        <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                        <p className="text-sm">Run a circuit to see results</p>
-                                    </div>
-                                </Card>
-                            )}
-
-                            <Card className="bg-slate-900/50 border-slate-800">
-                                <CardHeader className="py-3">
-                                    <CardTitle className="text-sm font-medium text-slate-300">Circuit Info</CardTitle>
-                                </CardHeader>
-                                <CardContent className="text-xs text-slate-400 space-y-2">
-                                    <div className="flex justify-between">
-                                        <span>Gates:</span>
-                                        <span className="text-white">{placedGates.length}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Qubits:</span>
-                                        <span className="text-white">{numWires}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Est. Depth:</span>
-                                        <span className="text-white">{placedGates.length > 0 ? Math.max(0, ...placedGates.map(g => g.step)) + 1 : 0}</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                        {/* ── RIGHT PANE: Analytics & Export ──────────── */}
+                        <div className="lg:col-span-3 overflow-hidden flex flex-col min-h-0">
+                            <CircuitResults
+                                results={results}
+                                qasmCode={liveQASM}
+                                activeTab={resultsTab}
+                                onTabChange={setResultsTab}
+                            />
                         </div>
                     </div>
+
                     <DragOverlay>
                         {activeDragGate ? (
-                            <div className={`w-12 h-12 rounded flex items-center justify-center bg-gradient-to-br ${activeDragGate.color} shadow-lg cursor-grabbing`}>
+                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br ${activeDragGate.color} shadow-xl shadow-cyan-500/20 cursor-grabbing ring-2 ring-white/20`}>
                                 <activeDragGate.icon className="w-6 h-6 text-white" />
                             </div>
                         ) : null}
@@ -328,7 +527,6 @@ const CircuitBuilder = () => {
 
                 <TutorialOverlay placedGates={placedGates} setPlacedGates={setPlacedGates} />
             </div>
-            <Footer />
         </div>
     );
 };

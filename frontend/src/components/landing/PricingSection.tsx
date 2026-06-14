@@ -1,5 +1,4 @@
-import { useAuth } from '@/hooks/useAuth';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────── */
 const CheckIcon = () => (
@@ -93,9 +92,6 @@ const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick,
 );
 
 export const PricingSection = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
   const handleProClick = () => {
     const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/as/o/466941';
     window.location.href = wplusCheckoutUrl;

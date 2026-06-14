@@ -79,8 +79,42 @@ axiosClient.interceptors.response.use(
             window.location.href = '/login';
           }
         }
-      } else if (status === 429) {
-        toast.error("Rate limit reached. Try again in 60 seconds.");
+      } else if (status === 429 || status === 402) {
+        const detail = error.response?.data?.detail;
+        const reason = typeof detail === 'object' ? detail?.error : null;
+        
+        const reasonMap: Record<string, string> = {
+          'QUBIT_LIMIT_EXCEEDED': 'qubits',
+          'DEPTH_LIMIT_EXCEEDED': 'depth',
+          'SHOTS_LIMIT_EXCEEDED': 'shots',
+          'NOISE_MODEL_RESTRICTED': 'noise',
+          'AI_LIMIT_EXCEEDED': 'chats',
+          'PQC_LIMIT_EXCEEDED': 'pqc',
+        };
+
+        if (reason && reasonMap[reason]) {
+          window.dispatchEvent(
+            new CustomEvent('show-upgrade-modal', { detail: { reason: reasonMap[reason] } })
+          );
+        } else if (status === 429) {
+          const retryAfter = error.response?.headers?.['retry-after'] || detail?.reset_in_seconds;
+          let seconds = parseInt(retryAfter, 10);
+          if (isNaN(seconds) || seconds <= 0) seconds = 60;
+          
+          const toastId = toast.error(`Rate limit reached. Try again in ${seconds} seconds.`, { duration: seconds * 1000 + 1000 });
+          
+          const interval = setInterval(() => {
+            seconds -= 1;
+            if (seconds <= 0) {
+              clearInterval(interval);
+              toast.dismiss(toastId);
+            } else {
+              toast.error(`Rate limit reached. Try again in ${seconds} seconds.`, { id: toastId, duration: seconds * 1000 + 1000 });
+            }
+          }, 1000);
+        } else {
+          window.dispatchEvent(new CustomEvent('show-upgrade-modal'));
+        }
       } else if (status === 403) {
         // Locked features trigger the upgrade modal instead of standard error message
         window.dispatchEvent(new CustomEvent('show-upgrade-modal'));

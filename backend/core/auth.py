@@ -1,6 +1,6 @@
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 from fastapi import Depends, HTTPException, Request, status
@@ -107,7 +107,7 @@ def _create_token(
     jti: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
     
     plan = "free"
     if db is not None:
@@ -214,7 +214,7 @@ def reset_failed_attempts(user: DBmodels.User, db: Session) -> None:
 def is_account_locked(user: DBmodels.User, db: Optional[Session] = None) -> bool:
     """Check if account is currently locked."""
     if user.locked_until:
-        if user.locked_until > datetime.utcnow():
+        if user.locked_until > datetime.now(timezone.utc):
             return True
         # Lock expired, reset if db session is available
         if db is not None:
@@ -234,7 +234,7 @@ def lock_account(user: DBmodels.User, db: Session, duration_minutes: Optional[in
     """Lock account for specified duration (uses default if None)."""
     if duration_minutes is None:
         duration_minutes = settings.lockout_duration_minutes
-    user.locked_until = datetime.utcnow() + timedelta(minutes=duration_minutes)
+    user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -246,7 +246,7 @@ def lock_account(user: DBmodels.User, db: Session, duration_minutes: Optional[in
 
 def issue_tokens(db: Session, user: DBmodels.User) -> Tuple[str, str]:
     """Create an access token and a tracked refresh token for a user."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     jti = str(uuid.uuid4())
     refresh_expires_at = now + timedelta(minutes=settings.refresh_token_minutes)
     refresh_row = DBmodels.RefreshToken(
@@ -281,7 +281,7 @@ def rotate_refresh_token(db: Session, payload: dict, user: DBmodels.User) -> Tup
         )
         .first()
     )
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if (
         token_row is None
         or token_row.revoked

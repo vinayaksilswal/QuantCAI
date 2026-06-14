@@ -48,9 +48,32 @@ async def lifespan(app: FastAPI):
     Lifespan context manager that handles startup and shutdown operations.
     """
     logger.info("Initializing QuantCAI FastAPI Backend...")
+    
+    # Start periodic DB sync task (every 5 minutes)
+    from metering_middleware import flush_cumulative_metrics_to_db
+    
+    async def periodic_metric_flush_loop():
+        while True:
+            try:
+                await asyncio.sleep(300)
+                await flush_cumulative_metrics_to_db()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in periodic metric flush loop: {e}")
+                
+    flush_task = asyncio.create_task(periodic_metric_flush_loop())
+    
     yield
     # Shutdown operations
     logger.info("Shutting down QuantCAI FastAPI Backend...")
+    
+    # Cancel periodic DB sync task
+    flush_task.cancel()
+    try:
+        await flush_task
+    except asyncio.CancelledError:
+        pass
     
     # 1. Wait for active Celery tasks to complete (max 30s)
     try:
@@ -184,6 +207,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Include API routers
+from tier_limits import enforce_limits
+
 from billing import router as billing_router
 app.include_router(billing_router)
 
@@ -191,13 +216,22 @@ from routers.payment import router as payment_router
 app.include_router(payment_router)
 
 from quantum_engine import router as quantum_sim_router
-app.include_router(quantum_sim_router)
+app.include_router(quantum_sim_router, dependencies=[Depends(enforce_limits("simulator"))])
+
+from qasm_engine import router as qasm_sim_router
+app.include_router(qasm_sim_router, dependencies=[Depends(enforce_limits("simulator"))])
 
 from routers.pqc import router as pqc_router
-app.include_router(pqc_router)
+app.include_router(pqc_router, dependencies=[Depends(enforce_limits("pqc"))])
 
 from auth import router as developer_keys_router
 app.include_router(developer_keys_router)
+
+from routers.developer import router as developer_router
+app.include_router(developer_router)
+
+from routers.public_circuit import router as public_circuit_router
+app.include_router(public_circuit_router)
 
 from routers.auth import router as auth_router
 app.include_router(auth_router)
@@ -206,7 +240,7 @@ from routers.users import router as users_router
 app.include_router(users_router)
 
 from routers.circuit import router as circuit_router
-app.include_router(circuit_router)
+app.include_router(circuit_router, dependencies=[Depends(enforce_limits("circuit"))])
 
 from routers.content import router as content_router
 app.include_router(content_router)
@@ -216,12 +250,17 @@ app.include_router(chat_router)
 
 from routers.community import router as community_router
 app.include_router(community_router)
-
 from routers.admin import router as admin_router
 app.include_router(admin_router)
 
 from tutor import router as tutor_router
 app.include_router(tutor_router)
+
+from routers.quantai import router as quantai_router
+app.include_router(quantai_router, dependencies=[Depends(enforce_limits("quantai"))])
+
+from routers.entitlements import router as entitlements_router
+app.include_router(entitlements_router)
 
 @app.get("/healthz")
 def liveness_check():

@@ -550,3 +550,120 @@ async def test_enterprise_scan_role_based_access(mock_scan, mock_redis):
             await session.execute(text("DELETE FROM users WHERE id IN (:u1, :u2, :u3, :u4)"), {"u1": free_id, "u2": pro_id, "u3": ent_id, "u4": root_id})
             await session.commit()
 
+
+@pytest.mark.asyncio
+@patch("routers.pqc.redis_client", new_callable=AsyncMock)
+@patch("routers.pqc.scanner_engine.scan_tls_pqc")
+async def test_post_pqc_scan_endpoint(mock_scan, mock_redis):
+    from main import app
+    from security import create_access_token
+    from core.database import async_session_factory
+    from httpx import AsyncClient
+    import models as DBmodels
+    from sqlalchemy import text
+    
+    suffix = os.urandom(4).hex()
+    email_pro = f"pro_post_{suffix}@example.com"
+    email_free = f"free_post_{suffix}@example.com"
+    
+    async with async_session_factory() as session:
+        user_pro = DBmodels.User(email=email_pro, name="Pro Post User", hashed_password="pwd", role=DBmodels.UserRole.LEARNER, is_active=True)
+        user_free = DBmodels.User(email=email_free, name="Free Post User", hashed_password="pwd", role=DBmodels.UserRole.LEARNER, is_active=True)
+        session.add_all([user_pro, user_free])
+        await session.flush()
+        
+        sub_pro = DBmodels.Subscription(user_id=user_pro.id, plan=DBmodels.SubscriptionPlan.PRO, status=DBmodels.SubscriptionStatus.ACTIVE)
+        sub_free = DBmodels.Subscription(user_id=user_free.id, plan=DBmodels.SubscriptionPlan.FREE, status=DBmodels.SubscriptionStatus.ACTIVE)
+        session.add_all([sub_pro, sub_free])
+        await session.commit()
+        
+        pro_id, free_id = user_pro.id, user_free.id
+        
+    try:
+        token_pro = create_access_token({"sub": str(pro_id), "type": "access", "role": "learner", "token_version": 0})
+        token_free = create_access_token({"sub": str(free_id), "type": "access", "role": "learner", "token_version": 0})
+        
+        # Configure mocks
+        mock_redis.get.return_value = None
+        mock_redis.setex.return_value = True
+        mock_scan.return_value = {
+            "domain": "github.com",
+            "port": 443,
+            "scan_timestamp": "2026-06-13T19:40:00Z",
+            "scan_duration_ms": 120,
+            "overall_risk_score": 50.0,
+            "risk_level": "MEDIUM",
+            "hndl_risk_level": "CRITICAL",
+            "quantum_risk_grade": "Grade C",
+            "tls_details": {
+                "version": "TLS 1.3",
+                "cipher_suite": "TLS_AES_256_GCM_SHA384",
+                "key_exchange": "ECDHE",
+                "key_exchange_group": "X25519",
+                "key_exchange_bits": 256,
+                "quantum_safe": False
+            },
+            "certificates": [
+                {
+                    "index": 0,
+                    "subject": "CN=github.com",
+                    "issuer": "CN=DigiCert",
+                    "serial_number": "111",
+                    "algorithm": "ECC-secp256r1-256",
+                    "signature_algorithm": "ecdsa-with-SHA256",
+                    "quantum_vulnerable": True,
+                    "severity": "CRITICAL",
+                    "expires_at": "2027-01-01",
+                    "days_until_expiry": 200,
+                    "expiry_warning": False,
+                    "extends_past_2030": False
+                }
+            ],
+            "findings": [
+                {
+                    "severity": "CRITICAL",
+                    "category": "KEY_EXCHANGE",
+                    "title": "Vulnerable KEX",
+                    "description": "ECDHE is vulnerable",
+                    "affected_asset": "TLS session",
+                    "remediation": "Deploy hybrid KEX",
+                    "nist_reference": "FIPS 203"
+                }
+            ],
+            "cbom_summary": {
+                "total_assets": 1,
+                "vulnerable_assets": 1,
+                "compliant_assets": 0,
+                "pqc_readiness_pct": 0.0
+            }
+        }
+        
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            # Test 1: Scan with Pro User payload (POST)
+            res = await client.post(
+                "/api/v1/pqc/scan", 
+                json={"domain": "github.com", "port": 443}, 
+                headers={"Authorization": f"Bearer {token_pro}"}
+            )
+            assert res.status_code == 200
+            data = res.json()
+            assert data["domain"] == "github.com"
+            assert data["port"] == 443
+            assert data["tls_details"]["quantum_safe"] is False
+            
+            # Test 2: Scan with Free User payload (POST) - should still allow first scans under limit
+            res_free = await client.post(
+                "/api/v1/pqc/scan", 
+                json={"domain": "github.com", "port": 443}, 
+                headers={"Authorization": f"Bearer {token_free}"}
+            )
+            assert res_free.status_code == 200
+            
+    finally:
+        async with async_session_factory() as session:
+            await session.execute(text("DELETE FROM usage_events WHERE user_id IN (:u1, :u2)"), {"u1": pro_id, "u2": free_id})
+            await session.execute(text("DELETE FROM subscriptions WHERE user_id IN (:u1, :u2)"), {"u1": pro_id, "u2": free_id})
+            await session.execute(text("DELETE FROM users WHERE id IN (:u1, :u2)"), {"u1": pro_id, "u2": free_id})
+            await session.commit()
+
+

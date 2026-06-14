@@ -2,7 +2,7 @@ import logging
 import logging.handlers
 import sys
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 import traceback
@@ -34,7 +34,7 @@ class DatabaseLogHandler(logging.Handler):
                 
                 # Create log entry
                 log_entry = DBmodels.Log(
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     level=record.levelname,
                     logger_name=record.name,
                     message=self.format(record),

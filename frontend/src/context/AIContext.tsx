@@ -1,4 +1,4 @@
-import { useState, ReactNode } from "react";
+import { useState, useEffect, useCallback, ReactNode } from "react";
 import { api, API_BASE } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { AIContext, Message } from './AIContextInstance';
@@ -54,12 +54,35 @@ const parseQasm = (qasm: string) => {
 
 export const AIProvider = ({ children }: { children: ReactNode }) => {
     const { user } = useAuth();
-    const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [isOpen, setIsOpen] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            return localStorage.getItem("quantai_chat_open") === "true";
+        }
+        return false;
+    });
+    const [messages, setMessages] = useState<Message[]>(() => {
+        if (typeof window !== "undefined") {
+            const saved = localStorage.getItem("quantai_chat_messages");
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
     const [isLoading, setIsLoading] = useState(false);
     const [activeTool, setActiveTool] = useState<"quantum-states" | "circuit-builder" | null>(null);
     const [circuitActions, setCircuitActions] = useState<{ id: string; action: string; params: any }[]>([]);
     const [visualizerActions, setVisualizerActions] = useState<{ id: string; gate: string }[]>([]);
+    const [clientContext, setClientContext] = useState<{ contextName: string | null; metadata: any }>({
+        contextName: null,
+        metadata: {}
+    });
+
+    useEffect(() => {
+        localStorage.setItem("quantai_chat_open", String(isOpen));
+    }, [isOpen]);
+
+    useEffect(() => {
+        localStorage.setItem("quantai_chat_messages", JSON.stringify(messages));
+    }, [messages]);
 
     const toggleChat = () => setIsOpen(!isOpen);
 
@@ -73,10 +96,32 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         setVisualizerActions(prev => prev.filter(a => a.id !== id));
     };
 
+    const updateClientContext = useCallback((contextName: string | null, metadata: any) => {
+        setClientContext(prev => {
+            if (prev.contextName === contextName) {
+                // Shallow equality check
+                const prevKeys = Object.keys(prev.metadata || {});
+                const nextKeys = Object.keys(metadata || {});
+                let isMetadataEqual = prevKeys.length === nextKeys.length;
+                if (isMetadataEqual) {
+                    for (const key of prevKeys) {
+                        if (prev.metadata[key] !== metadata[key]) {
+                            isMetadataEqual = false;
+                            break;
+                        }
+                    }
+                }
+                if (isMetadataEqual) return prev;
+            }
+            return { contextName, metadata };
+        });
+    }, []);
+
     const sendMessage = async (content: string) => {
         // Optimistic update
         const userMsg: Message = { role: "user", content };
-        setMessages(prev => [...prev, userMsg]);
+        const updatedMessages = [...messages, userMsg];
+        setMessages(updatedMessages);
         setIsLoading(true);
 
         if (!user) {
@@ -92,7 +137,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
             const token = api.getAuthToken();
             const conversationId = localStorage.getItem('tutor_conversation_id') || null;
 
-            const response = await fetch(`${API_BASE}/tutor/chat`, {
+            const response = await fetch(`${API_BASE}/api/v1/quantai/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -101,9 +146,19 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                 body: JSON.stringify({
                     message: content,
                     conversation_id: conversationId,
-                    current_route: window.location.pathname
+                    context: clientContext.contextName,
+                    client_context: clientContext.metadata
                 }),
             });
+
+            if (response.status === 402) {
+                setMessages(prev => [...prev, {
+                    role: "assistant",
+                    content: "⚠️ **Payment Required**: Insufficient wallet balance. Please add credits to your wallet in the Developer Console to continue."
+                }]);
+                setIsLoading(false);
+                return;
+            }
 
             if (response.status === 401) {
                 setMessages(prev => [...prev, {
@@ -119,44 +174,55 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                 throw new Error(errorData.detail || "Failed to send message");
             }
 
-            const data = await response.json();
-            
-            if (data.conversation_id) {
-                localStorage.setItem('tutor_conversation_id', data.conversation_id);
-            }
+            // Read streaming response
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let assistantContent = "";
 
-            setMessages(prev => [...prev, { role: "assistant", content: data.response }]);
+            setMessages(prev => [...prev, { role: "assistant", content: "" }]);
 
-            if (data.intent === "simulation_request" || data.intent === "build_circuit" || data.intent === "simulate") {
-                // Extract QASM code
-                const qasmRegex = /```qasm\s*([\s\S]*?)\s*```/i;
-                const match = data.response.match(qasmRegex);
-                let qasmCode = "";
-                if (match) {
-                    qasmCode = match[1];
-                } else if (data.response.includes("OPENQASM")) {
-                    const openqasmIndex = data.response.indexOf("OPENQASM");
-                    qasmCode = data.response.substring(openqasmIndex);
+            if (reader) {
+                let buffer = "";
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    // Keep the last part of split if it is incomplete
+                    buffer = lines.pop() || "";
+
+                    for (const line of lines) {
+                        const cleanLine = line.trim();
+                        if (cleanLine.startsWith("data: ")) {
+                            try {
+                                const payloadStr = cleanLine.substring(6);
+                                if (payloadStr === "[DONE]") continue;
+
+                                const data = JSON.parse(payloadStr);
+                                if (data.type === "text") {
+                                    assistantContent += data.content;
+                                    setMessages(prev => {
+                                        const next = [...prev];
+                                        if (next.length > 0) {
+                                            next[next.length - 1] = {
+                                                role: "assistant",
+                                                content: assistantContent
+                                            };
+                                        }
+                                        return next;
+                                    });
+                                } else if (data.type === "tool_call") {
+                                    handleToolCall(data.name, data.args);
+                                } else if (data.conversation_id) {
+                                    localStorage.setItem('tutor_conversation_id', data.conversation_id);
+                                }
+                            } catch (e) {
+                                // Ignore parsing errors for incomplete JSON
+                            }
+                        }
+                    }
                 }
-
-                if (qasmCode) {
-                    // Open the circuit builder tool
-                    handleToolCall("open_tool", { tool_name: "circuit-builder" });
-                    
-                    // Parse QASM lines
-                    const parsedActions = parseQasm(qasmCode);
-                    
-                    // Enqueue actions
-                    setCircuitActions(parsedActions.map(act => ({
-                        id: Math.random().toString(36).substring(7),
-                        action: act.action,
-                        params: act.params
-                    })));
-                } else {
-                    handleToolCall("open_tool", { tool_name: "circuit-builder" });
-                }
-            } else if (data.intent === "interactive_states") {
-                handleToolCall("open_tool", { tool_name: "quantum-states" });
             }
 
         } catch (error: any) {
@@ -192,7 +258,6 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-
     return (
         <AIContext.Provider value={{
             isOpen,
@@ -205,7 +270,9 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
             circuitActions,
             ackCircuitAction,
             visualizerActions,
-            ackVisualizerAction
+            ackVisualizerAction,
+            clientContext,
+            updateClientContext
         }}>
             {children}
         </AIContext.Provider>

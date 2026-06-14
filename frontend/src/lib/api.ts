@@ -63,7 +63,37 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
     const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
     const errorMessage = typeof err.detail === 'string'
       ? err.detail
-      : JSON.stringify(err.detail) || `HTTP ${res.status}`;
+      : typeof err.detail === 'object' && err.detail?.message
+        ? err.detail.message
+        : JSON.stringify(err.detail) || `HTTP ${res.status}`;
+
+    // Trigger upgrade modal for payment-required responses (Finding #7)
+    if (res.status === 402) {
+      const reason = typeof err.detail === 'object' ? err.detail?.error : null;
+      const reasonMap: Record<string, string> = {
+        'QUBIT_LIMIT_EXCEEDED': 'qubits',
+        'DEPTH_LIMIT_EXCEEDED': 'depth',
+        'SHOTS_LIMIT_EXCEEDED': 'shots',
+        'NOISE_MODEL_RESTRICTED': 'noise',
+        'AI_LIMIT_EXCEEDED': 'chats',
+        'PQC_LIMIT_EXCEEDED': 'pqc',
+      };
+      const modalReason = reason ? reasonMap[reason] || null : null;
+      window.dispatchEvent(
+        new CustomEvent('show-upgrade-modal', { detail: { reason: modalReason } })
+      );
+    }
+
+    // Show rate limit toast for 429
+    if (res.status === 429) {
+      const resetIn = typeof err.detail === 'object' ? err.detail?.reset_in_seconds : null;
+      const msg = resetIn 
+        ? `Rate limit reached. Try again in ${Math.ceil(resetIn / 60)} minute(s).`
+        : 'Rate limit reached. Please wait before retrying.';
+      // Dispatch a custom event so the toast system can handle it
+      window.dispatchEvent(new CustomEvent('show-rate-limit', { detail: { message: msg } }));
+    }
+
     throw new Error(errorMessage);
   }
   return res.json();
@@ -120,6 +150,7 @@ export const communityApi = {
 };
 
 export const circuitApi = {
+  // Legacy endpoint (backward compatible)
   runCircuit: (gates: any[], numQubits: number, useNoise?: boolean) =>
     fetchApi<CircuitSimulationResult>('/api/circuit/run', {
       method: 'POST',
@@ -136,6 +167,18 @@ export const circuitApi = {
         current_state: state,
         gate: gateName
       })
+    }),
+
+  // V1 Enterprise endpoints
+  simulateV1: (payload: { num_qubits: number; shots: number; gates: { name: string; qubits: number[]; params: number[] }[]; use_noise: boolean }) =>
+    fetchApi<any>('/api/v1/circuit/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  exportQASM: (payload: { num_qubits: number; gates: { name: string; qubits: number[]; params: number[] }[] }) =>
+    fetchApi<{ qasm: string; version: string; num_qubits: number; num_gates: number }>('/api/v1/circuit/export', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 };
 

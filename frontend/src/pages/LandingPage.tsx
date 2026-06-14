@@ -11,7 +11,6 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { NewsletterForm } from '@/components/NewsletterForm';
 import { LogoProcessor } from '@/components/LogoProcessor';
-import { useAuth } from '@/hooks/useAuth';
 
 /* ─────────────────────────── CODE SNIPPETS ─────────────────────────── */
 const curlSnippet = `curl -X POST https://api.quantcai.in/v1/simulate \\
@@ -116,7 +115,6 @@ const trustItems = [
 export default function LandingPage() {
   usePageTracking('home');
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const handleProClick = () => {
     const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/as/o/466941';

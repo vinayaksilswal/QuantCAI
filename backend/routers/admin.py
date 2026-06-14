@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List, Optional
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import psutil
 
 from core.auth import get_current_user
@@ -224,7 +224,7 @@ def recent_errors(
     _: DBmodels.User = Depends(get_admin_user)
 ):
     """Get recent error logs."""
-    since = datetime.utcnow() - timedelta(hours=hours)
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
     errors = db.query(DBmodels.Log).filter(
         DBmodels.Log.level.in_(["ERROR", "CRITICAL"]),
         DBmodels.Log.timestamp >= since
@@ -283,12 +283,12 @@ def database_stats(
         stats["circuits"] = db.query(DBmodels.Circuit).count()
         stats["refresh_tokens"] = db.query(DBmodels.RefreshToken).count()
         stats["failed_login_users"] = db.query(DBmodels.User).filter(DBmodels.User.failed_login_attempts > 0).count()
-        stats["locked_accounts"] = db.query(DBmodels.User).filter(DBmodels.User.locked_until != None).filter(DBmodels.User.locked_until > datetime.utcnow()).count()
+        stats["locked_accounts"] = db.query(DBmodels.User).filter(DBmodels.User.locked_until != None).filter(DBmodels.User.locked_until > datetime.now(timezone.utc)).count()
     except Exception as e:
         logger.error(f"Error fetching stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch stats")
 
     return {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "counts": stats
     }

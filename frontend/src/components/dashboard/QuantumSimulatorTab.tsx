@@ -1,47 +1,93 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAI } from '@/hooks/useAI';
 import { axiosClient } from '@/lib/axiosClient';
 import { toast } from 'sonner';
-import { Play, RotateCcw, AlertCircle, Info, BarChart4, Cpu } from 'lucide-react';
+import { useSubscription } from '@/context/SubscriptionContext';
+import { 
+  Play, 
+  RotateCcw, 
+  AlertCircle, 
+  BarChart4, 
+  Cpu, 
+  Terminal, 
+  FileCode, 
+  Settings, 
+  ShieldAlert, 
+  Clock, 
+  Sparkles,
+  Layers
+} from 'lucide-react';
 
 interface SimulationResult {
-  counts: Record<string, number>;
-  statevector?: any;
+  status: string;
   execution_time_ms: number;
-  shots: number;
-  circuit_depth: number;
+  probabilities: Record<string, number>;
   num_qubits: number;
+  circuit_depth: number;
+  warnings?: string[];
+  metadata?: {
+    backend: string;
+    noise_model: string;
+    shots: number;
+  };
 }
 
-interface JobResponse {
-  job_id: string;
-  status: 'queued' | 'running' | 'complete' | 'failed';
-  result?: SimulationResult;
-  error?: string;
-}
-
-const DEFAULT_QASM = `OPENQASM 2.0;
-include "qelib1.inc";
-qreg q[2];
-creg c[2];
+const DEFAULT_QASM_3 = `OPENQASM 3.0;
+include "stdgates.inc";
+qubit[5] q;
+bit[5] c;
 h q[0];
-cx q[0],q[1];
-measure q -> c;`;
+cx q[0], q[1];
+cx q[1], q[2];
+c = measure q;`;
 
 export function QuantumSimulatorTab() {
   const { subscriptionPlan } = useAuth();
-  const [qasm, setQasm] = useState(DEFAULT_QASM);
-  const [shots, setShots] = useState(1024);
-  const [noiseModel, setNoiseModel] = useState<'ideal' | 'depolarizing' | 'thermal'>('ideal');
+  const { updateClientContext } = useAI();
   
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<string | null>(null);
+  // IDE State
+  const [qasm, setQasm] = useState(DEFAULT_QASM_3);
+  const [shots, setShots] = useState(1024);
+  const [backend, setBackend] = useState('Local AerSimulator');
+  const [noiseModel, setNoiseModel] = useState('Ideal');
+  
+  // Results & Console States
+  const [activeTab, setActiveTab] = useState<'visualizations' | 'console'>('visualizations');
+  const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [rawResponse, setRawResponse] = useState<any>(null);
 
-  const isFree = subscriptionPlan === 'free' || !subscriptionPlan;
+  // Sync editor parameters to AI Context
+  useEffect(() => {
+    updateClientContext('qasm-ide', {
+      qasm_string: qasm,
+      line_count: qasm.split('\n').length,
+      console_error: errorMsg
+    });
+  }, [qasm, errorMsg, updateClientContext]);
+
+  // Sync scroll refs for line numbers
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
+
+  const { tier } = useSubscription();
+  const isFree = tier === 'FREE';
   const maxShots = isFree ? 1024 : 65536;
+
+  // Handle scroll syncing between editor and gutter
+  const handleEditorScroll = () => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  };
+
+  // Synchronize scrolling on mount and edit
+  useEffect(() => {
+    handleEditorScroll();
+  }, [qasm]);
 
   const handleShotsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
@@ -50,258 +96,500 @@ export function QuantumSimulatorTab() {
   };
 
   const handleReset = () => {
-    setQasm(DEFAULT_QASM);
+    setQasm(DEFAULT_QASM_3);
     setShots(1024);
-    setNoiseModel('ideal');
+    setBackend('Local AerSimulator');
+    setNoiseModel('Ideal');
     setResult(null);
-    setJobId(null);
-    setJobStatus(null);
     setErrorMsg(null);
+    setLogs([]);
+    setRawResponse(null);
+    setActiveTab('visualizations');
+    toast.info('Editor parameters reset to default Bell state.');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const addLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    const timestamp = new Date().toLocaleTimeString();
+    const prefix = {
+      info: '⚙️ [SYSTEM]',
+      success: '⚡ [SUCCESS]',
+      warning: '⚠️ [WARNING]',
+      error: '❌ [ERROR]',
+    }[type];
+    setLogs((prev) => [...prev, `[${timestamp}] ${prefix} ${message}`]);
+  };
+
+  const executeSimulation = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setResult(null);
+    setRawResponse(null);
+    setLogs([]);
     
-    // Client-side shot validation
+    // Parse QASM qubits count
+    let parsedQubits = 5;
+    const qubitMatch = qasm.match(/qubit\s*\[\s*(\d+)\s*\]/i);
+    if (qubitMatch) {
+      parsedQubits = parseInt(qubitMatch[1], 10);
+    } else {
+      const qregMatch = qasm.match(/qreg\s+\w+\s*\[\s*(\d+)\s*\]/i);
+      if (qregMatch) {
+        parsedQubits = parseInt(qregMatch[1], 10);
+      }
+    }
+
+    if (isFree) {
+      if (parsedQubits > 5) {
+        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'qubits' } }));
+        toast.error("Free tier is limited to 5 qubits. Upgrade to Pro!");
+        return;
+      }
+      if (shots > 1024) {
+        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'shots' } }));
+        toast.error("Free tier is limited to a maximum of 1,024 shots.");
+        return;
+      }
+      if (noiseModel !== 'Ideal') {
+        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'noise' } }));
+        toast.error("Noise models require a Pro subscription.");
+        return;
+      }
+    } else if (tier === 'PRO') {
+      if (parsedQubits > 30) {
+        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'qubits' } }));
+        toast.error("Pro tier is limited to 30 qubits. Upgrade to Enterprise!");
+        return;
+      }
+      if (shots > 65536) {
+        toast.error("Pro tier is limited to 65,536 shots.");
+        return;
+      }
+    }
+
+    // Client-side validation
     if (shots < 1 || shots > maxShots) {
       toast.error(`Shots must be between 1 and ${maxShots} for your tier.`);
       return;
     }
 
     setLoading(true);
-    setJobStatus('submitting');
+    addLog('Initiating OpenQASM 3.0 compiler engine...', 'info');
+    addLog('Validating qubit declarations and constraints...', 'info');
+    addLog(`Configuring backend: ${backend} | Noise: ${noiseModel}...`, 'info');
+
+    // Automatically switch to console tab to view live compiler outputs
+    setActiveTab('console');
 
     try {
-      // POST to simulator
-      const response = await axiosClient.post<{ job_id: string; status: string }>('/api/v1/simulate', {
-        circuit_qasm: qasm,
+      addLog(`Sending compilation task to server...`, 'info');
+      const response = await axiosClient.post<SimulationResult>('/api/v1/simulator/execute', {
+        qasm_string: qasm,
         shots: shots,
+        backend_choice: backend,
         noise_model: noiseModel,
       });
 
-      const newJobId = response.data.job_id;
-      setJobId(newJobId);
-      setJobStatus('queued');
+      const data = response.data;
+      setRawResponse(data);
+      setResult(data);
       
-      // Start polling
-      pollJobStatus(newJobId);
-    } catch (err: any) {
-      console.error('Error submitting simulation:', err);
-      const msg = err.response?.data?.detail || 'Failed to submit simulation circuit.';
-      setErrorMsg(msg);
-      setJobStatus(null);
+      addLog(`QASM compilation complete. Target qubits: ${data.num_qubits}, Depth: ${data.circuit_depth}`, 'success');
+      addLog(`AerSimulator execution finished in ${data.execution_time_ms.toFixed(1)} ms.`, 'success');
+
+      if (data.warnings && data.warnings.length > 0) {
+        data.warnings.forEach(warn => {
+          addLog(warn, 'warning');
+        });
+      }
+
       setLoading(false);
+      // Switch back to visualizations to show results
+      setActiveTab('visualizations');
+      toast.success('Quantum circuit simulated successfully!');
+    } catch (err: any) {
+      console.error('Simulation execution failed:', err);
+      const errorData = err.response?.data?.detail || {};
+      const msg = typeof errorData === 'string' ? errorData : errorData.message || err.message || 'FastAPI simulation engine failed.';
+      const errorCode = typeof errorData === 'object' ? errorData.error || "" : "";
+      const status = err.response?.status;
+      
+      if (status === 402 || status === 429 || errorCode.includes("LIMIT") || errorCode.includes("RESTRICTED") || errorCode.includes("EXCEEDED")) {
+        let reason = 'qubits';
+        if (errorCode.includes("DEPTH")) reason = 'depth';
+        else if (errorCode.includes("SHOTS")) reason = 'shots';
+        else if (errorCode.includes("NOISE")) reason = 'noise';
+        else if (errorCode.includes("AI")) reason = 'chats';
+        else if (errorCode.includes("PQC")) reason = 'pqc';
+        
+        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason } }));
+      }
+      
+      const cleanMsg = typeof msg === 'string' ? msg : JSON.stringify(msg);
+      setErrorMsg(cleanMsg);
+      addLog(`Compilation/Runtime failure. Check stack trace.`, 'error');
+      addLog(cleanMsg, 'error');
+      
+      setLoading(false);
+      toast.error('Compilation or execution failed.');
     }
   };
 
-  const pollJobStatus = (id: string) => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await axiosClient.get<JobResponse>(`/api/v1/simulate/${id}`);
-        const status = response.data.status;
-        setJobStatus(status);
-
-        if (status === 'complete' && response.data.result) {
-          setResult(response.data.result);
-          setLoading(false);
-          clearInterval(interval);
-          toast.success('Quantum simulation completed successfully!');
-        } else if (status === 'failed') {
-          setErrorMsg(response.data.error || 'Simulating task failed on Celery worker.');
-          setLoading(false);
-          clearInterval(interval);
-        }
-      } catch (err: any) {
-        console.error('Error polling simulation status:', err);
-        setErrorMsg('Error connecting to polling server.');
-        setLoading(false);
-        clearInterval(interval);
-      }
-    }, 2000);
-  };
-
-  // Render CSS bar chart counts
-  const renderCounts = () => {
-    if (!result) return null;
-    const { counts, shots: totalShots } = result;
-
-    return (
-      <div className="space-y-4">
-        <h4 className="font-syne font-bold text-sm text-qc-text">Measurement Outcomes (Counts)</h4>
-        <div className="space-y-3.5">
-          {Object.entries(counts).map(([state, count]) => {
-            const percentage = (count / totalShots) * 100;
-            return (
-              <div key={state} className="space-y-1.5 font-mono text-xs">
-                <div className="flex justify-between">
-                  <span className="font-semibold text-qc-text">|{state}⟩</span>
-                  <span className="text-qc-muted">{count} shots ({percentage.toFixed(1)}%)</span>
-                </div>
-                <div className="w-full h-5 rounded bg-qc-border overflow-hidden relative">
-                  <div 
-                    className="h-full bg-gradient-to-r from-qc-accent/50 to-qc-accent rounded transition-all duration-700"
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  // Generate line numbers
+  const lines = qasm.split('\n');
+  const lineCount = Math.max(lines.length, 1);
+  const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1);
 
   return (
     <div className="space-y-6">
-      {/* Title */}
-      <div>
-        <h1 className="font-syne font-bold text-2xl text-qc-text">Quantum Simulator</h1>
-        <p className="text-sm text-qc-muted mt-1">Write OpenQASM 2.0 circuits, configure parameters, and execute them on a remote simulator.</p>
+      {/* Title Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div>
+          <h2 className="font-syne font-bold text-2xl text-qc-text tracking-tight flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-qc-accent animate-pulse" />
+            QuantCAI Pro Quantum Simulator
+          </h2>
+          <p className="text-sm text-qc-muted mt-1 font-mono">
+            Enterprise multi-qubit compiler and execution engine supporting raw OpenQASM 3.0 grammar.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-qc-accent/10 border border-qc-accent/30 text-qc-accent font-mono capitalize">
+            {subscriptionPlan || 'Free'} Tier
+          </span>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6 items-start">
-        {/* Left Column: Form */}
-        <form onSubmit={handleSubmit} className="space-y-5 p-5 border border-qc-border rounded bg-qc-surface/30">
-          {/* OpenQASM Input */}
-          <div className="space-y-2">
-            <label className="text-xs font-mono font-bold tracking-wide uppercase text-qc-muted">OpenQASM 2.0 Code</label>
-            <textarea
-              value={qasm}
-              onChange={(e) => setQasm(e.target.value)}
-              className="w-full h-[240px] p-3 rounded border border-qc-border bg-qc-bg text-qc-text font-mono text-xs leading-relaxed focus:outline-none focus:border-qc-accent/50 resize-y"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Shots Input */}
-            <div className="space-y-2">
-              <label className="text-xs font-mono font-bold tracking-wide uppercase text-qc-muted">Shots</label>
-              <input
-                type="number"
-                value={shots}
-                onChange={handleShotsChange}
-                min={1}
-                max={maxShots}
-                className="w-full px-3 py-2 rounded border border-qc-border bg-qc-bg text-qc-text font-mono text-xs focus:outline-none focus:border-qc-accent/50"
-                required
-              />
-              <span className="text-[10px] text-qc-muted font-mono block">Max: {maxShots} ({subscriptionPlan === 'free' || !subscriptionPlan ? 'Free' : 'Pro'})</span>
+      <div className="grid lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Editor & Configuration (7 Cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="border border-slate-800 rounded-xl bg-slate-950/40 backdrop-blur-xl shadow-2xl overflow-hidden">
+            {/* Editor Header Tab Bar */}
+            <div className="flex items-center justify-between px-4 py-3 bg-[#0a0f1d]/80 border-b border-slate-800/80">
+              <div className="flex items-center gap-2 text-slate-300 font-mono text-xs">
+                <FileCode className="w-4 h-4 text-qc-accent" />
+                <span>main.qasm</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                <span className="text-[10px] text-slate-500 font-mono">PARSER ONLINE</span>
+              </div>
             </div>
 
-            {/* Noise Model Selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-mono font-bold tracking-wide uppercase text-qc-muted flex items-center gap-1">
-                Noise Model
-              </label>
-              
-              <div className="relative group">
+            {/* Code Editor Workspace */}
+            <div className="flex bg-[#030712] font-mono text-xs overflow-hidden h-[320px]">
+              {/* Gutter Line Numbers */}
+              <div 
+                ref={lineNumbersRef}
+                className="select-none text-slate-600 bg-black/40 py-3 text-right pr-3 pl-4 border-r border-slate-900 leading-relaxed min-w-[3.5rem] overflow-y-hidden"
+              >
+                {lineNumbers.map((n) => (
+                  <div key={n} className="h-5 pr-0.5">{n}</div>
+                ))}
+              </div>
+
+              {/* Text Area Input */}
+              <textarea
+                ref={textareaRef}
+                value={qasm}
+                onChange={(e) => setQasm(e.target.value)}
+                onScroll={handleEditorScroll}
+                className="flex-1 bg-transparent text-slate-100 py-3 px-4 resize-none focus:outline-none overflow-y-auto leading-relaxed h-full font-mono placeholder-slate-600 focus:ring-0 whitespace-pre"
+                spellCheck={false}
+                placeholder="// Enter OpenQASM 3.0 here"
+              />
+            </div>
+          </div>
+
+          {/* Configuration Parameters Panel */}
+          <form onSubmit={executeSimulation} className="p-5 border border-slate-800 rounded-xl bg-slate-900/20 backdrop-blur-lg space-y-5">
+            <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3 text-slate-300">
+              <Settings className="w-4 h-4 text-slate-400" />
+              <h3 className="font-syne font-bold text-sm">Execution Configuration</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Shots Allocation */}
+              <div className="space-y-2">
+                <label className="text-xs font-mono font-bold tracking-wide uppercase text-qc-muted block">
+                  Simulation Shots
+                </label>
+                <input
+                  type="number"
+                  value={shots}
+                  onChange={handleShotsChange}
+                  min={1}
+                  max={maxShots}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-[#070b13] text-qc-text font-mono text-xs focus:outline-none focus:border-qc-accent/50 focus:ring-1 focus:ring-qc-accent/20 transition-all"
+                  required
+                />
+                <span className="text-[10px] text-slate-500 font-mono block">
+                  Max Limit: {maxShots.toLocaleString()}
+                </span>
+              </div>
+
+              {/* Backend Choice Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-mono font-bold tracking-wide uppercase text-qc-muted block">
+                  Execution Backend
+                </label>
                 <select
-                  value={noiseModel}
-                  onChange={(e) => setNoiseModel(e.target.value as any)}
-                  disabled={isFree}
-                  className="w-full px-3 py-2 rounded border border-qc-border bg-qc-bg text-qc-text font-mono text-xs focus:outline-none focus:border-qc-accent/50 disabled:opacity-50 disabled:cursor-not-allowed appearance-none"
+                  value={backend}
+                  onChange={(e) => setBackend(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-[#070b13] text-qc-text font-mono text-xs focus:outline-none focus:border-qc-accent/50 focus:ring-1 focus:ring-qc-accent/20 transition-all appearance-none"
                 >
-                  <option value="ideal">Ideal Simulator</option>
-                  <option value="depolarizing">Depolarizing Channel</option>
-                  <option value="thermal">Thermal Relaxation</option>
+                  <option value="Local AerSimulator">Local AerSimulator</option>
+                  <option value="AWS Braket">AWS Braket</option>
+                  <option value="IBM Quantum">IBM Quantum</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-qc-muted">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                </div>
+              </div>
+
+              {/* Noise Model Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-mono font-bold tracking-wide uppercase text-qc-muted flex items-center justify-between">
+                  <span>Noise Model</span>
+                  {isFree && (
+                    <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.2 rounded font-mono font-normal">
+                      PRO ONLY
+                    </span>
+                  )}
+                </label>
                 
-                {/* Custom hover tooltip */}
-                {isFree && (
-                  <div className="absolute hidden group-hover:flex items-center gap-1.5 bg-black text-[10px] text-qc-muted px-2.5 py-1.5 rounded border border-qc-border -top-10 left-0 w-max z-10 shadow-lg">
-                    <Info className="w-3.5 h-3.5 text-qc-accent" />
-                    <span>Noise models require Pro</span>
+                <div className="relative group">
+                  <select
+                    value={noiseModel}
+                    onChange={(e) => setNoiseModel(e.target.value)}
+                    disabled={isFree}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-800 bg-[#070b13] text-qc-text font-mono text-xs focus:outline-none focus:border-qc-accent/50 focus:ring-1 focus:ring-qc-accent/20 disabled:opacity-40 disabled:cursor-not-allowed appearance-none transition-all"
+                  >
+                    <option value="Ideal">Ideal Simulator</option>
+                    <option value="Depolarizing">Depolarizing Channel</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Execute & Reset buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-lg bg-qc-accent text-slate-950 font-bold font-syne text-xs hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-qc-accent/10 hover:shadow-qc-accent/25"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-t-transparent border-slate-950 rounded-full animate-spin" />
+                    Executing Compiler...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 fill-current text-slate-950" />
+                    Execute Multi-Qubit QASM
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={loading}
+                className="px-4 py-2.5 rounded-lg border border-slate-800 text-qc-muted hover:text-qc-text hover:bg-slate-800/30 transition-all active:scale-[0.98] cursor-pointer"
+                title="Reset Workspace"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Right Column: Execution Console & Visualizations (5 Cols) */}
+        <div className="lg:col-span-5 space-y-6">
+          <div className="border border-slate-800 rounded-xl bg-slate-950/30 backdrop-blur-xl shadow-2xl overflow-hidden min-h-[465px] flex flex-col justify-between">
+            <div>
+              {/* Result Headers/Tabs */}
+              <div className="flex border-b border-slate-800 bg-[#0a0f1d]/50 p-1">
+                <button
+                  onClick={() => setActiveTab('visualizations')}
+                  className={`flex-1 py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    activeTab === 'visualizations'
+                      ? 'bg-slate-800/80 text-qc-accent border border-slate-700/50 shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <BarChart4 className="w-3.5 h-3.5" />
+                  Visualizations
+                </button>
+                <button
+                  onClick={() => setActiveTab('console')}
+                  className={`flex-1 py-2 px-3 rounded-lg font-mono text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    activeTab === 'console'
+                      ? 'bg-slate-800/80 text-qc-accent border border-slate-700/50 shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Terminal className="w-3.5 h-3.5" />
+                  Execution Console
+                </button>
+              </div>
+
+              {/* Tab Content container */}
+              <div className="p-5">
+                {/* 1. Visualizations Tab */}
+                {activeTab === 'visualizations' && (
+                  <div className="space-y-4">
+                    {/* Error display inside Visualizations */}
+                    {errorMsg && (
+                      <div className="p-4 border border-rose-900/30 bg-rose-950/10 rounded-xl flex items-start gap-3 text-rose-200 font-mono text-xs">
+                        <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-rose-400">Simulation Error</p>
+                          <p className="mt-1 text-rose-300/80 leading-relaxed whitespace-pre-wrap">{errorMsg}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Results probability bars */}
+                    {result && !errorMsg && (
+                      <div className="space-y-4 animate-fade-in">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-syne font-bold text-xs text-slate-300 tracking-wider uppercase">
+                            State Probabilities
+                          </h4>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            Total Outcomes: {Object.keys(result.probabilities).length}
+                          </span>
+                        </div>
+                        <div className="space-y-3.5">
+                          {Object.entries(result.probabilities)
+                            .sort((a, b) => b[1] - a[1]) // Sort descending
+                            .map(([state, probability]) => {
+                              const percentage = probability * 100;
+                              return (
+                                <div key={state} className="space-y-1.5 font-mono text-xs">
+                                  <div className="flex justify-between items-baseline">
+                                    <span className="font-semibold text-qc-accent text-sm">|{state}⟩</span>
+                                    <span className="text-slate-400">
+                                      {Math.round(probability * result.metadata!.shots)} shots ({percentage.toFixed(1)}%)
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-4 rounded-full bg-slate-950 border border-slate-900 overflow-hidden relative">
+                                    <div 
+                                      className="h-full bg-gradient-to-r from-qc-accent/30 to-qc-accent rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(0,212,170,0.2)]"
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Loading State for visualization */}
+                    {loading && (
+                      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+                        <div className="w-12 h-12 border-2 border-t-transparent border-qc-accent rounded-full animate-spin shadow-[0_0_15px_rgba(0,212,170,0.1)]" />
+                        <div className="font-mono text-xs">
+                          <p className="text-slate-200 font-bold uppercase tracking-widest animate-pulse">Running compiler...</p>
+                          <p className="text-slate-500 text-[10px] mt-1">Transpilation and simulation in progress</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Standard Placeholder */}
+                    {!loading && !result && !errorMsg && (
+                      <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                        <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-2xl">
+                          <Cpu className="w-10 h-10 text-slate-500 animate-pulse" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-slate-300">No active compiler simulation</p>
+                          <p className="text-xs text-slate-500 mt-1 max-w-[260px] leading-relaxed">
+                            Press "Execute Multi-Qubit QASM" to compile and view quantum state amplitudes.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Execution Console Tab */}
+                {activeTab === 'console' && (
+                  <div className="space-y-4 font-mono text-xs">
+                    {/* Live Compiler Steps */}
+                    <div className="p-3.5 bg-black/60 border border-slate-900 rounded-xl overflow-hidden h-[180px] flex flex-col justify-between">
+                      <div className="overflow-y-auto space-y-1 h-full pr-1 text-slate-300 leading-normal scrollbar-thin">
+                        {logs.length === 0 ? (
+                          <div className="text-slate-600 italic">Console idle. Awaiting compilation...</div>
+                        ) : (
+                          logs.map((logLine, idx) => (
+                            <div 
+                              key={idx} 
+                              className={
+                                logLine.includes('[ERROR]') ? 'text-rose-500 font-bold' :
+                                logLine.includes('[SUCCESS]') ? 'text-emerald-400 font-bold' :
+                                logLine.includes('[WARNING]') ? 'text-amber-500' : 'text-slate-300'
+                              }
+                            >
+                              {logLine}
+                            </div>
+                          ))
+                        )}
+                        {loading && (
+                          <div className="text-qc-accent animate-pulse flex items-center gap-1.5 mt-1 font-bold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-qc-accent animate-ping" />
+                            [SYSTEM] COMPILING TARGET SOURCE CIRCUITS...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Raw JSON Log Response */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-slate-500 text-[10px]">
+                        <span>TELEMETRY RAW RESPONSE</span>
+                        {rawResponse && <span>STATUS: 200 OK</span>}
+                      </div>
+                      
+                      {rawResponse ? (
+                        <pre className="p-3.5 bg-black/40 border border-slate-900 rounded-xl overflow-x-auto text-[10px] text-slate-400 max-h-[140px] leading-relaxed">
+                          {JSON.stringify(rawResponse, null, 2)}
+                        </pre>
+                      ) : (
+                        <div className="p-6 bg-black/20 border border-slate-900/50 rounded-xl text-center text-slate-600 text-[10px]">
+                          No telemetry response logs loaded.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-              <span className="text-[10px] text-qc-muted font-mono block">Select channel decay</span>
-            </div>
-          </div>
-
-          {/* CTA Actions */}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-2.5 rounded bg-qc-accent text-qc-bg font-semibold text-xs hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              Execute Simulation
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={loading}
-              className="px-4 py-2.5 rounded border border-qc-border text-qc-muted hover:text-qc-text hover:bg-qc-border/40 transition-colors active:scale-[0.98]"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
-
-        {/* Right Column: Results */}
-        <div className="p-5 border border-qc-border rounded bg-qc-surface/30 min-h-[420px] flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 border-b border-qc-border/50 pb-3 text-qc-muted">
-              <BarChart4 className="w-4 h-4" />
-              <h3 className="font-syne font-bold text-sm text-qc-text">Simulation Results</h3>
             </div>
 
-            {/* Error Message */}
-            {errorMsg && (
-              <div className="mt-4 p-4 border border-qc-danger/25 bg-qc-danger/5 rounded flex items-start gap-2.5 text-qc-text font-mono text-xs">
-                <AlertCircle className="w-4.5 h-4.5 text-qc-danger flex-shrink-0" />
-                <div>
-                  <p className="font-bold text-qc-danger">Execution Failure</p>
-                  <p className="mt-1 text-qc-muted leading-relaxed">{errorMsg}</p>
+            {/* Results Metadata footer */}
+            {result && !errorMsg && (
+              <div className="p-4 bg-[#0a0f1d]/30 border-t border-slate-800/80 grid grid-cols-2 gap-4 text-[10px] text-slate-400 font-mono leading-normal">
+                <div className="space-y-1">
+                  <p className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-qc-accent" />
+                    Qubits: <span className="text-slate-200 font-bold">{result.num_qubits}</span>
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <Settings className="w-3.5 h-3.5 text-qc-accent" />
+                    Depth: <span className="text-slate-200 font-bold">{result.circuit_depth}</span>
+                  </p>
+                </div>
+                <div className="space-y-1 text-right">
+                  <p className="flex items-center justify-end gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-qc-accent" />
+                    Execution: <span className="text-slate-200 font-bold">{result.execution_time_ms.toFixed(1)} ms</span>
+                  </p>
+                  <p className="flex items-center justify-end gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-qc-accent" />
+                    Noise: <span className="text-slate-200 font-bold">{result.metadata?.noise_model || noiseModel}</span>
+                  </p>
                 </div>
               </div>
             )}
-
-            {/* Polling / Queued Status */}
-            {loading && !result && (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="w-10 h-10 border-2 border-t-transparent border-qc-accent rounded-full animate-spin" />
-                <div className="text-center font-mono text-xs">
-                  <p className="text-qc-text font-bold uppercase tracking-wider">Job Status: {jobStatus}</p>
-                  {jobId && <p className="text-qc-muted text-[10px] mt-1">Job ID: {jobId}</p>}
-                  <p className="text-qc-muted text-[10px] mt-1">Polling results every 2 seconds...</p>
-                </div>
-              </div>
-            )}
-
-            {/* Completed Result bar chart */}
-            {result && renderCounts()}
-
-            {/* Default Placeholder */}
-            {!loading && !result && !errorMsg && (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
-                <Cpu className="w-12 h-12 text-qc-border mb-4" />
-                <p className="text-sm font-semibold text-qc-muted">No Simulation Active</p>
-                <p className="text-xs text-qc-muted/60 mt-1 max-w-[280px]">Submit an OpenQASM circuit from the editor to execute it and display output.</p>
-              </div>
-            )}
           </div>
-
-          {/* Result Metadata footer */}
-          {result && (
-            <div className="border-t border-qc-border/50 pt-4 mt-6 grid grid-cols-2 gap-4 text-[10px] text-qc-muted font-mono leading-relaxed">
-              <div>
-                <p>Qubits detected: <span className="text-qc-text font-semibold">{result.num_qubits}</span></p>
-                <p>Circuit depth: <span className="text-qc-text font-semibold">{result.circuit_depth}</span></p>
-              </div>
-              <div className="text-right">
-                <p>Execution time: <span className="text-qc-text font-semibold">{result.execution_time_ms.toFixed(1)} ms</span></p>
-                <p>Noise model: <span className="text-qc-text font-semibold">{noiseModel === 'ideal' ? 'Ideal' : noiseModel}</span></p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

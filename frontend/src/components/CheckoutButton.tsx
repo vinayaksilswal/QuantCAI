@@ -2,6 +2,8 @@ import React from 'react';
 
 interface CheckoutButtonProps {
   planName: string;
+  amount?: number;
+  currency?: string;
   className?: string;
   children?: React.ReactNode;
 }
@@ -9,10 +11,13 @@ interface CheckoutButtonProps {
 export function CheckoutButton({
   planName,
   className = '',
-  children
+  children,
+  amount,
+  currency
 }: CheckoutButtonProps) {
   const handleCheckout = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
+    console.log(`Checkout initiated for ${planName}`, amount, currency);
     
     // Redirect to the WarriorPlus checkout/purchase page
     const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/as/o/466941';

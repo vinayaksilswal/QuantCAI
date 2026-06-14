@@ -26,7 +26,9 @@ const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PqcScanner = lazy(() => import("./pages/PqcScanner"));
 const Enterprise = lazy(() => import("./pages/Enterprise"));
+const DeveloperConsole = lazy(() => import("./pages/DeveloperConsole"));
 import { AuthProvider } from "./context/AuthContext";
+import { SubscriptionProvider } from "./context/SubscriptionContext";
 
 import { useAuth } from "./hooks/useAuth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -55,8 +57,9 @@ const App = () => (
         <Toaster />
         <Sonner />
         <AuthProvider>
-          <ErrorBoundary>
-            <BrowserRouter>
+          <SubscriptionProvider>
+            <ErrorBoundary>
+              <BrowserRouter>
               <AIProvider>
                 {/* Global Animated Background - visible on all pages */}
                 <QuantumBackground />
@@ -84,6 +87,7 @@ const App = () => (
                       <Route path="/signup" element={<Login />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><Profile /></ProtectedRoute>} />
+                      <Route path="/developer" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><DeveloperConsole /></ProtectedRoute>} />
                       <Route path="/pqc-scanner" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
                       <Route path="/enterprise/pqc-scanner" element={<ProtectedRoute roles={["root", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
                       <Route path="/sandbox" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />
@@ -97,8 +101,9 @@ const App = () => (
                 <TeachingOverlay />
                 <PaymentAutoTrigger />
               </AIProvider>
-            </BrowserRouter>
-          </ErrorBoundary>
+              </BrowserRouter>
+            </ErrorBoundary>
+          </SubscriptionProvider>
         </AuthProvider>
 
       </TooltipProvider>

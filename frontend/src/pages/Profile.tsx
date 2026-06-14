@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { api, PageProgress } from '@/lib/api';
-import { BookOpen, Bell, Shield, User as UserIcon, Calendar, AlertCircle, LayoutDashboard, Key, CreditCard, Settings as SettingsIcon } from 'lucide-react';
+import { BookOpen, Bell, Shield, User as UserIcon, Calendar, AlertCircle, LayoutDashboard, Key, CreditCard, Settings as SettingsIcon, Terminal } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useNavigate } from 'react-router-dom';
 
 import { OverviewTab } from '@/components/dashboard/OverviewTab';
 import { ApiKeysTab } from '@/components/dashboard/ApiKeysTab';
@@ -16,6 +17,7 @@ import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { UpgradeModal } from '@/components/UpgradeModal';
 
 const Profile = () => {
+  const navigate = useNavigate();
   const { user, role, session, subscriptionPlan } = useAuth();
   const [progress, setProgress] = useState<PageProgress[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -86,6 +88,7 @@ const Profile = () => {
             {[
               { id: 'account', label: 'Account Profile', icon: UserIcon },
               { id: 'overview', label: 'Workspace Overview', icon: LayoutDashboard },
+              { id: 'developer', label: 'Developer Console', icon: Terminal, action: () => navigate('/developer') },
               { id: 'api-keys', label: 'API Keys', icon: Key },
               { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
               { id: 'settings', label: 'Settings', icon: SettingsIcon },
@@ -95,7 +98,7 @@ const Profile = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveSection(tab.id)}
+                  onClick={() => tab.action ? tab.action() : setActiveSection(tab.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-mono tracking-tight font-semibold transition-all duration-300 ${
                     isActive 
                       ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-l-4 border-blue-500 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.15)] bg-slate-850/60' 

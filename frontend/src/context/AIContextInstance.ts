@@ -17,6 +17,12 @@ export type AIContextType = {
     ackCircuitAction: (id: string) => void;
     visualizerActions: { id: string; gate: string }[];
     ackVisualizerAction: (id: string) => void;
+    clientContext: {
+        contextName: string | null;
+        metadata: any;
+    };
+    updateClientContext: (contextName: string | null, metadata: any) => void;
 };
 
 export const AIContext = createContext<AIContextType | undefined>(undefined);
+

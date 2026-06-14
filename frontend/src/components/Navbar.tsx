@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket, Shield } from 'lucide-react';
+import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket, Shield, Terminal } from 'lucide-react';
 import { LogoProcessor } from './LogoProcessor';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -203,6 +203,12 @@ export const Navbar = () => {
                     Profile
                   </Button>
                 </Link>
+                <Link to="/developer">
+                  <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
+                    <Terminal className="h-4 w-4" />
+                    Developer
+                  </Button>
+                </Link>
                 <Button onClick={signOut} variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
                   <LogOut className="h-4 w-4" />
                   Log Out
@@ -372,6 +378,12 @@ export const Navbar = () => {
                       <Button variant="ghost" className="w-full text-blue-200 hover:text-white justify-start">
                         <User className="h-5 w-5 mr-2" />
                         Profile
+                      </Button>
+                    </Link>
+                    <Link to="/developer" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="ghost" className="w-full text-blue-200 hover:text-white justify-start">
+                        <Terminal className="h-5 w-5 mr-2" />
+                        Developer
                       </Button>
                     </Link>
                     <Button

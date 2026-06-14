@@ -4,13 +4,61 @@ import { CheckoutButton } from '@/components/CheckoutButton';
 
 export function UpgradeModal() {
   const [isOpen, setIsOpen] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
+
   useEffect(() => {
-    const handleShowModal = () => setIsOpen(true);
+    const handleShowModal = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setReason(detail?.reason || null);
+      setIsOpen(true);
+    };
     window.addEventListener('show-upgrade-modal', handleShowModal);
     return () => {
       window.removeEventListener('show-upgrade-modal', handleShowModal);
     };
   }, []);
+
+  const getReasonInfo = () => {
+    switch (reason) {
+      case 'qubits':
+        return {
+          highlight: "Qubits capacity limit exceeded",
+          desc: "You attempted to use more than 5 qubits on the visual canvas. Upgrade to Pro to simulate up to 30 qubits."
+        };
+      case 'depth':
+        return {
+          highlight: "Circuit depth limit reached",
+          desc: "You attempted to design a circuit deeper than 15 gates. Upgrade to Pro for unlimited circuit depth."
+        };
+      case 'shots':
+        return {
+          highlight: "Simulation shots limit exceeded",
+          desc: "You requested more than 1,024 shots. Upgrade to Pro to execute up to 65,536 shots per run."
+        };
+      case 'noise':
+        return {
+          highlight: "Noise model locked",
+          desc: "You selected an advanced noise model (thermal/depolarizing). Upgrade to Pro to simulate realistic quantum hardware noise."
+        };
+      case 'chats':
+        return {
+          highlight: "Daily AI messages exceeded",
+          desc: "You used all 10 free daily chats. Upgrade to Pro for unlimited, context-aware AI queries with active workspace integration."
+        };
+      case 'pqc':
+        return {
+          highlight: "Monthly PQC scans limit reached",
+          desc: "You completed 5 scans this month. Upgrade to Pro for up to 100 domain scans and downloadable compliance reports."
+        };
+      default:
+        return {
+          highlight: "Unlock premium quantum tools",
+          desc: "Upgrade your workspace to Pro for 25x more capacity, advanced noise simulation, PQC infrastructure tools, and personalized AI training."
+        };
+    }
+  };
+
+  const reasonInfo = getReasonInfo();
 
   if (!isOpen) return null;
 
@@ -44,8 +92,14 @@ export function UpgradeModal() {
           </div>
         </div>
 
+        {reasonInfo.highlight && (
+          <div className="mb-4 p-2.5 rounded bg-qc-accent/10 border border-qc-accent/20 text-qc-accent text-xs font-mono font-bold uppercase tracking-wider text-center">
+            🔒 {reasonInfo.highlight}
+          </div>
+        )}
+
         <p className="text-sm text-qc-muted mb-6 leading-relaxed">
-          Upgrade your workspace to Pro for 25x more capacity, advanced noise simulation, PQC infrastructure tools, and personalized AI training.
+          {reasonInfo.desc}
         </p>
 
         {/* Features List */}
