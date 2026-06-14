@@ -2,8 +2,9 @@
  * API Client for QuantCAI Backend
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://quantcai.onrender.com';
-export const API_BASE = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const API_URL = isLocal ? '' : (import.meta.env.VITE_API_URL || 'https://quantcai.onrender.com');
+export const API_BASE = API_URL && API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
 
 let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
@@ -183,13 +184,25 @@ export const circuitApi = {
 };
 
 export const adminApi = {
-  getUsers: (params?: any) => { const url = new URL('/admin/users', API_BASE); if (params) Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null) url.searchParams.set(k, String(v)); }); return fetchApi<any>(url.toString()); },
+  getUsers: (params?: any) => { 
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null) as any).toString() : '';
+    return fetchApi<any>(`/admin/users${qs}`); 
+  },
   getUser: (userId: number) => fetchApi<User>(`/admin/users/${userId}`),
   blockUser: (userId: number) => fetchApi(`/admin/users/${userId}/block`, { method: 'POST' }),
   unblockUser: (userId: number) => fetchApi(`/admin/users/${userId}/unblock`, { method: 'POST' }),
   setUserRole: (userId: number, role: string) => fetchApi(`/admin/users/${userId}/role?role=${role}`, { method: 'POST' }),
-  getLogs: (params?: any) => { const url = new URL('/admin/logs', API_BASE); if (params) Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null) url.searchParams.set(k, String(v)); }); return fetchApi<any>(url.toString()); },
-  getErrorLogs: (hours?: number, limit?: number) => { const url = new URL('/admin/logs/errors', API_BASE); if (hours) url.searchParams.set('hours', String(hours)); if (limit) url.searchParams.set('limit', String(limit)); return fetchApi<any>(url.toString()); },
+  getLogs: (params?: any) => { 
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined && v !== null) as any).toString() : '';
+    return fetchApi<any>(`/admin/logs${qs}`); 
+  },
+  getErrorLogs: (hours?: number, limit?: number) => { 
+    const params: any = {};
+    if (hours) params.hours = String(hours);
+    if (limit) params.limit = String(limit);
+    const qs = Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : '';
+    return fetchApi<any>(`/admin/logs/errors${qs}`); 
+  },
   getMetrics: () => fetchApi('/admin/metrics'),
   getStats: () => fetchApi<SystemStats>('/admin/stats'),
 };

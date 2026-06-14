@@ -7,6 +7,23 @@ export default defineConfig({
   server: {
     host: "::",
     port: 5173,
+    proxy: {
+      '/api': {
+        target: 'https://quantcai.onrender.com',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/admin': {
+        target: 'https://quantcai.onrender.com',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/health': {
+        target: 'https://quantcai.onrender.com',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   plugins: [react()],
   resolve: {

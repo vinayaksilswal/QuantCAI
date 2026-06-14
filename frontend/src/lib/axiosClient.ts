@@ -3,8 +3,9 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 
 // Support VITE_API_URL as base URL
-const API_URL = import.meta.env.VITE_API_URL || '';
-const baseURL = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+const API_URL = isLocal ? '' : (import.meta.env.VITE_API_URL || '');
+const baseURL = API_URL && API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
 
 export const axiosClient = axios.create({
   baseURL,
