@@ -27,7 +27,7 @@ async def mock_astream(*args, **kwargs):
 
 @pytest.mark.asyncio
 @patch("routers.quantai.redis_client", new_callable=AsyncMock)
-@patch("routers.quantai.llm", new_callable=AsyncMock)
+@patch("routers.quantai.llm_with_tools", new_callable=AsyncMock)
 async def test_quantai_copilot_auth_and_billing(mock_llm, mock_redis):
     # Mock LLM stream
     mock_llm.astream = MagicMock(side_effect=mock_astream)
@@ -183,7 +183,7 @@ async def test_quantai_copilot_auth_and_billing(mock_llm, mock_redis):
 
 @pytest.mark.asyncio
 @patch("routers.quantai.redis_client", new_callable=AsyncMock)
-@patch("routers.quantai.llm", new_callable=AsyncMock)
+@patch("routers.quantai.llm_with_tools", new_callable=AsyncMock)
 async def test_quantai_copilot_multi_agent_routing(mock_llm, mock_redis):
     # Mock LLM stream
     mock_llm.astream = MagicMock(side_effect=mock_astream)

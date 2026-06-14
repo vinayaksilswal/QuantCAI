@@ -1,5 +1,6 @@
 import { usePageTracking } from '@/hooks/usePageTracking';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +14,35 @@ declare global {
 
 const QuantumComputing = () => {
   usePageTracking('quantum-computing');
+  const navigate = useNavigate();
+
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizCorrect, setQuizCorrect] = useState<boolean | null>(null);
+
+  const quiz = {
+    question: "What defines a valid quantum state vector?",
+    options: [
+      "The entries are real numbers that sum to 1.",
+      "The entries are complex numbers where the sum of their absolute values squared is 1.",
+      "The vector can be any set of complex numbers.",
+      "The matrix is unitary."
+    ],
+    correctIndex: 1
+  };
+
+  const handleSelectOption = (index: number) => {
+    if (quizSubmitted) return;
+    setSelectedOption(index);
+  };
+
+  const handleSubmitQuiz = () => {
+    if (selectedOption === null || quizSubmitted) return;
+    const correct = selectedOption === quiz.correctIndex;
+    setQuizCorrect(correct);
+    setQuizSubmitted(true);
+  };
+
   useEffect(() => {
     // Load MathJax
     const mathJaxScript = document.createElement('script');
@@ -128,124 +158,85 @@ const QuantumComputing = () => {
               </Card>
             </section>
 
-            <section>
-              <div className="flex items-center mb-6">
-                <Calculator className="h-8 w-8 text-yellow-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">Unitary Operations</h2>
+
+          </div>
+
+          {/* Quiz Section */}
+          <div className="mt-16 pt-8 border-t border-slate-800">
+            <h3 className="text-2xl font-bold text-white mb-6">Concept Check</h3>
+            <Card className="bg-slate-900/50 border-slate-800 shadow-2xl">
+              <div className="p-6 space-y-5">
+                <p className="text-sm font-semibold text-slate-200">
+                  {quiz.question}
+                </p>
+
+                <div className="space-y-2">
+                  {quiz.options.map((opt, oIdx) => {
+                    const isSelected = selectedOption === oIdx;
+                    return (
+                      <button
+                        key={oIdx}
+                        onClick={() => handleSelectOption(oIdx)}
+                        disabled={quizSubmitted}
+                        className={`w-full text-left text-xs p-3.5 rounded-xl border transition-all ${
+                          isSelected 
+                            ? "bg-blue-600/20 border-blue-500 text-white font-medium" 
+                            : "bg-slate-950/50 border-slate-800 text-slate-400 hover:bg-slate-900/60 hover:text-white hover:border-slate-700"
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {quizSubmitted ? (
+                  <div className={`p-4 rounded-xl border flex gap-3 text-xs leading-relaxed ${
+                    quizCorrect 
+                      ? "bg-emerald-950/20 border-emerald-900/50 text-emerald-300" 
+                      : "bg-rose-950/20 border-rose-900/50 text-rose-300"
+                  }`}>
+                    {quizCorrect ? (
+                      <div className="w-full flex items-center justify-between">
+                        <div className="flex gap-3 items-center">
+                          <svg className="w-5 h-5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <p className="font-bold">Correct!</p>
+                            <p className="mt-0.5">Excellent understanding of Quantum States.</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => navigate('/learn/qubits')}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors"
+                        >
+                          Next: Advanced Qubits (Pro) <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-3">
+                        <svg className="w-5 h-5 text-rose-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                          <p className="font-bold">Incorrect</p>
+                          <p className="mt-0.5">Review the Quantum State Vectors section to try again.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleSubmitQuiz}
+                    disabled={selectedOption === null}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/10 disabled:opacity-50"
+                  >
+                    Submit Answer
+                  </button>
+                )}
               </div>
-              <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed">
-                    In quantum mechanics, operations on quantum states are described by unitary transformations, represented by 
-                    unitary matrices. These operations preserve the normalization of the quantum state and are reversible. A unitary 
-                    matrix U has the property that U†U = I, where U† is the conjugate transpose.
-                  </p>
-                </CardContent>
-              </Card>
-            </section>
-
-            <section>
-              <div className="flex items-center mb-6">
-                <Code className="h-8 w-8 text-blue-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">Qiskit Examples</h2>
-              </div>
-              <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed mb-6">Starting with Qiskit:</p>
-                  
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold text-blue-400 mb-3">Installation</h4>
-                    <div className="bg-slate-900 p-4 rounded-lg">
-                      <pre className="text-green-400 text-sm">
-{`pip install qiskit
-pip install matplotlib
-pip install numpy`}
-                      </pre>
-                    </div>
-                  </div>
-
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold text-blue-400 mb-3">Define State Vectors</h4>
-                    <div className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
-                      <pre className="text-green-400 text-sm">
-{`from qiskit.quantum_info import Statevector
-from qiskit.visualization import plot_histogram
-from numpy import sqrt
-
-# Define state vectors
-u = Statevector([1 / sqrt(2), 1 / sqrt(2)])
-v = Statevector([(1 + 2j) / 3, -2 / 3])
-w = Statevector([1 / 3, 2 / 3])
-
-# Display state vectors
-display(u.draw("latex"))
-display(v.draw("text"))
-# [0.33333333+0.66666667j, -0.66666667+0.j]
-
-# Check validity
-display(u.is_valid())  # True
-display(w.is_valid())  # False
-
-# Measure
-v.draw("latex")
-v.measure()  # (1, Statevector([0.+0.j, -1.+0.j], dims=(2,)))`}
-                      </pre>
-                    </div>
-                  </div>
-
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold text-blue-400 mb-3">Define Operators</h4>
-                    <div className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
-                      <pre className="text-green-400 text-sm">
-{`from qiskit.quantum_info import Operator
-
-X = Operator([[0, 1], [1, 0]])
-Y = Operator([[0, -1.0j], [1.0j, 0]])
-Z = Operator([[1, 0], [0, -1]])
-H = Operator([[1 / sqrt(2), 1 / sqrt(2)], [1 / sqrt(2), -1 / sqrt(2)]])
-S = Operator([[1, 0], [0, 1.0j]])
-T = Operator([[1, 0], [0, (1 + 1.0j) / sqrt(2)]])`}
-                      </pre>
-                    </div>
-                  </div>
-
-                  <div className="mb-6">
-                    <h4 className="text-lg font-semibold text-blue-400 mb-3">Perform Operations</h4>
-                    <div className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
-                      <pre className="text-green-400 text-sm">
-{`v = Statevector([1, 0])
-v = v.evolve(H)
-v = v.evolve(T)
-v = v.evolve(H)
-v = v.evolve(T)
-v = v.evolve(Z)
-v.draw("text")  # [0.85355339+0.35355339j, -0.35355339+0.1464466j]`}
-                      </pre>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="text-lg font-semibold text-blue-400 mb-3">Create Circuits</h4>
-                    <div className="bg-slate-900 p-4 rounded-lg overflow-x-auto">
-                      <pre className="text-green-400 text-sm">
-{`from qiskit import QuantumCircuit
-circuit = QuantumCircuit(1)
-circuit.h(0)
-circuit.t(0)
-circuit.h(0)
-circuit.t(0)
-circuit.z(0)
-circuit.draw()
-
-ket0 = Statevector([1, 0])
-v = ket0.evolve(circuit)
-v.draw("text")  # [0.85355339+0.35355339j, -0.35355339+0.1464466j]`}
-                      </pre>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
+            </Card>
           </div>
         </div>
       </div>

@@ -12,6 +12,8 @@ from sqlalchemy import select
 import models as DBmodels
 from core.database import get_db
 from security import redis_client, get_current_user_or_api_key
+from tier_limits import get_user_tier
+from langchain_core.tools import tool
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -26,13 +28,46 @@ llm = ChatGoogleGenerativeAI(
     temperature=0.2
 )
 
+@tool
+def open_tool(tool_name: str):
+    """Opens a tool or page in the application. Allowed values for tool_name: 'quantum-states', 'circuit-builder'"""
+    pass
+
+@tool
+def manage_circuit(action: str, params: dict):
+    """Manages the multi-qubit circuit builder. 
+    action can be 'add_gate', 'clear', or 'run'.
+    For 'add_gate', params should be {'gate': 'h', 'qubit': 0} or {'gate': 'cx', 'control': 0, 'target': 1}.
+    For 'clear' and 'run', params can be {}.
+    """
+    pass
+
+@tool
+def navigate_to_learn(section: str):
+    """Navigates to the learn page section."""
+    pass
+
+@tool
+def start_tutorial(tutorial_id: str):
+    """Starts an interactive tutorial."""
+    pass
+
+@tool
+def apply_gate_to_visualizer(gate: str):
+    """Applies a quantum gate to the single-qubit visualizer."""
+    pass
+
+llm_with_tools = llm.bind_tools([open_tool, manage_circuit, navigate_to_learn, start_tutorial, apply_gate_to_visualizer])
+
 # System prompts for agents
 TUTOR_AGENT_PROMPT = (
     "You are the QuantCAI Pedagogical Tutor Agent. You teach quantum computing through Socratic dialogue.\n"
     "Simplify highly technical terms and use conceptual analogies.\n"
     "Do NOT write complex enterprise code.\n"
     "If the user is on a quiz question, review their state and help guide them to the correct answer without just giving it away.\n"
-    "Always end with a simple follow-up question checking understanding."
+    "Always end with a simple follow-up question checking understanding.\n"
+    "You have access to tools to control the UI. Use them to open tools, build circuits, or navigate. "
+    "For example, to build a Bell State, use 'open_tool' to open 'circuit-builder', then use 'manage_circuit' multiple times to clear, add an 'h' gate, add a 'cx' gate, and run."
 )
 
 COMPILATION_AGENT_PROMPT = (
@@ -79,27 +114,31 @@ async def quantai_chat_endpoint(
     Validates and atomically deducts credits ($0.003/turn) from the user's Redis cache balance.
     """
     # 1. Enforce credit/token check
-    wallet_cache_key = f"developer:wallet:{current_user.id}"
-    balance_val = await redis_client.get(wallet_cache_key)
-    
-    if balance_val is None:
-        wallet = await get_or_create_wallet_initial(db, current_user.id)
-        balance = float(wallet.balance_credits)
-        await redis_client.set(wallet_cache_key, str(balance))
-    else:
-        balance = float(balance_val)
+    tier = await get_user_tier(db, current_user.id)
+    request.state.tier = tier
 
-    if balance <= 0:
-        await redis_client.set(f"developer:wallet_blocked:{current_user.id}", "1")
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Insufficient funds. Your wallet balance is empty or below the safety threshold."
-        )
+    if tier not in ("PRO", "ENTERPRISE"):
+        wallet_cache_key = f"developer:wallet:{current_user.id}"
+        balance_val = await redis_client.get(wallet_cache_key)
+        
+        if balance_val is None:
+            wallet = await get_or_create_wallet_initial(db, current_user.id)
+            balance = float(wallet.balance_credits)
+            await redis_client.set(wallet_cache_key, str(balance))
+        else:
+            balance = float(balance_val)
 
-    # Atomically deduct cost ($0.003 per turn)
-    new_balance = await redis_client.incrbyfloat(wallet_cache_key, -0.003)
-    if new_balance <= 0:
-        await redis_client.set(f"developer:wallet_blocked:{current_user.id}", "1")
+        if balance <= 0:
+            await redis_client.set(f"developer:wallet_blocked:{current_user.id}", "1")
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Insufficient funds. Your wallet balance is empty or below the safety threshold."
+            )
+
+        # Atomically deduct cost ($0.003 per turn)
+        new_balance = await redis_client.incrbyfloat(wallet_cache_key, -0.003)
+        if new_balance <= 0:
+            await redis_client.set(f"developer:wallet_blocked:{current_user.id}", "1")
 
     # 2. Select Specialized Agent based on context
     context_name = body.context or "learn"
@@ -134,7 +173,6 @@ async def quantai_chat_endpoint(
                 messages.append(AIMessage(content=turn["content"]))
 
         # Build context prompt
-        tier = getattr(request.state, "tier", "FREE")
         if tier == "FREE":
             context_payload = f"User message: {body.message}"
         else:
@@ -146,10 +184,13 @@ async def quantai_chat_endpoint(
 
         full_response = ""
         try:
-            async for chunk in llm.astream(messages):
+            async for chunk in llm_with_tools.astream(messages):
                 if chunk.content:
                     full_response += chunk.content
                     yield f"data: {json.dumps({'type': 'text', 'content': chunk.content})}\n\n"
+                if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                    for tc in chunk.tool_calls:
+                        yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
         except Exception as e:
             logger.error(f"AI Stream processing failed: {e}")
             yield f"data: {json.dumps({'type': 'text', 'content': 'I encountered an issue generating a response.'})}\n\n"

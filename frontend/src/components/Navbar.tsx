@@ -9,6 +9,9 @@ import { useAuth } from '@/hooks/useAuth';
 const learningPaths = [
   { path: '/learn', label: 'Learning Hub', icon: BookOpen, description: 'Start your journey' },
   { path: '/quantum-computing', label: 'Quantum Basics', icon: Atom, description: 'Fundamentals' },
+  { path: '/learn/qubits', label: 'Module 1: Qubits', icon: Target, description: 'Pro Curriculum' },
+  { path: '/learn/gates', label: 'Module 2: Gates', icon: Zap, description: 'Pro Curriculum' },
+  { path: '/learn/pqc', label: 'Module 3: PQC', icon: Shield, description: 'Pro Curriculum' },
 ];
 
 export const Navbar = () => {
@@ -64,7 +67,7 @@ export const Navbar = () => {
             >
               <button
                 onClick={handleLearnClick}
-                className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 relative ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states')
+                className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 relative ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states') || location.pathname.startsWith('/learn/')
                   ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30'
                   : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-100 hover:from-blue-500/40 hover:to-purple-500/40 hover:text-white border border-blue-400/30'
                   }`}
@@ -203,12 +206,7 @@ export const Navbar = () => {
                     Profile
                   </Button>
                 </Link>
-                <Link to="/developer">
-                  <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
-                    <Terminal className="h-4 w-4" />
-                    Developer
-                  </Button>
-                </Link>
+
                 <Button onClick={signOut} variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
                   <LogOut className="h-4 w-4" />
                   Log Out
@@ -246,7 +244,7 @@ export const Navbar = () => {
               <div className="space-y-2">
                 <button
                   onClick={() => setIsLearnOpen(!isLearnOpen)}
-                  className={`w-full px-4 py-3 rounded-lg transition-all flex items-center justify-between ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states')
+                  className={`w-full px-4 py-3 rounded-lg transition-all flex items-center justify-between ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states') || location.pathname.startsWith('/learn/')
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg'
                     : 'bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-400/30'
                     }`}
@@ -380,12 +378,7 @@ export const Navbar = () => {
                         Profile
                       </Button>
                     </Link>
-                    <Link to="/developer" onClick={() => setIsMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full text-blue-200 hover:text-white justify-start">
-                        <Terminal className="h-5 w-5 mr-2" />
-                        Developer
-                      </Button>
-                    </Link>
+
                     <Button
                       onClick={() => { signOut(); setIsMenuOpen(false); }}
                       variant="ghost"

@@ -10,6 +10,9 @@ import Index from "./pages/Index";
 // Lazy load pages
 const Learn = lazy(() => import("./pages/Learn"));
 const QuantumComputing = lazy(() => import("./pages/QuantumComputing"));
+const LearnQubits = lazy(() => import("./pages/LearnQubits"));
+const LearnGates = lazy(() => import("./pages/LearnGates"));
+const LearnPQC = lazy(() => import("./pages/LearnPQC"));
 const QuantumStates = lazy(() => import("./pages/QuantumStates"));
 const Tools = lazy(() => import("./pages/Tools"));
 const CircuitBuilder = lazy(() => import("./pages/CircuitBuilder"));
@@ -26,7 +29,6 @@ const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PqcScanner = lazy(() => import("./pages/PqcScanner"));
 const Enterprise = lazy(() => import("./pages/Enterprise"));
-const DeveloperConsole = lazy(() => import("./pages/DeveloperConsole"));
 import { AuthProvider } from "./context/AuthContext";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 
@@ -75,6 +77,9 @@ const App = () => (
                       <Route path="/quantum-simulator" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />
                       <Route path="/learn" element={<Learn />} />
                       <Route path="/quantum-computing" element={<QuantumComputing />} />
+                      <Route path="/learn/qubits" element={<LearnQubits />} />
+                      <Route path="/learn/gates" element={<LearnGates />} />
+                      <Route path="/learn/pqc" element={<LearnPQC />} />
                       <Route path="/quantum-states" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumStates /></ProtectedRoute>} />
                       <Route path="/tools" element={<Tools />} />
                       <Route path="/circuit-builder" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><CircuitBuilder /></ProtectedRoute>} />
@@ -87,7 +92,6 @@ const App = () => (
                       <Route path="/signup" element={<Login />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><Profile /></ProtectedRoute>} />
-                      <Route path="/developer" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><DeveloperConsole /></ProtectedRoute>} />
                       <Route path="/pqc-scanner" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
                       <Route path="/enterprise/pqc-scanner" element={<ProtectedRoute roles={["root", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
                       <Route path="/sandbox" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />

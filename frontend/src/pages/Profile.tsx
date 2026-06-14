@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useNavigate } from 'react-router-dom';
 
 import { OverviewTab } from '@/components/dashboard/OverviewTab';
-import { ApiKeysTab } from '@/components/dashboard/ApiKeysTab';
+import { DeveloperConsoleTab } from '@/components/dashboard/DeveloperConsoleTab';
 import { BillingTab } from '@/components/dashboard/BillingTab';
 import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { UpgradeModal } from '@/components/UpgradeModal';
@@ -88,8 +88,7 @@ const Profile = () => {
             {[
               { id: 'account', label: 'Account Profile', icon: UserIcon },
               { id: 'overview', label: 'Workspace Overview', icon: LayoutDashboard },
-              { id: 'developer', label: 'Developer Console', icon: Terminal, action: () => navigate('/developer') },
-              { id: 'api-keys', label: 'API Keys', icon: Key },
+              { id: 'developer', label: 'Developer Console', icon: Terminal },
               { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
               { id: 'settings', label: 'Settings', icon: SettingsIcon },
             ].map((tab) => {
@@ -287,9 +286,9 @@ const Profile = () => {
               </div>
             )}
 
-            {activeSection === 'api-keys' && (
+            {activeSection === 'developer' && (
               <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-850/80 rounded-2xl animate-fade-in shadow-2xl">
-                <ApiKeysTab />
+                <DeveloperConsoleTab />
               </div>
             )}
 
