@@ -3,11 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { Button } from '@/components/ui/button';
 import {
-  ArrowRight, Atom, Rocket, Settings,
-  Terminal, ShieldCheck, Check,
-  Landmark, Globe, Lock, Zap,
+  Brain, Shield, Rocket, ArrowRight, Zap, Code2, Server, Globe2, ShieldCheck, Cpu,
+  Atom, Settings, Terminal, Check, Landmark, Globe, Lock
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
+import { PricingSection } from '@/components/landing/PricingSection';
 import { Footer } from '@/components/Footer';
 import { NewsletterForm } from '@/components/NewsletterForm';
 import { LogoProcessor } from '@/components/LogoProcessor';
@@ -389,74 +389,7 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════
           NEW: PRICING — 3 tiers, anchored to Pro
           ═══════════════════════════════════════════════════════════════ */}
-      <section id="pricing" className="py-20 sm:py-28 px-6 bg-white/[0.03] backdrop-blur-sm relative z-10">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <p className="text-qc-accent text-xs font-mono uppercase tracking-widest mb-3 drop-shadow-sm">
-              Pricing
-            </p>
-            <h2 className="font-bold text-2xl sm:text-3xl text-white mb-3 drop-shadow-md">
-              Start free. Scale when you're ready.
-            </h2>
-            <p className="text-blue-200 text-sm max-w-lg mx-auto drop-shadow-sm">
-              No credit card required for Free tier. All plans include API access to both
-              quantum simulation and PQC scanning.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <PlanCard
-              name="Free"
-              price="₹0"
-              features={[
-                'Basic access to Learning Hub',
-                'Standard single-qubit simulations',
-                '20 API calls / day',
-                'Max 1,024 shots',
-                '3 PQC domain scans / mo',
-                'Ideal noise simulator only',
-                'Community support',
-              ]}
-              cta="Start Free"
-              ctaHref="/signup"
-            />
-            <PlanCard
-              name="Pro"
-              price="₹2,400"
-              period="month"
-              badge="Most Popular"
-              highlighted
-              features={[
-                '500 API calls / day',
-                'Max 65,536 shots + noise models',
-                '50 PQC domain scans / mo',
-                'Thermal & Depolarizing noise',
-                'AI Tutor access (QuantAI)',
-                'Standard static PDF CBOM export',
-                'Priority email support',
-              ]}
-              cta="Upgrade to Pro"
-              onClick={handleProClick}
-              loading={false}
-            />
-            <PlanCard
-              name="Enterprise"
-              price="₹24,999"
-              period="month"
-              features={[
-                'Sovereign PQC compliance suite',
-                'CycloneDX 1.6 automated CBOM generation',
-                'Internal network & port scanning',
-                'LQM remediation & vulnerability mapping',
-                'SSO + multi-user organization console',
-                'Dedicated SLA & consultative procurement',
-              ]}
-              cta="Contact Sales"
-              ctaHref="mailto:sales@quantcai.in"
-            />
-          </div>
-        </div>
-      </section>
+      <PricingSection />
 
       {/* ═══════════════════════════════════════════════════════════════
           NEW: TRUST BADGES

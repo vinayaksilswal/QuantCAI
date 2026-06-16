@@ -78,6 +78,7 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
         'NOISE_MODEL_RESTRICTED': 'noise',
         'AI_LIMIT_EXCEEDED': 'chats',
         'PQC_LIMIT_EXCEEDED': 'pqc',
+        'RUN_LIMIT_EXCEEDED': 'runs',
       };
       const modalReason = reason ? reasonMap[reason] || null : null;
       window.dispatchEvent(

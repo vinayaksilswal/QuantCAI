@@ -10,7 +10,9 @@ const CheckIcon = () => (
 /* ── Types ─────────────────────────────────────────────────────────── */
 interface PlanProps {
   name: string;
-  price: string;
+  price: string | React.ReactNode;
+  originalPrice?: string;
+  discountPercentage?: string;
   period?: string;
   badge?: string;
   features: string[];
@@ -21,7 +23,7 @@ interface PlanProps {
   loading?: boolean;
 }
 
-const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick, highlighted, loading }: PlanProps) => (
+const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badge, features, cta, ctaHref, onClick, highlighted, loading }: PlanProps) => (
   <div className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col transition-all duration-300 backdrop-blur-xl
     ${highlighted
       ? 'border-teal-400/40 bg-white/10 shadow-2xl shadow-teal-500/20 hover:border-teal-400/60'
@@ -35,6 +37,16 @@ const PlanCard = ({ name, price, period, badge, features, cta, ctaHref, onClick,
     )}
     <div className="mb-6">
       <h3 className="font-bold text-lg text-white mb-1 drop-shadow-md">{name}</h3>
+      {originalPrice && (
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-slate-400 line-through text-sm">{originalPrice}</span>
+          {discountPercentage && (
+            <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-[10px] font-bold tracking-wider uppercase">
+              {discountPercentage}
+            </span>
+          )}
+        </div>
+      )}
       <div className="flex items-baseline gap-1">
         <span className="font-extrabold text-3xl text-white drop-shadow-md">{price}</span>
         {period && <span className="text-blue-300/70 text-sm">/{period}</span>}
@@ -114,33 +126,36 @@ export const PricingSection = () => {
         <div className="grid md:grid-cols-3 gap-6">
           <PlanCard
             name="Free Tier"
-            price="₹0"
+            price="$0"
             features={[
-              'Basic access to Learning Hub',
-              'Standard single-qubit simulations',
-              '20 API calls / day',
-              'Max 1,024 shots',
-              '3 PQC domain scans / mo',
-              'Ideal noise simulator only',
-              'Community support',
+              'Basic Learning Hub & Interactive Quantum States',
+              'Quantum Circuit Builder (Up to 3 Qubits)',
+              'Ideal Quantum Simulator (Maximum 1,024 Shots)',
+              '10 daily circuit simulation runs',
+              '3 Post-Quantum Cryptography Domain Scans per month',
+              '10 Developer API requests per day',
+              'Community forum support',
             ]}
             cta="Start Free"
             ctaHref="/signup"
           />
           <PlanCard
             name="Pro Tier"
-            price="₹2,400"
+            price="$27"
+            originalPrice="$99"
+            discountPercentage="72% OFF"
             period="month"
             badge="Most Popular"
             highlighted
             features={[
-              '500 API calls / day',
-              'Max 65,536 shots + noise models',
-              '50 PQC domain scans / mo',
-              'Thermal & Depolarizing noise',
-              'AI Tutor access (QuantAI)',
-              'Standard static PDF CBOM export',
-              'Priority email support',
+              'Full Interactive States & Quantum Circuit Builder (Up to 15 Qubits)',
+              'Advanced Quantum Simulator (Maximum 65,536 Shots)',
+              'Thermal & Depolarizing Quantum Noise Models',
+              '500 daily circuit simulation runs',
+              '50 Post-Quantum Cryptography Domain Scans per month',
+              'Unlimited Artificial Intelligence Tutor access (QuantAI)',
+              '500 Developer API requests per day',
+              'Static Cryptographic Bill of Materials (CBOM) Export & Priority Support',
             ]}
             cta="Upgrade to Pro"
             onClick={handleProClick}
@@ -150,12 +165,13 @@ export const PricingSection = () => {
             name="Enterprise Compliance"
             price="Custom"
             features={[
-              'Sovereign PQC compliance suite',
-              'CycloneDX 1.6 automated CBOM generation',
+              'Sovereign Post-Quantum Cryptography compliance suite',
+              'CycloneDX 1.6 automated Cryptographic Bill of Materials generation',
               'Internal network & port scanning',
-              'LQM remediation & vulnerability mapping',
-              'SSO + multi-user organization console',
-              'Dedicated SLA & consultative procurement',
+              'Cryptographic Vulnerability Mapping & Remediation',
+              'Unlimited daily circuit simulation runs',
+              'Single Sign-On (SSO) & multi-user organization console',
+              'Dedicated Service Level Agreement (SLA) & consultative procurement',
             ]}
             cta="Contact Sales"
             ctaHref="/enterprise"

@@ -127,6 +127,21 @@ async def verify_api_key_and_meter(
     user_id = key_info["user_id"]
     api_key_id = key_info["id"]
 
+    # --- ENFORCE DAILY TIER LIMITS ---
+    from tier_limits import get_user_tier
+    tier = await get_user_tier(db, user_id)
+    daily_api_limit = 10 if tier == "FREE" else 500 if tier == "PRO" else 9999999
+    
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage_key = f"developer:usage:daily:{api_key_id}:{today_str}"
+    
+    daily_requests = await redis_client.hget(usage_key, "requests")
+    if daily_requests and int(daily_requests) >= daily_api_limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Daily Developer API limit of {daily_api_limit} requests reached for your tier."
+        )
+
     # 3+4. Atomic wallet check + token bucket rate limit (Finding #3)
     # Both checks run in a single Redis round-trip via Lua, eliminating TOCTOU.
     rate_key = f"developer:rate_limit:{api_key_id}"
@@ -158,6 +173,7 @@ async def verify_api_key_and_meter(
     request.state.api_key_id = api_key_id
     request.state.user_id = user_id
     request.state.hashed_key = hashed_key
+    request.state.tier = tier
 
     return key_info
 

@@ -50,10 +50,7 @@ services:
         generateValue: true # Securely generate at deployment time
       - key: ALGORITHM
         value: HS256
-      - key: STRIPE_SECRET_KEY
-        sync: false # Configured in the dashboard
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
+
       - key: GEMINI_API_KEY
         sync: false
 

@@ -9,6 +9,8 @@ export interface Entitlements {
   noise_models: string[];
   ai_chats_daily: number;
   pqc_scans_monthly: number;
+  api_requests_daily: number;
+  circuit_runs_daily: number;
   custom_cbom: boolean;
   internal_scanning: boolean;
   qpu_priority: boolean;
@@ -30,12 +32,14 @@ interface SubscriptionContextType {
 }
 
 const defaultLimits: Entitlements = {
-  qubits: 5,
+  qubits: 3,
   depth: 15,
   shots: 1024,
   noise_models: ['ideal'],
   ai_chats_daily: 10,
-  pqc_scans_monthly: 5,
+  pqc_scans_monthly: 3,
+  api_requests_daily: 10,
+  circuit_runs_daily: 10,
   custom_cbom: false,
   internal_scanning: false,
   qpu_priority: false,

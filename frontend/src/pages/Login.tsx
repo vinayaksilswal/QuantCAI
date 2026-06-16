@@ -17,12 +17,22 @@ const Login = () => {
   const { user, login, register } = useAuth();
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const emailParam = searchParams.get('email');
+    const saleIdParam = searchParams.get('sale_id');
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+    if (saleIdParam) {
+      setPassword(saleIdParam);
+    }
+
     if (location.pathname === '/signup') {
       setMode('signup');
-    } else if (location.pathname === '/login') {
+    } else if (location.pathname === '/login' || location.pathname === '/register') {
       setMode('signin');
     }
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!user) return;
@@ -137,6 +147,13 @@ const Login = () => {
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
               {mode === 'signin' ? 'Authenticate your credentials to access the quantum console.' : 'Provision your workspace environment for advanced quantum processing.'}
             </p>
+            {new URLSearchParams(location.search).get('sale_id') && (
+              <div className="mt-4 p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs text-blue-200">
+                <span className="font-bold text-blue-400">WarriorPlus Purchase Confirmed!</span>
+                <br />
+                Your account has been provisioned. Click <strong>Execute Login</strong> to enter. Your temporary password is pre-filled as your Sale ID.
+              </div>
+            )}
           </div>
 
           {error && (

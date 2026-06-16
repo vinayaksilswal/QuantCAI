@@ -195,10 +195,10 @@ def enforce_limits(required_feature: str):
 
             # Limit checking
             if tier == "FREE":
-                if num_qubits and num_qubits > 5:
+                if num_qubits and num_qubits > 3:
                     raise HTTPException(
                         status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Free tier is limited to 5 qubits. Upgrade to Pro for up to 30 qubits."}
+                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Free tier is limited to 3 qubits. Upgrade to Pro for up to 15 qubits."}
                     )
                 if depth and depth > 15:
                     raise HTTPException(
@@ -216,10 +216,10 @@ def enforce_limits(required_feature: str):
                         detail={"error": "NOISE_MODEL_RESTRICTED", "message": "Noise models are restricted on the Free tier. Upgrade to Pro for Thermal/Depolarizing noise."}
                     )
             elif tier == "PRO":
-                if num_qubits and num_qubits > 30:
+                if num_qubits and num_qubits > 15:
                     raise HTTPException(
                         status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Pro tier is limited to 30 qubits. Upgrade to Enterprise for unlimited execution."}
+                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Pro tier is limited to 15 qubits. Upgrade to Enterprise for unlimited execution."}
                     )
                 if shots and shots > 65536:
                     raise HTTPException(
@@ -227,6 +227,30 @@ def enforce_limits(required_feature: str):
                         detail={"error": "SHOTS_LIMIT_EXCEEDED", "message": "Pro tier is limited to 65,536 shots. Upgrade to Enterprise for unlimited execution."}
                     )
             # Enterprise has no limitations
+
+            # Redis rate limiting for daily circuit runs
+            redis_key = f"user:{current_user.id}:circuit_runs:count"
+            now = datetime.now(timezone.utc)
+            tomorrow = datetime.combine(now.date() + timedelta(days=1), time.min, tzinfo=timezone.utc)
+            seconds_until_midnight = int((tomorrow - now).total_seconds())
+
+            run_limit = 10 if tier == "FREE" else 500 if tier == "PRO" else 999999
+            
+            result = await redis_client.eval(
+                LUA_AI_CHAT_LIMITER, 1, redis_key, 
+                run_limit,  
+                seconds_until_midnight
+            )
+            
+            if result == -1:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail={
+                        "error": "RUN_LIMIT_EXCEEDED", 
+                        "reset_in_seconds": seconds_until_midnight, 
+                        "message": f"Daily simulator limit of {run_limit} runs reached. Upgrade your tier for more runs."
+                    }
+                )
 
         elif required_feature == "pqc":
             # Extract domain
@@ -264,15 +288,15 @@ def enforce_limits(required_feature: str):
                 db.add(usage)
                 await db.flush()  # Flush to get the lock
 
-            if tier == "FREE" and usage.monthly_pqc_scans >= 5:
+            if tier == "FREE" and usage.monthly_pqc_scans >= 3:
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": "Free tier limit of 5 PQC scans per month reached. Upgrade to Pro for up to 100 scans."}
+                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": "Free tier limit of 3 PQC scans per month reached. Upgrade to Pro for up to 50 scans."}
                 )
-            elif tier == "PRO" and usage.monthly_pqc_scans >= 100:
+            elif tier == "PRO" and usage.monthly_pqc_scans >= 50:
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": "Pro tier limit of 100 PQC scans per month reached. Upgrade to Enterprise for unlimited scans."}
+                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": "Pro tier limit of 50 PQC scans per month reached. Upgrade to Enterprise for unlimited scans."}
                 )
 
             # Increment count atomically (protected by row lock)

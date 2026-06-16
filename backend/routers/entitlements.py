@@ -43,23 +43,27 @@ async def get_user_entitlements(
     # Limits mapping matrix
     limits_matrix = {
         "FREE": {
-            "qubits": 5,
+            "qubits": 3,
             "depth": 15,
             "shots": 1024,
             "noise_models": ["ideal"],
             "ai_chats_daily": 10,
-            "pqc_scans_monthly": 5,
+            "pqc_scans_monthly": 3,
+            "api_requests_daily": 10,
+            "circuit_runs_daily": 10,
             "custom_cbom": False,
             "internal_scanning": False,
             "qpu_priority": False
         },
         "PRO": {
-            "qubits": 30,
+            "qubits": 15,
             "depth": -1,  # -1 represents unlimited/unconstrained
             "shots": 65536,
             "noise_models": ["ideal", "depolarizing", "thermal"],
             "ai_chats_daily": -1,
-            "pqc_scans_monthly": 100,
+            "pqc_scans_monthly": 50,
+            "api_requests_daily": 500,
+            "circuit_runs_daily": 500,
             "custom_cbom": False,
             "internal_scanning": False,
             "qpu_priority": False
@@ -71,6 +75,8 @@ async def get_user_entitlements(
             "noise_models": ["ideal", "depolarizing", "thermal"],
             "ai_chats_daily": -1,
             "pqc_scans_monthly": -1,
+            "api_requests_daily": -1,
+            "circuit_runs_daily": -1,
             "custom_cbom": True,
             "internal_scanning": True,
             "qpu_priority": True

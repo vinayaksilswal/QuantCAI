@@ -1,7 +1,8 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Zap, Copy, Check } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Clock, Zap, Copy, Check, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 
 interface CircuitResultsProps {
@@ -9,9 +10,11 @@ interface CircuitResultsProps {
     qasmCode?: string;
     activeTab?: string;
     onTabChange?: (tab: string) => void;
+    onQASMChange?: (newQasm: string) => void;
+    onOptimize?: () => void;
 }
 
-export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabChange }: CircuitResultsProps) => {
+export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabChange, onQASMChange, onOptimize }: CircuitResultsProps) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopyQASM = () => {
@@ -155,9 +158,13 @@ export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabCh
                             </button>
                         </div>
                         <div className="flex-1 overflow-auto rounded-lg bg-[#0a0f1a] border border-slate-800/50 p-3">
-                            <pre className="text-xs font-mono text-slate-300 whitespace-pre leading-relaxed">
-                                {qasmCode || '// Add gates to see live QASM output'}
-                            </pre>
+                            <textarea
+                                value={qasmCode}
+                                onChange={(e) => onQASMChange?.(e.target.value)}
+                                className="w-full h-full bg-transparent text-xs font-mono text-slate-300 whitespace-pre leading-relaxed focus:outline-none resize-none"
+                                spellCheck={false}
+                                placeholder="// Add gates to see live QASM output"
+                            />
                         </div>
                     </TabsContent>
 
@@ -165,6 +172,16 @@ export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabCh
                     <TabsContent value="metrics" className="flex-1 p-3 m-0 overflow-auto">
                         {metrics ? (
                             <div className="space-y-3">
+                                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/40 border border-slate-800/50">
+                                    <div>
+                                        <div className="text-[10px] text-slate-500 uppercase tracking-wider">Est. QPU Cost</div>
+                                        <div className="text-xl font-bold text-emerald-400 font-mono mt-1">${(metrics.depth * 0.15).toFixed(2)}</div>
+                                    </div>
+                                    <Button onClick={onOptimize} size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                                        <Sparkles className="w-4 h-4 mr-1.5" />
+                                        Optimize
+                                    </Button>
+                                </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     <MetricCard label="Circuit Depth" value={metrics.depth} />
                                     <MetricCard label="Qubits Used" value={metrics.qubit_count} />

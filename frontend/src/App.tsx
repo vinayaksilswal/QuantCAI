@@ -40,6 +40,7 @@ import { AIAssistant } from "./components/AIAssistant";
 import { TeachingOverlay } from "./components/TeachingOverlay";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PaymentAutoTrigger } from "./components/PaymentAutoTrigger";
+import { ScrollToTop } from "./components/ScrollToTop";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
           <SubscriptionProvider>
             <ErrorBoundary>
               <BrowserRouter>
+              <ScrollToTop />
               <AIProvider>
                 {/* Global Animated Background - visible on all pages */}
                 <QuantumBackground />
@@ -90,6 +92,7 @@ const App = () => (
                       <Route path="/admin" element={<ProtectedRoute roles={["root"]}><Admin /></ProtectedRoute>} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/signup" element={<Login />} />
+                      <Route path="/register" element={<Login />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><Profile /></ProtectedRoute>} />
                       <Route path="/pqc-scanner" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />

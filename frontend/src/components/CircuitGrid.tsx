@@ -1,22 +1,24 @@
 import { useDroppable } from '@dnd-kit/core';
 import { PlacedGate } from '@/types/circuit';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Lock } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useState, useEffect } from 'react';
 
 interface CircuitGridProps {
     placedGates: PlacedGate[];
     numWires: number;
     numSteps: number;
     onRemoveGate?: (uid: string) => void;
+    onUpdateGateParams?: (uid: string, params: number[]) => void;
+    activeDebugStep?: number;
 }
 
 const WIRE_ROW_HEIGHT = 56; // px — h-14 = 56px
 const WIRE_GAP = 12; // px — gap-3 = 12px
 
 
-export const CircuitGrid = ({ placedGates, numWires, numSteps, onRemoveGate }: CircuitGridProps) => {
+export const CircuitGrid = ({ placedGates, numWires, numSteps, onRemoveGate, onUpdateGateParams, activeDebugStep }: CircuitGridProps) => {
     const { tier } = useSubscription();
-    const isFree = tier === 'FREE';
     const wires = Array.from({ length: numWires }, (_, i) => i);
     const steps = Array.from({ length: numSteps }, (_, i) => i);
 
@@ -27,7 +29,7 @@ export const CircuitGrid = ({ placedGates, numWires, numSteps, onRemoveGate }: C
                 <div className="w-16 flex-shrink-0" />
                 <div className="flex-1 flex gap-2">
                     {steps.map(step => (
-                        <div key={step} className="w-12 flex-shrink-0 text-center text-[10px] font-mono text-slate-600">
+                        <div key={step} className={`w-12 flex-shrink-0 text-center text-[10px] font-mono transition-colors ${activeDebugStep !== undefined && step === activeDebugStep ? 'text-cyan-400 font-bold bg-cyan-500/10 rounded' : (activeDebugStep !== undefined && step > activeDebugStep ? 'text-slate-700' : 'text-slate-600')}`}>
                             {step}
                         </div>
                     ))}
@@ -36,23 +38,18 @@ export const CircuitGrid = ({ placedGates, numWires, numSteps, onRemoveGate }: C
 
             {/* Wire Rows */}
             {wires.map((wire) => {
-                const isWireLocked = isFree && wire >= 5;
                 return (
-                    <div key={wire} className={`flex mb-3 items-center h-14 ${isWireLocked ? 'opacity-35 select-none pointer-events-none' : ''}`}>
+                    <div key={wire} className={`flex mb-3 items-center h-14`}>
                         {/* Wire Label */}
                         <div className="w-16 flex-shrink-0 text-slate-400 font-mono text-sm px-2 flex items-center gap-1">
-                            {isWireLocked ? (
-                                <Lock className="w-3.5 h-3.5 text-red-500/70" />
-                            ) : (
-                                <span className="text-cyan-500/60">q</span>
-                            )}
-                            <span className={isWireLocked ? "text-slate-600" : "text-slate-500"}>[{wire}]</span>
+                            <span className="text-cyan-500/60">q</span>
+                            <span className="text-slate-500">[{wire}]</span>
                         </div>
 
                         {/* Grid Cells */}
                         <div className="flex-1 flex gap-2 relative items-center">
                             {/* Wire Line */}
-                            <div className={`absolute top-1/2 left-0 right-0 h-[1px] -z-0 ${isWireLocked ? 'bg-red-500/20' : 'bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700'}`} />
+                            <div className={`absolute top-1/2 left-0 right-0 h-[1px] -z-0 bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700`} />
 
                             {steps.map((step) => {
                                 const gateOnWire = placedGates.find(g => g.wire === wire && g.step === step);
@@ -66,6 +63,8 @@ export const CircuitGrid = ({ placedGates, numWires, numSteps, onRemoveGate }: C
                                         gate={gateOnWire}
                                         placedGates={placedGates}
                                         onRemoveGate={onRemoveGate}
+                                        onUpdateGateParams={onUpdateGateParams}
+                                        isDisabled={activeDebugStep !== undefined && step > activeDebugStep}
                                     />
                                 );
                             })}
@@ -84,14 +83,24 @@ interface DroppableCellProps {
     gate?: PlacedGate;
     placedGates: PlacedGate[];
     onRemoveGate?: (uid: string) => void;
+    onUpdateGateParams?: (uid: string, params: number[]) => void;
+    isDisabled?: boolean;
 }
 
-const DroppableCell = ({ id, wire, step, gate, placedGates, onRemoveGate }: DroppableCellProps) => {
+const DroppableCell = ({ id, wire, step, gate, placedGates, onRemoveGate, onUpdateGateParams, isDisabled }: DroppableCellProps) => {
     const { setNodeRef, isOver } = useDroppable({
         id: id,
     });
 
     const Icon = gate?.icon;
+    const isParametric = gate && ['rx', 'ry', 'rz'].includes(gate.name.toLowerCase());
+    const [paramVal, setParamVal] = useState(gate?.params?.[0]?.toString() || "1.5708");
+
+    useEffect(() => {
+        if (gate?.params?.[0] !== undefined) {
+            setParamVal(gate.params[0].toString());
+        }
+    }, [gate?.params]);
 
     // Check if this cell is part of a multi-qubit operation initiated elsewhere
     const controllerGate = placedGates.find(g =>
@@ -134,6 +143,16 @@ const DroppableCell = ({ id, wire, step, gate, placedGates, onRemoveGate }: Drop
         }
     };
 
+    const handleParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setParamVal(e.target.value);
+    };
+
+    const handleParamSubmit = () => {
+        if (gate && onUpdateGateParams) {
+            onUpdateGateParams(gate.uid, [parseFloat(paramVal) || 0]);
+        }
+    };
+
     return (
         <div
             ref={setNodeRef}
@@ -141,21 +160,57 @@ const DroppableCell = ({ id, wire, step, gate, placedGates, onRemoveGate }: Drop
             className={`
                 relative z-10 w-12 h-12 rounded-md border-2 transition-all duration-150
                 flex items-center justify-center shrink-0
-                ${isOver ? 'border-cyan-400 bg-cyan-500/15 shadow-lg shadow-cyan-500/20' : 'border-transparent hover:border-slate-700/50'}
+                ${isDisabled ? 'opacity-30 grayscale' : ''}
+                ${isOver && !isDisabled ? 'border-cyan-400 bg-cyan-500/15 shadow-lg shadow-cyan-500/20' : 'border-transparent hover:border-slate-700/50'}
                 ${gate && !isOver ? `bg-gradient-to-br ${gate.color} shadow-lg shadow-black/30 scale-[0.92] rounded-lg ring-1 ring-white/10` : ''}
                 ${isTarget && !gate ? 'bg-transparent' : ''}
             `}
         >
             {/* Gate content */}
             {gate && Icon && (
-                <div className="relative group">
-                    <Icon className="w-6 h-6 text-white drop-shadow-sm" />
-                    {gate.category === 'multi' && (
-                        <span className="absolute -top-3 -right-4 text-[9px] font-mono font-bold bg-black/70 text-white px-1 rounded-sm ring-1 ring-white/20">
-                            {gate.name}
-                        </span>
-                    )}
-                </div>
+                isParametric ? (
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <div className="relative group cursor-pointer w-full h-full flex items-center justify-center">
+                                <Icon className="w-6 h-6 text-white drop-shadow-sm" />
+                                {gate.category === 'multi' && (
+                                    <span className="absolute -top-3 -right-4 text-[9px] font-mono font-bold bg-black/70 text-white px-1 rounded-sm ring-1 ring-white/20">
+                                        {gate.name}
+                                    </span>
+                                )}
+                            </div>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-48 bg-slate-900 border-slate-700 p-3" side="top">
+                            <div className="space-y-2">
+                                <label className="text-xs text-slate-400">Angle θ (radians)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="number" 
+                                        step="0.1"
+                                        value={paramVal}
+                                        onChange={handleParamChange}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded text-xs text-slate-200 p-1 focus:outline-none focus:border-cyan-500"
+                                    />
+                                    <button 
+                                        onClick={handleParamSubmit}
+                                        className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs px-2 rounded"
+                                    >
+                                        Set
+                                    </button>
+                                </div>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                ) : (
+                    <div className="relative group">
+                        <Icon className="w-6 h-6 text-white drop-shadow-sm" />
+                        {gate.category === 'multi' && (
+                            <span className="absolute -top-3 -right-4 text-[9px] font-mono font-bold bg-black/70 text-white px-1 rounded-sm ring-1 ring-white/20">
+                                {gate.name}
+                            </span>
+                        )}
+                    </div>
+                )
             )}
 
             {/* Target Marker — pulsing dot for CX/CZ target */}
