@@ -29,6 +29,9 @@ const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const PqcScanner = lazy(() => import("./pages/PqcScanner"));
 const Enterprise = lazy(() => import("./pages/Enterprise"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const RefundPolicy = lazy(() => import("./pages/RefundPolicy"));
 import { AuthProvider } from "./context/AuthContext";
 import { SubscriptionProvider } from "./context/SubscriptionContext";
 
@@ -41,6 +44,7 @@ import { TeachingOverlay } from "./components/TeachingOverlay";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PaymentAutoTrigger } from "./components/PaymentAutoTrigger";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { BackendWaker } from "./components/BackendWaker";
 
 const queryClient = new QueryClient();
 
@@ -99,6 +103,9 @@ const App = () => (
                       <Route path="/enterprise/pqc-scanner" element={<ProtectedRoute roles={["root", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
                       <Route path="/sandbox" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />
                       <Route path="/enterprise" element={<Enterprise />} />
+                      <Route path="/terms" element={<Terms />} />
+                      <Route path="/privacy" element={<Privacy />} />
+                      <Route path="/refund-policy" element={<RefundPolicy />} />
 
                       <Route path="*" element={<Suspense fallback={null}><NotFound /></Suspense>} />
                     </Routes>
@@ -107,6 +114,7 @@ const App = () => (
                 <AIAssistant />
                 <TeachingOverlay />
                 <PaymentAutoTrigger />
+                <BackendWaker />
               </AIProvider>
               </BrowserRouter>
             </ErrorBoundary>

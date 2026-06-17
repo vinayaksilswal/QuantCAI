@@ -234,3 +234,19 @@
   color: #bfdbfe !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
+
+/* WarriorPlus Disclaimer Overrides */
+.wplus_spdisclaimer,
+.wplus_spdisclaimer div,
+.wplus_spdisclaimer p,
+.wplus_spdisclaimer span {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #94a3b8 !important; /* matches slate-400 text color */
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 0.875rem !important; /* normal text size */
+  text-align: center !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 1.25rem !important;
+}

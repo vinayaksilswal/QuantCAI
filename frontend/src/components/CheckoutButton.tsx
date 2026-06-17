@@ -1,4 +1,6 @@
 import React from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 interface CheckoutButtonProps {
   planName: string;
@@ -15,12 +17,21 @@ export function CheckoutButton({
   amount,
   currency
 }: CheckoutButtonProps) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
   const handleCheckout = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     console.log(`Checkout initiated for ${planName}`, amount, currency);
     
+    if (!user) {
+      localStorage.setItem('pending_checkout', 'pro');
+      navigate('/login');
+      return;
+    }
+    
     // Redirect to the WarriorPlus checkout/purchase page
-    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/as/o/466941';
+    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63';
     window.location.href = wplusCheckoutUrl;
   };
 

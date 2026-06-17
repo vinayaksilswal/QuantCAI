@@ -117,7 +117,7 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   const handleProClick = () => {
-    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/as/o/466941';
+    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63';
     window.location.href = wplusCheckoutUrl;
   };
 

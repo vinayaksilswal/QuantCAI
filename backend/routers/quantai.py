@@ -14,7 +14,7 @@ from core.database import get_db
 from security import redis_client, get_current_user_or_api_key
 from tier_limits import get_user_tier
 from langchain_core.tools import tool
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 logger = logging.getLogger("quantcai.quantai")
@@ -170,7 +170,17 @@ async def quantai_chat_endpoint(
             if turn.get("role") == "user":
                 messages.append(HumanMessage(content=turn["content"]))
             else:
-                messages.append(AIMessage(content=turn["content"]))
+                tool_calls = turn.get("tool_calls", [])
+                messages.append(AIMessage(
+                    content=turn.get("content", ""),
+                    tool_calls=tool_calls
+                ))
+                if tool_calls:
+                    for tc in tool_calls:
+                        messages.append(ToolMessage(
+                            content="Tool executed successfully by the client UI.",
+                            tool_call_id=tc.get("id", "unknown")
+                        ))
 
         # Build context prompt
         if tier == "FREE":
@@ -183,21 +193,40 @@ async def quantai_chat_endpoint(
         yield f"data: {json.dumps({'type': 'meta', 'conversation_id': conversation_id})}\n\n"
 
         full_response = ""
+        tool_calls_collected = []
         try:
             async for chunk in llm_with_tools.astream(messages):
-                if chunk.content:
-                    full_response += chunk.content
-                    yield f"data: {json.dumps({'type': 'text', 'content': chunk.content})}\n\n"
+                content_text = ""
+                if isinstance(chunk.content, list):
+                    for item in chunk.content:
+                        if isinstance(item, dict) and "text" in item:
+                            content_text += item["text"]
+                        elif isinstance(item, str):
+                            content_text += item
+                elif isinstance(chunk.content, str):
+                    content_text = chunk.content
+
+                if content_text:
+                    full_response += content_text
+                    yield f"data: {json.dumps({'type': 'text', 'content': content_text})}\n\n"
+                    
                 if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
                     for tc in chunk.tool_calls:
+                        tool_calls_collected.append(tc)
                         yield f"data: {json.dumps({'type': 'tool_call', 'name': tc['name'], 'args': tc['args']})}\n\n"
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             logger.error(f"AI Stream processing failed: {e}")
             yield f"data: {json.dumps({'type': 'text', 'content': 'I encountered an issue generating a response.'})}\n\n"
 
         # Save turn back to history
         history.append({"role": "user", "content": body.message})
-        history.append({"role": "assistant", "content": full_response})
+        history.append({
+            "role": "assistant", 
+            "content": full_response,
+            "tool_calls": tool_calls_collected
+        })
         # Keep last 15 turns
         history = history[-30:]
         try:

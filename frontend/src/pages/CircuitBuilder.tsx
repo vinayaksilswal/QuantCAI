@@ -514,256 +514,259 @@ const CircuitBuilder = () => {
             <div className="pt-20 pb-4 px-3 md:px-4 max-w-[1800px] mx-auto flex flex-col" style={{ height: 'calc(100vh - 0px)' }}>
 
                 {/* ─── HEADER BAR ──────────────────────────────────── */}
-                <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-3 gap-3 shrink-0">
-                    <div>
+                <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-3 gap-3 shrink-0 w-full">
+                    {/* LEFT: Title */}
+                    <div className="flex-1 shrink-0 mb-1 xl:mb-0 w-full xl:w-auto">
                         <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500">
                             Circuit Builder
                         </h1>
                         <p className="text-slate-500 text-xs">Enterprise Quantum Circuit Design & Simulation</p>
                     </div>
 
-                    <div className="flex items-center gap-2 lg:gap-3 flex-nowrap overflow-x-auto custom-scrollbar pb-1">
-                        {/* Qubits Control */}
-                        <div className="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-2 h-9">
-                            <label className="text-[10px] text-slate-500 uppercase tracking-wider pl-1">Qubits</label>
-                            <div className="flex items-center">
-                                <button
-                                    onClick={() => setNumWires(Math.max(1, numWires - 1))}
-                                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-50"
-                                    disabled={numWires <= 1}
-                                >
-                                    <Minus className="w-3.5 h-3.5" />
-                                </button>
-                                <span className="w-6 text-center text-sm font-mono text-white">{numWires}</span>
-                                <button
-                                    onClick={() => {
-                                        if (numWires >= maxWires) {
-                                            window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'qubits' } }));
-                                            toast.error(`Maximum of ${maxWires} qubits reached for your tier.`);
-                                        } else {
-                                            setNumWires(numWires + 1);
+                    {/* MIDDLE: Tools */}
+                    <div className="shrink-0 flex flex-wrap items-center justify-start xl:justify-center gap-2 w-full xl:w-auto">
+                        <div className="flex items-center bg-slate-900/70 border border-slate-700 rounded-lg h-9">
+                            {/* Qubits */}
+                            <div className="flex items-center gap-1.5 px-2 h-full border-r border-slate-700/50">
+                                <label className="text-[10px] text-slate-500 uppercase tracking-wider">Qubits</label>
+                                <div className="flex items-center">
+                                    <button
+                                        onClick={() => setNumWires(Math.max(1, numWires - 1))}
+                                        className="p-0.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-50"
+                                        disabled={numWires <= 1}
+                                    >
+                                        <Minus className="w-3.5 h-3.5" />
+                                    </button>
+                                    <span className="w-5 text-center text-sm font-mono text-white">{numWires}</span>
+                                    <button
+                                        onClick={() => {
+                                            if (numWires >= maxWires) {
+                                                window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'qubits' } }));
+                                                toast.error(`Maximum of ${maxWires} qubits reached for your tier.`);
+                                            } else {
+                                                setNumWires(numWires + 1);
+                                            }
+                                        }}
+                                        className="p-0.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-50"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Backend */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button className="flex items-center gap-1.5 px-3 h-full border-r border-slate-700/50 hover:bg-slate-800 text-slate-300 transition-colors">
+                                        <Server className="w-3.5 h-3.5 text-cyan-400" />
+                                        <span className="text-xs">{currentBackend.label}</span>
+                                        <ChevronDown className="w-3 h-3 opacity-50" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-slate-900 border-slate-700">
+                                    {BACKENDS.map(b => (
+                                        <DropdownMenuItem
+                                            key={b.value}
+                                            onClick={() => b.available && setBackend(b.value)}
+                                            className={`text-xs ${!b.available ? 'opacity-40 cursor-not-allowed' : 'text-slate-300 focus:text-white focus:bg-slate-800'}`}
+                                            disabled={!b.available}
+                                        >
+                                            <span>{b.label}</span>
+                                            {!b.available && <span className="ml-2 text-[9px] text-cyan-500 font-mono">SOON</span>}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {/* Shots */}
+                            <div className="flex items-center gap-1.5 px-3 h-full">
+                                <label className="text-[10px] text-slate-500 uppercase tracking-wider">Shots</label>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={100000}
+                                    value={shots}
+                                    onChange={e => {
+                                        const val = parseInt(e.target.value) || 1;
+                                        if (tier === 'FREE' && val > 1024) {
+                                            setShots(1024);
+                                            window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'shots' } }));
+                                            toast.error("Free tier is limited to a max of 1,024 shots.");
+                                            return;
                                         }
+                                        setShots(Math.max(1, Math.min(100000, val)));
                                     }}
-                                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-50"
-                                >
-                                    <Plus className="w-3.5 h-3.5" />
-                                </button>
+                                    className="w-14 bg-transparent text-sm text-white font-mono text-right focus:outline-none border-none p-0"
+                                />
                             </div>
                         </div>
 
-                        {/* Execution Backend Dropdown */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-300 gap-2 h-9">
-                                    <Server className="w-3.5 h-3.5 text-cyan-400" />
-                                    <span className="text-xs">{currentBackend.label}</span>
-                                    <ChevronDown className="w-3 h-3 opacity-50" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="bg-slate-900 border-slate-700">
-                                {BACKENDS.map(b => (
-                                    <DropdownMenuItem
-                                        key={b.value}
-                                        onClick={() => b.available && setBackend(b.value)}
-                                        className={`text-xs ${!b.available ? 'opacity-40 cursor-not-allowed' : 'text-slate-300 focus:text-white focus:bg-slate-800'}`}
-                                        disabled={!b.available}
-                                    >
-                                        <span>{b.label}</span>
-                                        {!b.available && <span className="ml-2 text-[9px] text-cyan-500 font-mono">SOON</span>}
-                                    </DropdownMenuItem>
-                                ))}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        {/* GROUP 2: Tools (Undo, Templates, Debug, Noise) */}
+                        <div className="flex items-center bg-slate-900/70 border border-slate-700 rounded-lg h-9">
+                            {/* Undo / Redo */}
+                            <div className="flex items-center gap-0.5 px-1.5 h-full border-r border-slate-700/50">
+                                <button
+                                    onClick={undo}
+                                    disabled={historyIndex === 0}
+                                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded disabled:opacity-50 transition-colors"
+                                >
+                                    <Undo2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    onClick={redo}
+                                    disabled={historyIndex === history.length - 1}
+                                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded disabled:opacity-50 transition-colors"
+                                >
+                                    <Redo2 className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
 
-                        {/* Shots Input */}
-                        <div className="flex items-center gap-2 bg-slate-900/70 border border-slate-700 rounded-lg px-3 h-9">
-                            <label className="text-[10px] text-slate-500 uppercase tracking-wider">Shots</label>
-                            <input
-                                type="number"
-                                min={1}
-                                max={100000}
-                                value={shots}
-                                onChange={e => {
-                                    const val = parseInt(e.target.value) || 1;
-                                    if (tier === 'FREE' && val > 1024) {
-                                        setShots(1024);
-                                        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'shots' } }));
-                                        toast.error("Free tier is limited to a maximum of 1,024 shots.");
-                                        return;
-                                    }
-                                    setShots(Math.max(1, Math.min(100000, val)));
-                                }}
-                                className="w-20 bg-transparent text-sm text-white font-mono text-right focus:outline-none border-none"
-                            />
-                        </div>
-
-                        {/* Undo / Redo */}
-                        <div className="flex items-center gap-1 bg-slate-900/70 border border-slate-700 rounded-lg p-1 h-9">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={undo}
-                                disabled={historyIndex === 0}
-                                className="h-7 w-7 p-0 text-slate-400 hover:text-white disabled:opacity-50"
-                            >
-                                <Undo2 className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={redo}
-                                disabled={historyIndex === history.length - 1}
-                                className="h-7 w-7 p-0 text-slate-400 hover:text-white disabled:opacity-50"
-                            >
-                                <Redo2 className="w-3.5 h-3.5" />
-                            </Button>
-                        </div>
-
-                        {/* Algorithm Templates */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-300 gap-2 h-9">
-                                    <BookOpen className="w-3.5 h-3.5 text-blue-400" />
-                                    <span className="text-xs">Templates</span>
-                                    <ChevronDown className="w-3 h-3 opacity-50" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="bg-slate-900 border-slate-700 max-h-[400px] overflow-y-auto">
-                                {Array.from(new Set(TEMPLATES.map(t => t.category))).map((category, idx) => (
-                                    <div key={category}>
-                                        {idx > 0 && <DropdownMenuSeparator className="bg-slate-800" />}
-                                        <DropdownMenuLabel className="text-[10px] text-slate-500 uppercase tracking-wider">{category}</DropdownMenuLabel>
-                                        {TEMPLATES.filter(t => t.category === category).map(t => (
-                                            <DropdownMenuItem
-                                                key={t.label}
-                                                onClick={() => loadTemplate(t)}
-                                                className="text-xs text-slate-300 focus:text-white focus:bg-slate-800 cursor-pointer pl-4"
-                                            >
-                                                <span>{t.label}</span>
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </div>
-                                ))}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        {/* Debugger Controls */}
-                        <div className="flex items-center gap-1 bg-slate-900/70 border border-slate-700 rounded-lg p-1 h-9">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                    setIsDebugMode(!isDebugMode);
-                                    if (!isDebugMode) setCurrentStep(0);
-                                }}
-                                className={`h-7 px-2 ${isDebugMode ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 hover:text-cyan-300' : 'text-slate-400 hover:text-white'}`}
-                            >
-                                <BugPlay className="w-3.5 h-3.5 mr-1.5" />
-                                <span className="text-xs">{isDebugMode ? 'Exit Debug' : 'Debug'}</span>
-                            </Button>
-                            
-                            {isDebugMode && (
-                                <div className="flex items-center gap-1 border-l border-slate-700 pl-1 ml-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                                        disabled={currentStep === 0}
-                                        className="h-7 w-7 p-0 text-slate-400 hover:text-white disabled:opacity-50"
-                                    >
-                                        <StepBack className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <span className="text-xs font-mono w-12 text-center text-cyan-300">
-                                        S:{currentStep}/{maxCircuitStep}
-                                    </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setCurrentStep(Math.min(maxCircuitStep, currentStep + 1))}
-                                        disabled={currentStep >= maxCircuitStep}
-                                        className="h-7 w-7 p-0 text-slate-400 hover:text-white disabled:opacity-50"
-                                    >
-                                        <StepForward className="w-3.5 h-3.5" />
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Noise Configuration Popover */}
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="outline" size="sm" className={`border-slate-700 h-9 gap-2 ${noiseConfig.enabled ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-amber-500/50' : 'bg-slate-900/70 hover:bg-slate-800 text-slate-300'}`}>
-                                    <Settings2 className="w-3.5 h-3.5" />
-                                    <span className="text-xs">Noise {noiseConfig.enabled ? 'ON' : 'OFF'}</span>
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-64 bg-slate-900 border-slate-700 p-4">
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="font-medium text-slate-200 text-sm">Noise Model</h4>
-                                        <Switch 
-                                            checked={noiseConfig.enabled} 
-                                            onCheckedChange={(val) => {
-                                                if (tier === 'FREE') {
-                                                    window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'noise' } }));
-                                                    toast.error("Noise models require a Pro subscription.");
-                                                    return;
-                                                }
-                                                setNoiseConfig(prev => ({ ...prev, enabled: val }));
-                                            }} 
-                                        />
-                                    </div>
-                                    <div className={`space-y-3 ${!noiseConfig.enabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs text-slate-400">Error Type</Label>
-                                            <select 
-                                                value={noiseConfig.type} 
-                                                onChange={e => setNoiseConfig(prev => ({ ...prev, type: e.target.value }))}
-                                                className="w-full bg-slate-800 border border-slate-700 rounded text-xs text-slate-200 p-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                                            >
-                                                <option value="depolarizing">Depolarizing</option>
-                                                <option value="thermal_relaxation">T1/T2 Relaxation</option>
-                                                <option value="amplitude_damping">Amplitude Damping</option>
-                                            </select>
+                            {/* Templates */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button className="flex items-center gap-1.5 px-3 h-full border-r border-slate-700/50 hover:bg-slate-800 text-slate-300 transition-colors">
+                                        <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+                                        <span className="text-xs">Templates</span>
+                                        <ChevronDown className="w-3 h-3 opacity-50" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="bg-slate-900 border-slate-700 max-h-[400px] overflow-y-auto">
+                                    {Array.from(new Set(TEMPLATES.map(t => t.category))).map((category, idx) => (
+                                        <div key={category}>
+                                            {idx > 0 && <DropdownMenuSeparator className="bg-slate-800" />}
+                                            <DropdownMenuLabel className="text-[10px] text-slate-500 uppercase tracking-wider">{category}</DropdownMenuLabel>
+                                            {TEMPLATES.filter(t => t.category === category).map(t => (
+                                                <DropdownMenuItem
+                                                    key={t.label}
+                                                    onClick={() => loadTemplate(t)}
+                                                    className="text-xs text-slate-300 focus:text-white focus:bg-slate-800 cursor-pointer pl-4"
+                                                >
+                                                    <span>{t.label}</span>
+                                                </DropdownMenuItem>
+                                            ))}
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <div className="flex justify-between">
-                                                <Label className="text-xs text-slate-400">Error Rate</Label>
-                                                <span className="text-xs text-cyan-400">{noiseConfig.rate}</span>
-                                            </div>
-                                            <input 
-                                                type="range" 
-                                                min="0" 
-                                                max="0.1" 
-                                                step="0.001" 
-                                                value={noiseConfig.rate} 
-                                                onChange={e => setNoiseConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) }))}
-                                                className="w-full accent-cyan-500"
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {/* Debugger */}
+                            <div className="flex items-center h-full border-r border-slate-700/50">
+                                <button
+                                    onClick={() => {
+                                        setIsDebugMode(!isDebugMode);
+                                        if (!isDebugMode) setCurrentStep(0);
+                                    }}
+                                    className={`flex items-center h-full px-3 transition-colors ${isDebugMode ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                                >
+                                    <BugPlay className="w-3.5 h-3.5 mr-1.5" />
+                                    <span className="text-xs">{isDebugMode ? 'Exit Debug' : 'Debug'}</span>
+                                </button>
+                                
+                                {isDebugMode && (
+                                    <div className="flex items-center gap-1 border-l border-slate-700 pl-1 ml-1 h-full bg-slate-900/50">
+                                        <button
+                                            onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                                            disabled={currentStep === 0}
+                                            className="p-1 text-slate-400 hover:text-white disabled:opacity-50"
+                                        >
+                                            <StepBack className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="text-xs font-mono w-10 text-center text-cyan-300">
+                                            S:{currentStep}
+                                        </span>
+                                        <button
+                                            onClick={() => setCurrentStep(Math.min(maxCircuitStep, currentStep + 1))}
+                                            disabled={currentStep >= maxCircuitStep}
+                                            className="p-1 text-slate-400 hover:text-white disabled:opacity-50"
+                                        >
+                                            <StepForward className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Noise Popover */}
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <button className={`flex items-center h-full px-3 gap-1.5 transition-colors ${noiseConfig.enabled ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                                        <Settings2 className="w-3.5 h-3.5" />
+                                        <span className="text-xs">Noise {noiseConfig.enabled ? 'ON' : 'OFF'}</span>
+                                    </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-64 bg-slate-900 border-slate-700 p-4">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-medium text-slate-200 text-sm">Noise Model</h4>
+                                            <Switch 
+                                                checked={noiseConfig.enabled} 
+                                                onCheckedChange={(val) => {
+                                                    if (tier === 'FREE') {
+                                                        window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'noise' } }));
+                                                        toast.error("Noise models require a Pro subscription.");
+                                                        return;
+                                                    }
+                                                    setNoiseConfig(prev => ({ ...prev, enabled: val }));
+                                                }} 
                                             />
                                         </div>
+                                        <div className={`space-y-3 ${!noiseConfig.enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs text-slate-400">Error Type</Label>
+                                                <select 
+                                                    value={noiseConfig.type} 
+                                                    onChange={e => setNoiseConfig(prev => ({ ...prev, type: e.target.value }))}
+                                                    className="w-full bg-slate-800 border border-slate-700 rounded text-xs text-slate-200 p-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                                                >
+                                                    <option value="depolarizing">Depolarizing</option>
+                                                    <option value="thermal_relaxation">T1/T2 Relaxation</option>
+                                                    <option value="amplitude_damping">Amplitude Damping</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="flex justify-between">
+                                                    <Label className="text-xs text-slate-400">Error Rate</Label>
+                                                    <span className="text-xs text-cyan-400">{noiseConfig.rate}</span>
+                                                </div>
+                                                <input 
+                                                    type="range" 
+                                                    min="0" 
+                                                    max="0.1" 
+                                                    step="0.001" 
+                                                    value={noiseConfig.rate} 
+                                                    onChange={e => setNoiseConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) }))}
+                                                    className="w-full accent-cyan-500"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
+                                </PopoverContent>
+                            </Popover>
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={exportQASM} className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-300 h-9">
-                                <Download className="w-3.5 h-3.5 mr-1.5" /> QASM
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={clearCircuit} className="border-slate-700 bg-slate-900/70 hover:bg-slate-800 text-slate-300 h-9">
-                                <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Clear
-                            </Button>
-                            <Button
-                                className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 h-9 px-5 font-semibold"
-                                onClick={() => runCircuit()}
+                            {/* QASM */}
+                            <button onClick={exportQASM} className="flex items-center h-full px-2.5 gap-1.5 border-l border-slate-700/50 transition-colors text-slate-400 hover:bg-slate-800 hover:text-white" title="Export QASM">
+                                <Download className="w-3.5 h-3.5" />
+                                <span className="text-xs hidden md:inline">QASM</span>
+                            </button>
+
+                            {/* Clear */}
+                            <button onClick={clearCircuit} className="flex items-center h-full px-2.5 gap-1.5 border-l border-slate-700/50 transition-colors text-slate-400 hover:bg-red-500/10 hover:text-red-400" title="Clear Circuit">
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span className="text-xs hidden md:inline">Clear</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* RIGHT: Action Buttons */}
+                    <div className="flex-1 flex flex-wrap items-center justify-start xl:justify-end gap-1.5 w-full xl:w-auto">
+                        <Button
+                            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 h-9 px-6 font-semibold rounded-lg"
+                            onClick={() => runCircuit()}
                                 disabled={isSimulating || isDebugMode}
                             >
-                                {isSimulating ? <RotateCcw className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+                                {isSimulating ? <RotateCcw className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-1.5" />}
                                 {isSimulating ? "Running..." : "Run Circuit"}
                             </Button>
                         </div>
-                    </div>
                 </header>
 
                 {/* ─── 4-PANE IDE LAYOUT ──────────────────────────── */}
