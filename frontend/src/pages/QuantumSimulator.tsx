@@ -9,7 +9,7 @@ export default function QuantumSimulator() {
   usePageTracking('quantum-simulator');
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#0a0f1d] text-white">
+    <div className="min-h-screen relative overflow-hidden bg-transparent text-white">
       {/* Decorative background gradients matching design specs */}
       <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
       <div className="absolute top-1/4 left-1/3 w-[500px] h-[300px] bg-cyan-500/[0.02] rounded-full blur-[100px] pointer-events-none" />

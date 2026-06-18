@@ -191,6 +191,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const loginWithToken = async (token: string) => {
+    try {
+      api.setToken(token);
+      const userData = await api.getMe();
+      setSession(userData);
+      setUser({
+        id: userData.id?.toString() ?? '',
+        email: userData.email,
+        name: userData.name,
+      });
+      setRole(mapRole(userData.role));
+      
+      const decoded = decodeJwt(token);
+      const plan = decoded?.subscription_plan || 'free';
+      setSubscriptionPlan(plan);
+      
+      localStorage.setItem('auth_user', JSON.stringify(userData));
+      localStorage.setItem('subscription_plan', plan);
+    } catch (error) {
+      api.setToken(null);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     try {
       await api.logout();
@@ -208,7 +232,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const value = useMemo(
-    () => ({ user, session, role, loading, subscriptionPlan, signOut, login, register, loginWithGoogle }),
+    () => ({ user, session, role, loading, subscriptionPlan, signOut, login, register, loginWithGoogle, loginWithToken }),
     [user, session, role, loading, subscriptionPlan]
   );
 

@@ -79,6 +79,28 @@ export default function PqcScanner() {
   const [report, setReport] = useState<ScanReport | null>(null);
   const [scanStep, setScanStep] = useState(0);
 
+  const [badgeTargetId, setBadgeTargetId] = useState<number | null>(null);
+  const [generatingBadge, setGeneratingBadge] = useState(false);
+
+  const generateBadge = async () => {
+    if (!report) return;
+    setGeneratingBadge(true);
+    try {
+      const response = await axiosClient.post<{ id: number }>('/api/v1/pqc/monitored-targets', {
+        target_type: 'domain',
+        target_value: report.domain,
+        schedule_interval: 'daily'
+      });
+      setBadgeTargetId(response.data.id);
+      toast.success('Monitored target configured and compliance badge generated!');
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to configure badge: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setGeneratingBadge(false);
+    }
+  };
+
   const isFree = subscriptionPlan === 'free' || !subscriptionPlan;
 
   // Sync scanner details to AI Context
@@ -130,6 +152,7 @@ export default function PqcScanner() {
 
     setLoading(true);
     setReport(null);
+    setBadgeTargetId(null);
 
     const portNum = parseInt(targetPort) || 443;
 
@@ -315,7 +338,7 @@ export default function PqcScanner() {
   const strokeOffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#0a0f1d] text-slate-100">
+    <div className="min-h-screen relative overflow-hidden bg-transparent text-slate-100">
       <Navbar />
 
       <div className="pt-32 pb-20 px-6 relative z-10">
@@ -532,6 +555,63 @@ export default function PqcScanner() {
                         </p>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Public Badge Widget */}
+                  <div className="border-t border-slate-800/80 pt-4 mt-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                          <div>
+                              <p className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                                  PQC Compliance Badge
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                  Showcase your post-quantum security status on external sites.
+                              </p>
+                          </div>
+                          {!badgeTargetId ? (
+                              <button
+                                  onClick={generateBadge}
+                                  disabled={generatingBadge}
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-[10px] font-mono transition-all disabled:opacity-50"
+                              >
+                                  {generatingBadge ? "Enabling..." : "Generate Badge"}
+                              </button>
+                          ) : (
+                              <span className="text-[10px] font-mono text-slate-500">Active</span>
+                          )}
+                      </div>
+
+                      {badgeTargetId && (
+                          <div className="space-y-2 pt-1 animate-fade-in">
+                              <div className="flex items-center justify-between bg-slate-950/60 p-2.5 rounded-xl border border-slate-850">
+                                  <span className="text-[10px] text-slate-500 font-mono">Live Preview:</span>
+                                  <img
+                                      src={`/api/v1/public/badge/${badgeTargetId}`}
+                                      alt="PQC Compliance Status"
+                                      className="h-5"
+                                  />
+                              </div>
+                              <div className="space-y-1">
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-[9px] text-slate-500 font-mono font-semibold">Embed Markdown:</span>
+                                      <button
+                                          onClick={() => {
+                                              navigator.clipboard.writeText(`[![PQC Readiness](${window.location.origin}/api/v1/public/badge/${badgeTargetId})](${window.location.origin}/pqc-scanner?domain=${report.domain})`);
+                                              toast.success("Markdown code copied!");
+                                          }}
+                                          className="text-[9px] text-blue-400 hover:underline font-mono"
+                                      >
+                                          Copy
+                                      </button>
+                                  </div>
+                                  <input
+                                      readOnly
+                                      value={`[![PQC Readiness](${window.location.origin}/api/v1/public/badge/${badgeTargetId})](${window.location.origin}/pqc-scanner?domain=${report.domain})`}
+                                      className="w-full bg-slate-950/60 border border-slate-850 rounded px-2 py-1 text-[9px] font-mono text-slate-400 select-all"
+                                  />
+                              </div>
+                          </div>
+                      )}
                   </div>
                 </div>
 

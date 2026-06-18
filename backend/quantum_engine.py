@@ -92,6 +92,12 @@ class NoiseModelType(str, Enum):
     THERMAL = "thermal"
 
 
+class ExecutionProviderType(str, Enum):
+    SIMULATOR = "simulator"
+    IBM_QUANTUM = "ibm_quantum"
+    AWS_BRAKET = "aws_braket"
+
+
 class SimulateRequest(BaseModel):
     """Request body for POST /api/v1/simulate."""
 
@@ -110,6 +116,11 @@ class SimulateRequest(BaseModel):
         default=NoiseModelType.IDEAL,
         description="Noise model: ideal (free), depolarizing/thermal (pro)",
     )
+    backend_provider: ExecutionProviderType = Field(
+        default=ExecutionProviderType.SIMULATOR,
+        description="Execution provider: simulator, ibm_quantum, or aws_braket",
+    )
+
 
     @field_validator("circuit_qasm")
     @classmethod
@@ -137,6 +148,8 @@ class SimulationResult(BaseModel):
     shots: int
     circuit_depth: int
     num_qubits: int
+    qpu_telemetry: Optional[dict[str, Any]] = None
+
 
 
 class JobStatusResponse(BaseModel):
@@ -335,6 +348,39 @@ async def submit_simulation(
             ),
         )
 
+    # --- 5.5. Deduct QPU Credits Surcharge ----------------------------------
+    if body.backend_provider != ExecutionProviderType.SIMULATOR:
+        cost_credits = 1000.0 + 10.0 * body.shots
+        from sqlalchemy import select
+        res = await db.execute(select(DBmodels.WalletBalance).where(DBmodels.WalletBalance.user_id == current_user.id))
+        wallet = res.scalar_one_or_none()
+        
+        if not wallet or wallet.balance_credits < cost_credits:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=f"Insufficient wallet balance. Real QPU execution requires {cost_credits} credits. Current balance: {wallet.balance_credits if wallet else 0.0} credits."
+            )
+            
+        wallet.balance_credits = wallet.balance_credits - cost_credits
+        db.add(wallet)
+        
+        # Log usage event
+        usage_event = DBmodels.UsageEvent(
+            user_id=current_user.id,
+            event_type=DBmodels.UsageEventType.QPU_RUN,
+            credits_used=int(cost_credits),
+            metadata_={"provider": body.backend_provider.value, "shots": body.shots}
+        )
+        db.add(usage_event)
+        await db.commit()
+        log.info(
+            "simulation.qpu_credits_deducted",
+            job_id=job_id,
+            user_id=current_user.id,
+            cost_credits=cost_credits,
+            remaining_credits=float(wallet.balance_credits),
+        )
+
     # --- 6. Queue the Celery task -------------------------------------------
     estimated_seconds = _estimate_execution_seconds(num_qubits, body.shots)
 
@@ -347,6 +393,7 @@ async def submit_simulation(
         "circuit_qasm": body.circuit_qasm,
         "shots": body.shots,
         "noise_model": body.noise_model.value,
+        "backend_provider": body.backend_provider.value,
         "num_qubits": num_qubits,
         "circuit_depth": circuit_depth,
         "submitted_at": time.time(),
@@ -356,6 +403,7 @@ async def submit_simulation(
     await redis_client.setex(
         f"sim_job:{job_id}", 3600, json.dumps(job_meta)
     )
+
 
     # Dispatch either to Celery or use FastAPI BackgroundTasks based on configuration
     from worker import run_simulation
@@ -445,7 +493,9 @@ async def get_simulation_status(
             shots=result_raw["shots"],
             circuit_depth=result_raw["circuit_depth"],
             num_qubits=result_raw["num_qubits"],
+            qpu_telemetry=result_raw.get("qpu_telemetry"),
         )
+
 
     return JobStatusResponse(
         job_id=job_id,

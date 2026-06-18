@@ -2,6 +2,7 @@ import secrets
 import hashlib
 import logging
 import json
+import httpx
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 from typing import List, Optional
@@ -13,6 +14,8 @@ import models as DBmodels
 from core.database import get_db
 from security import get_current_user, redis_client
 from models_billing import ApiKey, WalletBalance, DailyUsageRollup
+from core.config import settings
+from routers.paypal_billing import _get_paypal_access_token, _paypal_base_url
 
 logger = logging.getLogger("quantcai.routers.developer")
 router = APIRouter(prefix="/api/v1/developer", tags=["Developer portal & Billing"])
@@ -27,7 +30,10 @@ class KeyPatchRequest(BaseModel):
     is_active: bool
 
 class TopupRequest(BaseModel):
-    amount: float  # Amount in cents / paise
+    amount: float  # Amount in USD
+
+class CaptureRequest(BaseModel):
+    order_id: str
 
 class WalletPatchRequest(BaseModel):
     auto_topup_enabled: bool
@@ -201,37 +207,179 @@ async def get_wallet(
         auto_topup_enabled=wallet.auto_topup_enabled
     )
 
-@router.post("/wallet/topup", response_model=WalletResponse)
+@router.post("/wallet/topup")
 async def topup_wallet(
     body: TopupRequest,
     current_user: DBmodels.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Simulate credit topup via Stripe/Razorpay hook. Increments balance directly."""
+    """Create a PayPal Order for developer wallet top-up."""
     if body.amount <= 0:
         raise HTTPException(status_code=400, detail="Topup amount must be positive")
         
-    stmt = select(WalletBalance).where(WalletBalance.user_id == current_user.id)
+    access_token = await _get_paypal_access_token()
+    frontend_url = settings.FRONTEND_URL.split(",")[0]
+    
+    order_payload = {
+        "intent": "CAPTURE",
+        "purchase_units": [
+            {
+                "amount": {
+                    "currency_code": "USD",
+                    "value": f"{body.amount:.2f}"
+                },
+                "description": f"QuantCAI Developer Wallet Topup - User ID {current_user.id}"
+            }
+        ],
+        "application_context": {
+            "brand_name": "QuantCAI",
+            "locale": "en-US",
+            "user_action": "PAY_NOW",
+            "return_url": f"{frontend_url}/profile?topup=success",
+            "cancel_url": f"{frontend_url}/profile?topup=cancel"
+        }
+    }
+    
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_paypal_base_url()}/v2/checkout/orders",
+            json=order_payload,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=20.0
+        )
+        
+    if resp.status_code not in (200, 201):
+        logger.error(f"PayPal Order creation failed: {resp.status_code} {resp.text}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to initiate PayPal payment."
+        )
+        
+    order_data = resp.json()
+    approval_url = None
+    for link in order_data.get("links", []):
+        if link.get("rel") == "approve":
+            approval_url = link.get("href")
+            break
+            
+    if not approval_url:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="PayPal did not return an approval URL."
+        )
+        
+    return {
+        "url": approval_url,
+        "order_id": order_data.get("id")
+    }
+
+@router.post("/wallet/capture", response_model=WalletResponse)
+async def capture_wallet_topup(
+    body: CaptureRequest,
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Capture a PayPal order and credit the user's wallet balance."""
+    # Prevent duplicate captures (replay protection)
+    cache_captured_key = f"developer:captured_orders:{body.order_id}"
+    already_captured = await redis_client.get(cache_captured_key)
+    if already_captured:
+        raise HTTPException(
+            status_code=400,
+            detail="This transaction has already been captured and processed."
+        )
+
+    access_token = await _get_paypal_access_token()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{_paypal_base_url()}/v2/checkout/orders/{body.order_id}/capture",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=20.0
+        )
+
+    if resp.status_code not in (200, 201):
+        # Check if already captured on PayPal (fallback in case of API failure / client retry)
+        async with httpx.AsyncClient() as check_client:
+            check_resp = await check_client.get(
+                f"{_paypal_base_url()}/v2/checkout/orders/{body.order_id}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=15.0
+            )
+        
+        if check_resp.status_code == 200:
+            order_details = check_resp.json()
+            if order_details.get("status") == "COMPLETED":
+                purchase_units = order_details.get("purchase_units", [])
+                amount_val = float(purchase_units[0]["amount"]["value"]) if purchase_units else 0.0
+                return await _credit_user_wallet(db, current_user.id, amount_val, body.order_id)
+        
+        logger.error(f"PayPal capture request failed: {resp.status_code} {resp.text}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to capture payment with PayPal. Please check order status."
+        )
+
+    capture_data = resp.json()
+    status_str = capture_data.get("status")
+    
+    if status_str != "COMPLETED":
+        raise HTTPException(
+            status_code=400,
+            detail=f"PayPal transaction status is '{status_str}', not 'COMPLETED'."
+        )
+
+    # Find the amount captured
+    purchase_units = capture_data.get("purchase_units", [])
+    amount_val = 0.0
+    if purchase_units:
+        payments = purchase_units[0].get("payments", {})
+        captures = payments.get("captures", [])
+        if captures:
+            amount_val = float(captures[0]["amount"]["value"])
+            
+    if amount_val <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid capture amount found in PayPal transaction."
+        )
+
+    return await _credit_user_wallet(db, current_user.id, amount_val, body.order_id)
+
+async def _credit_user_wallet(db: AsyncSession, user_id: int, amount: float, order_id: str):
+    stmt = select(WalletBalance).where(WalletBalance.user_id == user_id)
     res = await db.execute(stmt)
     wallet = res.scalar_one_or_none()
     
     if not wallet:
-        wallet = WalletBalance(user_id=current_user.id, balance_credits=0.0, auto_topup_enabled=False)
+        wallet = WalletBalance(user_id=user_id, balance_credits=0.0, auto_topup_enabled=False)
         
-    wallet.balance_credits = float(wallet.balance_credits) + body.amount
+    wallet.balance_credits = float(wallet.balance_credits) + amount
     db.add(wallet)
     await db.commit()
     await db.refresh(wallet)
+
+    # Store order ID in Redis to prevent replay
+    cache_captured_key = f"developer:captured_orders:{order_id}"
+    await redis_client.setex(cache_captured_key, 86400 * 30, "1")  # cache for 30 days
     
-    # Update Redis cache & remove block flag
-    wallet_cache_key = f"developer:wallet:{current_user.id}"
+    # Sync with Redis cache & remove block flag
+    wallet_cache_key = f"developer:wallet:{user_id}"
     await redis_client.set(wallet_cache_key, str(wallet.balance_credits))
-    await redis_client.delete(f"developer:wallet_blocked:{current_user.id}")
+    await redis_client.delete(f"developer:wallet_blocked:{user_id}")
+    
+    logger.info(f"Developer wallet credited: user_id={user_id}, amount=${amount:.2f}, order_id={order_id}")
     
     return WalletResponse(
         balance_credits=float(wallet.balance_credits),
         auto_topup_enabled=wallet.auto_topup_enabled
     )
+
 
 @router.patch("/wallet", response_model=WalletResponse)
 async def update_wallet(

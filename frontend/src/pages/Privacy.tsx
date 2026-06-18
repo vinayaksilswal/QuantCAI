@@ -33,7 +33,7 @@ const Privacy = () => {
                 </li>
                 <li className="flex items-start">
                   <span className="text-blue-400 mr-2 mt-1">•</span>
-                  <span><strong className="text-white">Payment Information:</strong> Billing details processed securely through our third-party payment processors (WarriorPlus, Stripe). We do not store credit card numbers.</span>
+                  <span><strong className="text-white">Payment Information:</strong> Billing details processed securely through our third-party payment processor (PayPal). We do not store credit card numbers.</span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-blue-400 mr-2 mt-1">•</span>
@@ -76,7 +76,7 @@ const Privacy = () => {
               <h2 className="text-2xl font-bold text-white mb-4">3. Data Sharing & Third Parties</h2>
               <p className="text-gray-300 leading-relaxed">
                 We do not sell or rent your personal information. We may share limited data with trusted third-party
-                service providers solely for purposes of payment processing (e.g., WarriorPlus, Stripe), email delivery,
+                service providers solely for purposes of payment processing (e.g., PayPal), email delivery,
                 hosting, and analytics. All third parties are contractually obligated to protect your data and use it
                 only for the services they provide to us.
               </p>

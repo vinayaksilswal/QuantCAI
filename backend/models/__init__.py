@@ -23,6 +23,9 @@ class UserRole(str, enum.Enum):
     LEARNER = "learner"
     ENTERPRISE_USER = "enterprise_user"
     ROOT = "root"
+    SECURITY_ANALYST = "security_analyst"
+    COMPLIANCE_OFFICER = "compliance_officer"
+    ORG_ADMIN = "org_admin"
 
 
 class OrgPlan(str, enum.Enum):
@@ -55,6 +58,8 @@ class UsageEventType(str, enum.Enum):
     SIMULATION_RUN = "simulation_run"
     PQC_SCAN = "pqc_scan"
     API_CALL = "api_call"
+    QPU_RUN = "qpu_run"
+
 
 # -----------------------------------------------------------------------------
 # Database Models
@@ -165,6 +170,8 @@ class User(Base):
 class Tier(str, enum.Enum):
     FREE = "FREE"
     PRO = "PRO"
+    API_METERED = "API_METERED"
+    INSTITUTIONAL = "INSTITUTIONAL"
     ENTERPRISE = "ENTERPRISE"
 
 
@@ -495,6 +502,8 @@ class Circuit(Base):
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     circuit_data: Mapped[str] = mapped_column(Text, nullable=False)
     is_interactive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    share_slug: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=text("TIMEZONE('utc', NOW())"),
@@ -667,6 +676,11 @@ class Course(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    start_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    end_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    capacity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    enrollment_status: Mapped[str] = mapped_column(String(50), default="open", nullable=False)
+    zoom_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=text("TIMEZONE('utc', NOW())"),
@@ -758,6 +772,39 @@ class RefreshToken(Base):
         return f"<RefreshToken(id={self.id}, user_id={self.user_id}, jti={self.jti!r}, revoked={self.revoked})>"
 
 
+class CohortEnrollment(Base):
+    __tablename__ = "cohort_enrollments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    payment_status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    payment_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    enrolled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User")
+    course: Mapped["Course"] = relationship("Course")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_id", name="uq_user_cohort_enrollment"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<CohortEnrollment(id={self.id}, user_id={self.user_id}, course_id={self.course_id})>"
+
+
 class Log(Base):
     __tablename__ = "logtable"
 
@@ -784,8 +831,56 @@ class Log(Base):
         return f"<Log(id={self.id}, level={self.level!r}, message={self.message[:30]!r})>"
 
 
+class MonitoredTarget(Base):
+    __tablename__ = "monitored_targets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    target_type: Mapped[str] = mapped_column(String(50), nullable=False)  # "domain" or "repository"
+    target_value: Mapped[str] = mapped_column(String(500), nullable=False) # domain host or path/name
+    schedule_interval: Mapped[str] = mapped_column(String(50), default="daily", nullable=False) # "daily" or "weekly"
+    last_scan_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    last_scanned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship("User")
+
+
+class SecurityAlert(Base):
+    __tablename__ = "security_alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    target_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("monitored_targets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=text("TIMEZONE('utc', NOW())"),
+        nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User")
+    target: Mapped[Optional["MonitoredTarget"]] = relationship("MonitoredTarget")
+
+
 # Import billing models to register them on Base metadata
 from models_billing import ApiKey, WalletBalance, DailyUsageRollup
+
 
 
 

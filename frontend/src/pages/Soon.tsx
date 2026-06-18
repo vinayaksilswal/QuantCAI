@@ -126,7 +126,7 @@ const Soon = () => {
                 </form>
                 <div className="mt-4 flex items-center text-gray-300">
                   <Mail className="h-5 w-5 text-blue-400 mr-3" />
-                  <a href="mailto:quantc.info@gmail.com" className="hover:text-blue-400 transition-colors">quantc.info@gmail.com</a>
+                  <a href="mailto:support@quantcai.in" className="hover:text-blue-400 transition-colors">support@quantcai.in</a>
                 </div>
               </CardContent>
             </Card>

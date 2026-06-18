@@ -182,6 +182,21 @@ export const circuitApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  saveCircuit: (payload: { name: string; circuit_data: string; is_interactive: boolean }) =>
+    fetchApi<any>('/api/v1/circuits', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  shareCircuit: (id: number) =>
+    fetchApi<any>(`/api/v1/circuits/${id}/share`, {
+      method: 'POST',
+    }),
+  unshareCircuit: (id: number) =>
+    fetchApi<any>(`/api/v1/circuits/${id}/unshare`, {
+      method: 'POST',
+    }),
+  getPublicCircuit: (slug: string) =>
+    fetchApi<any>(`/api/v1/public/circuits/${slug}`),
 };
 
 export const adminApi = {

@@ -9,9 +9,17 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { Play, RotateCcw, Download, Zap, ChevronDown, Server, Plus, Minus, BookOpen, BugPlay, StepForward, StepBack, Undo2, Redo2, Sparkles } from 'lucide-react';
+import { Play, RotateCcw, Download, Zap, ChevronDown, Server, Plus, Minus, BookOpen, BugPlay, StepForward, StepBack, Undo2, Redo2, Sparkles, Share2 } from 'lucide-react';
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 import { GatePalette, gates } from '@/components/GatePalette';
 import { CircuitGrid } from '@/components/CircuitGrid';
@@ -202,6 +210,67 @@ const CircuitBuilder = () => {
     const [isDebugMode, setIsDebugMode] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
     const [noiseConfig, setNoiseConfig] = useState({ enabled: false, type: 'depolarizing', rate: 0.01 });
+
+    // Sharing State
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
+    const [shareSlug, setShareSlug] = useState<string | null>(null);
+    const [isCircuitPublic, setIsCircuitPublic] = useState(false);
+    const [backendCircuitId, setBackendCircuitId] = useState<number | null>(null);
+    const [circuitName, setCircuitName] = useState("My Quantum Circuit");
+
+    const handleShare = async () => {
+        if (placedGates.length === 0) {
+            toast.error("Circuit is empty. Add gates before sharing!");
+            return;
+        }
+        setIsSharing(true);
+        try {
+            let currentId = backendCircuitId;
+            if (!currentId) {
+                // Save circuit to backend database first
+                const saved = await api.saveCircuit({
+                    name: circuitName,
+                    circuit_data: JSON.stringify(placedGates),
+                    is_interactive: true
+                });
+                currentId = saved.id;
+                setBackendCircuitId(currentId);
+            }
+            
+            const shared = await api.shareCircuit(currentId!);
+            setShareSlug(shared.share_slug);
+            setIsCircuitPublic(shared.is_public);
+            toast.success("Circuit shared successfully!");
+        } catch (error: any) {
+            console.error("Failed to share circuit:", error);
+            toast.error(error.message || "Failed to share circuit");
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    const handleTogglePublic = async (checked: boolean) => {
+        if (!backendCircuitId) return;
+        setIsSharing(true);
+        try {
+            if (checked) {
+                const res = await api.shareCircuit(backendCircuitId);
+                setShareSlug(res.share_slug);
+                setIsCircuitPublic(res.is_public);
+                toast.success("Circuit is now public!");
+            } else {
+                const res = await api.unshareCircuit(backendCircuitId);
+                setIsCircuitPublic(res.is_public);
+                toast.info("Circuit is now private.");
+            }
+        } catch (error: any) {
+            console.error("Failed to update visibility:", error);
+            toast.error(error.message || "Failed to update visibility");
+        } finally {
+            setIsSharing(false);
+        }
+    };
 
     const maxCircuitStep = useMemo(() => {
         if (placedGates.length === 0) return 0;
@@ -509,7 +578,7 @@ const CircuitBuilder = () => {
     const currentBackend = BACKENDS.find(b => b.value === backend)!;
 
     return (
-        <div className="min-h-screen relative overflow-hidden bg-slate-950 text-white font-sans">
+        <div className="min-h-screen relative overflow-hidden bg-transparent text-white font-sans">
             <Navbar />
             <div className="pt-20 pb-4 px-3 md:px-4 max-w-[1800px] mx-auto flex flex-col" style={{ height: 'calc(100vh - 0px)' }}>
 
@@ -759,6 +828,14 @@ const CircuitBuilder = () => {
                     {/* RIGHT: Action Buttons */}
                     <div className="flex-1 flex flex-wrap items-center justify-start xl:justify-end gap-1.5 w-full xl:w-auto">
                         <Button
+                            variant="secondary"
+                            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 hover:text-cyan-300 font-semibold h-9 px-4 rounded-lg flex items-center gap-1.5"
+                            onClick={() => setIsShareModalOpen(true)}
+                        >
+                            <Share2 className="w-4 h-4" />
+                            <span>Share</span>
+                        </Button>
+                        <Button
                             className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20 h-9 px-6 font-semibold rounded-lg"
                             onClick={() => runCircuit()}
                                 disabled={isSimulating || isDebugMode}
@@ -829,6 +906,124 @@ const CircuitBuilder = () => {
                 </DndContext>
 
                 <TutorialOverlay placedGates={placedGates} setPlacedGates={setPlacedGates} />
+
+                <Dialog open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
+                    <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-400">
+                                Share Your Circuit
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-400 text-xs">
+                                Publish your quantum circuit to get a shareable URL and embed codes.
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="space-y-4 py-3">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="circuit-name" className="text-xs text-slate-300">Circuit Name</Label>
+                                <Input
+                                    id="circuit-name"
+                                    value={circuitName}
+                                    onChange={(e) => setCircuitName(e.target.value)}
+                                    placeholder="Enter circuit name..."
+                                    className="bg-slate-950 border-slate-800 focus:border-cyan-500 text-sm"
+                                    disabled={isCircuitPublic}
+                                />
+                            </div>
+
+                            {!shareSlug ? (
+                                <Button
+                                    onClick={handleShare}
+                                    disabled={isSharing}
+                                    className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold"
+                                >
+                                    {isSharing ? "Publishing..." : "Generate Shareable Link"}
+                                </Button>
+                            ) : (
+                                <div className="space-y-4 pt-2 border-t border-slate-800/80">
+                                    <div className="flex items-center justify-between bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/60">
+                                        <div className="space-y-0.5">
+                                            <div className="text-xs font-semibold text-slate-200">Public Link Access</div>
+                                            <div className="text-[10px] text-slate-500">Allow anyone with the link to view this circuit</div>
+                                        </div>
+                                        <Switch
+                                            checked={isCircuitPublic}
+                                            onCheckedChange={handleTogglePublic}
+                                            disabled={isSharing}
+                                        />
+                                    </div>
+
+                                    {isCircuitPublic && (
+                                        <div className="space-y-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-[11px] text-slate-400">Shareable URL</Label>
+                                                <div className="flex gap-1.5">
+                                                    <Input
+                                                        readOnly
+                                                        value={`${window.location.origin}/shared/${shareSlug}`}
+                                                        className="bg-slate-950 border-slate-800 text-xs font-mono select-all"
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-cyan-600 hover:bg-cyan-500 text-xs text-white"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(`${window.location.origin}/shared/${shareSlug}`);
+                                                            toast.success("URL copied to clipboard!");
+                                                        }}
+                                                    >
+                                                        Copy
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <Label className="text-[11px] text-slate-400">Embed Markdown (for GitHub READMEs)</Label>
+                                                <div className="flex gap-1.5">
+                                                    <Input
+                                                        readOnly
+                                                        value={`[![Interactive Circuit on QuantCAI](${window.location.origin}/shared-badge.svg)](${window.location.origin}/shared/${shareSlug})`}
+                                                        className="bg-slate-950 border-slate-800 text-xs font-mono select-all"
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-cyan-600 hover:bg-cyan-500 text-xs text-white"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(`[![Interactive Circuit on QuantCAI](${window.location.origin}/shared-badge.svg)](${window.location.origin}/shared/${shareSlug})`);
+                                                            toast.success("Markdown copied!");
+                                                        }}
+                                                    >
+                                                        Copy
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <Label className="text-[11px] text-slate-400">Embed Iframe</Label>
+                                                <div className="flex gap-1.5">
+                                                    <Input
+                                                        readOnly
+                                                        value={`<iframe src="${window.location.origin}/shared/${shareSlug}" width="100%" height="450px" style="border:none; border-radius:8px; background:#0b1120;"></iframe>`}
+                                                        className="bg-slate-950 border-slate-800 text-xs font-mono select-all"
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-cyan-600 hover:bg-cyan-500 text-xs text-white"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(`<iframe src="${window.location.origin}/shared/${shareSlug}" width="100%" height="450px" style="border:none; border-radius:8px; background:#0b1120;"></iframe>`);
+                                                            toast.success("Iframe code copied!");
+                                                        }}
+                                                    >
+                                                        Copy
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );

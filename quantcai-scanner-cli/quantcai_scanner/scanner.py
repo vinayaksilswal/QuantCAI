@@ -1,0 +1,661 @@
+"""
+Post-Quantum Cryptography (PQC) CLI Scanner Engine
+==================================================
+Lightweight local scanning engine that evaluates a domain's TLS configuration
+against post-quantum cryptographic threats.
+
+This module is part of the open-source QuantCAI scanner CLI.
+Licensed under the Apache-2.0 License.
+"""
+
+from __future__ import annotations
+
+import socket
+import ssl
+import ipaddress
+import logging
+from datetime import datetime, timezone
+from typing import Any, Optional
+
+from cryptography import x509
+from cryptography.hazmat.primitives.asymmetric import (
+    dsa,
+    ec,
+    ed448,
+    ed25519,
+    rsa,
+)
+from cryptography.x509.oid import ExtensionOID
+
+logger = logging.getLogger("quantcai.scanner")
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_CONNECTION_TIMEOUT_S = 5
+_DEFAULT_PORT = 443
+
+# NIST-referenced PQC hybrid key exchange identifiers
+PQC_HYBRID_KEYWORDS: frozenset[str] = frozenset({
+    "mlkem",           # ML-KEM (FIPS 203) generic
+    "x25519mlkem768",  # X25519 + ML-KEM-768 hybrid
+    "x25519_mlkem768", # alternate formatting
+    "secp256r1mlkem768",
+    "mlkem768",
+    "mlkem1024",
+    "kyber",           # draft-era naming (Kyber -> ML-KEM)
+    "x25519kyber768",
+    "pq_hybrid",
+})
+
+# Quantum-vulnerable key exchange prefixes
+VULNERABLE_KEX_PREFIXES: tuple[str, ...] = (
+    "ECDHE",
+    "DHE",
+    "ECDH",
+    "DH",
+)
+
+# TLS version risk mapping
+TLS_VERSION_RISK: dict[str, dict[str, Any]] = {
+    "TLSv1":   {"label": "TLS 1.0", "risk": "CRITICAL", "points": 20},
+    "TLSv1.1": {"label": "TLS 1.1", "risk": "CRITICAL", "points": 20},
+    "TLSv1.2": {"label": "TLS 1.2", "risk": "WARNING",  "points": 5},
+    "TLSv1.3": {"label": "TLS 1.3", "risk": "OK",       "points": 0},
+}
+
+# NIST SP 800-131A rev 2 & CNSA 2.0 references
+NIST_REFERENCES: dict[str, str] = {
+    "RSA":     "NIST SP 800-131A Rev 2 — RSA keys vulnerable to Shor's algorithm; "
+               "migrate to ML-DSA (FIPS 204) by 2030",
+    "ECC":     "NIST SP 800-186 — ECC keys (ECDSA/ECDH) vulnerable to Shor's algorithm; "
+               "migrate to ML-DSA (FIPS 204) for signatures, ML-KEM (FIPS 203) for KEM",
+    "DSA":     "NIST SP 800-131A Rev 2 — DSA is deprecated and quantum-vulnerable; "
+               "migrate to ML-DSA (FIPS 204)",
+    "EdDSA":   "NIST IR 8413 — Ed25519/Ed448 quantum safety is under active research; "
+               "consider SLH-DSA (FIPS 205) as future-proof alternative",
+    "KEX":     "CNSA 2.0 (NSA) — ECDHE/DHE key exchanges broken by CRQC; "
+               "deploy ML-KEM-768 (FIPS 203) hybrid key exchange",
+    "TLS_OLD": "NIST SP 800-52 Rev 2 — TLS 1.0/1.1 MUST be disabled; "
+               "TLS 1.3 strongly recommended",
+}
+
+# Risk Score Weights
+_SCORE_RSA_2048    = 35.0
+_SCORE_RSA_4096    = 20.0
+_SCORE_RSA_OTHER   = 25.0
+_SCORE_ECC         = 30.0
+_SCORE_DSA         = 35.0
+_SCORE_EDDSA       = 10.0
+_SCORE_ECDHE_KEX   = 15.0
+_SCORE_DHE_KEX     = 15.0
+_SCORE_TLS_12      = 5.0
+_SCORE_TLS_OLD     = 20.0
+_SCORE_PQC_HYBRID  = -20.0
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _classify_public_key(public_key: Any) -> dict[str, Any]:
+    """Classify a certificate's public key and return quantum-risk metadata."""
+    if isinstance(public_key, rsa.RSAPublicKey):
+        key_size = public_key.key_size
+        algo_label = f"RSA-{key_size}"
+
+        if key_size <= 2048:
+            return {
+                "algorithm": algo_label,
+                "quantum_vulnerable": True,
+                "vulnerability_reason": (
+                    f"RSA-{key_size} is a legacy key size vulnerable to Shor's algorithm on a CRQC. "
+                    "NIST and CNSA 2.0 mandate migrating to post-quantum signature schemes (e.g., ML-DSA / FIPS 204) by 2030."
+                ),
+                "severity": "CRITICAL",
+                "risk_points": _SCORE_RSA_2048 if key_size == 2048 else _SCORE_RSA_2048 + 50.0,
+            }
+        elif key_size < 4096:
+            return {
+                "algorithm": algo_label,
+                "quantum_vulnerable": True,
+                "vulnerability_reason": (
+                    f"RSA-{key_size} is quantum-vulnerable; larger keys only increase "
+                    "classical attack cost, not quantum attack cost"
+                ),
+                "severity": "HIGH",
+                "risk_points": _SCORE_RSA_OTHER,
+            }
+        else:
+            return {
+                "algorithm": algo_label,
+                "quantum_vulnerable": True,
+                "vulnerability_reason": (
+                    f"RSA-{key_size} provides no meaningful quantum resistance — "
+                    "Shor's algorithm is agnostic to key size"
+                ),
+                "severity": "HIGH",
+                "risk_points": _SCORE_RSA_4096,
+            }
+
+    elif isinstance(public_key, ec.EllipticCurvePublicKey):
+        curve_name = public_key.curve.name
+        key_size = public_key.key_size
+        algo_label = f"ECC-{curve_name}-{key_size}"
+        
+        is_legacy_256 = (key_size == 256 or curve_name in ("secp256r1", "prime256v1", "secp256k1"))
+        
+        return {
+            "algorithm": algo_label,
+            "quantum_vulnerable": True,
+            "vulnerability_reason": (
+                f"Elliptic Curve ({curve_name}-{key_size}) is a legacy ECC-256 configuration completely broken by Shor's algorithm on a CRQC. "
+                "Prioritize migration to ML-DSA (FIPS 204) for digital signatures and ML-KEM (FIPS 203) for key exchange per CNSA 2.0."
+                if is_legacy_256 else
+                f"Elliptic Curve ({curve_name}) is broken by Shor's algorithm. Migrate to post-quantum alternatives per NIST guidelines."
+            ),
+            "severity": "CRITICAL" if is_legacy_256 else "HIGH",
+            "risk_points": _SCORE_ECC,
+        }
+
+    elif isinstance(public_key, dsa.DSAPublicKey):
+        key_size = public_key.key_size
+        algo_label = f"DSA-{key_size}"
+        return {
+            "algorithm": algo_label,
+            "quantum_vulnerable": True,
+            "vulnerability_reason": (
+                "DSA relies on discrete logarithm problem — trivially broken by "
+                "Shor's algorithm; also deprecated by NIST"
+            ),
+            "severity": "CRITICAL",
+            "risk_points": _SCORE_DSA,
+        }
+
+    elif isinstance(public_key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey)):
+        algo_label = type(public_key).__name__.replace("PublicKey", "")
+        return {
+            "algorithm": algo_label,
+            "quantum_vulnerable": None,  # uncertain
+            "vulnerability_reason": (
+                f"{algo_label} is based on elliptic curve arithmetic and IS vulnerable "
+                "to Shor's algorithm, but research into hash-based alternatives (SLH-DSA) "
+                "is ongoing — status UNCERTAIN"
+            ),
+            "severity": "MEDIUM",
+            "risk_points": _SCORE_EDDSA,
+        }
+
+    else:
+        algo_label = type(public_key).__name__
+        return {
+            "algorithm": algo_label,
+            "quantum_vulnerable": None,
+            "vulnerability_reason": f"Unknown key type: {algo_label} — manual review required",
+            "severity": "MEDIUM",
+            "risk_points": 100.0,
+        }
+
+def _extract_san_domains(cert: x509.Certificate) -> list[str]:
+    """Extract Subject Alternative Name DNS entries from a certificate."""
+    try:
+        san_ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        return san_ext.value.get_values_for_type(x509.DNSName)
+    except x509.ExtensionNotFound:
+        return []
+
+def _domain_matches_san(domain: str, san_list: list[str]) -> bool:
+    """Check if a domain is covered by any SAN entry (including wildcards)."""
+    domain_lower = domain.lower()
+    for san in san_list:
+        san_lower = san.lower()
+        if san_lower == domain_lower:
+            return True
+        if san_lower.startswith("*."):
+            wildcard_base = san_lower[2:]
+            if domain_lower.endswith(f".{wildcard_base}"):
+                prefix = domain_lower[: -(len(wildcard_base) + 1)]
+                if "." not in prefix:
+                    return True
+    return False
+
+def _analyze_cipher_suite(cipher_name: str) -> dict[str, Any]:
+    """Analyze a negotiated cipher suite for quantum safety."""
+    cipher_upper = cipher_name.upper().replace("-", "_")
+    cipher_check = cipher_name.lower().replace("-", "").replace("_", "")
+    is_pqc = any(kw in cipher_check for kw in PQC_HYBRID_KEYWORDS)
+
+    if is_pqc:
+        return {
+            "cipher_quantum_safe": True,
+            "cipher_risk": "COMPLIANT",
+            "cipher_reason": (
+                f"Cipher suite '{cipher_name}' uses a PQC hybrid key exchange — "
+                "compliant with CNSA 2.0 and FIPS 203 (ML-KEM)"
+            ),
+            "risk_points": _SCORE_PQC_HYBRID,
+        }
+
+    for prefix in VULNERABLE_KEX_PREFIXES:
+        if cipher_upper.startswith(prefix):
+            return {
+                "cipher_quantum_safe": False,
+                "cipher_risk": "VULNERABLE",
+                "cipher_reason": (
+                    f"Key exchange '{prefix}' in '{cipher_name}' is quantum-vulnerable — "
+                    "a CRQC can solve the underlying DH/ECDH problem in polynomial time"
+                ),
+                "risk_points": _SCORE_ECDHE_KEX,
+            }
+
+    return {
+        "cipher_quantum_safe": False,
+        "cipher_risk": "UNKNOWN",
+        "cipher_reason": (
+            f"Cipher suite '{cipher_name}' — could not determine key exchange "
+            "quantum safety; manual review recommended"
+        ),
+        "risk_points": 50.0,
+    }
+
+def _compute_risk_level(score: float) -> str:
+    """Map a numeric risk score to a human-readable risk level."""
+    if score >= 80.0:
+        return "CRITICAL"
+    elif score >= 60.0:
+        return "HIGH"
+    elif score >= 40.0:
+        return "MEDIUM"
+    elif score >= 20.0:
+        return "LOW"
+    else:
+        return "COMPLIANT"
+
+def _format_subject(name: x509.Name) -> str:
+    """Format an x509 Name into a human-readable string."""
+    parts: list[str] = []
+    for attr in name:
+        try:
+            oid_name = attr.oid._name
+        except AttributeError:
+            oid_name = attr.oid.dotted_string
+        parts.append(f"{oid_name}={attr.value}")
+    return ", ".join(parts)
+
+def _key_family(pub_key: Any) -> str:
+    """Return a simplified key family string for NIST reference lookup."""
+    if isinstance(pub_key, rsa.RSAPublicKey):
+        return "RSA"
+    elif isinstance(pub_key, ec.EllipticCurvePublicKey):
+        return "ECC"
+    elif isinstance(pub_key, dsa.DSAPublicKey):
+        return "DSA"
+    elif isinstance(pub_key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey)):
+        return "EdDSA"
+    return "UNKNOWN"
+
+def _remediation_for_key(pub_key: Any) -> str:
+    """Return actionable remediation guidance for a given key type."""
+    if isinstance(pub_key, rsa.RSAPublicKey):
+        return (
+            "Replace RSA certificates with ML-DSA-65 (FIPS 204) for digital signatures. "
+            "For key exchange, deploy ML-KEM-768 (FIPS 203). "
+            "Target migration completion by 2030 per CNSA 2.0 timeline."
+        )
+    elif isinstance(pub_key, ec.EllipticCurvePublicKey):
+        return (
+            "Replace ECDSA certificates with ML-DSA-65 (FIPS 204) for signatures. "
+            "Replace ECDH key exchange with ML-KEM-768 (FIPS 203). "
+            "ECC provides zero quantum resistance — prioritize migration."
+        )
+    elif isinstance(pub_key, dsa.DSAPublicKey):
+        return (
+            "DSA is deprecated by NIST and quantum-vulnerable. "
+            "Immediately replace with ML-DSA-65 (FIPS 204) for signatures."
+        )
+    elif isinstance(pub_key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey)):
+        return (
+            "Monitor NIST guidance on EdDSA quantum safety. "
+            "Consider proactive migration to SLH-DSA (FIPS 205) for hash-based signatures "
+            "or ML-DSA-65 (FIPS 204) as a lattice-based alternative."
+        )
+    return "Consult NIST PQC migration guidance for this key type."
+
+def _error_result(
+    domain: str,
+    scan_start: datetime,
+    error_code: str,
+    error_message: str,
+) -> dict[str, Any]:
+    """Build a standardized error result when scanning cannot complete."""
+    return {
+        "domain": domain,
+        "scan_timestamp": scan_start.isoformat(),
+        "scan_duration_ms": int((datetime.now(timezone.utc) - scan_start).total_seconds() * 1000),
+        "overall_risk_score": None,
+        "risk_level": None,
+        "error": {
+            "code": error_code,
+            "message": error_message,
+        },
+        "tls_version": None,
+        "cipher_suite": None,
+        "cipher_quantum_safe": None,
+        "certificates": [],
+        "findings": [],
+        "cbom_summary": {
+            "total_assets": 0,
+            "vulnerable_assets": 0,
+            "compliant_assets": 0,
+            "pqc_readiness_pct": 0.0,
+        },
+    }
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
+    """Perform a comprehensive post-quantum cryptography readiness scan against a TLS target."""
+    scan_start = datetime.now(timezone.utc)
+    domain = domain.strip().lower()
+
+    if domain.startswith("https://"):
+        domain = domain[len("https://"):]
+    if domain.startswith("http://"):
+        domain = domain[len("http://"):]
+    
+    if ":" in domain:
+        parts = domain.split(":")
+        host = parts[0].split("/")[0]
+        try:
+            port = int(parts[1].split("/")[0])
+        except ValueError:
+            port = port or _DEFAULT_PORT
+    else:
+        host = domain.split("/")[0]
+        port = port or _DEFAULT_PORT
+
+    try:
+        ctx = ssl.create_default_context()
+        
+        # Identify internal domains to skip rigorous validation
+        is_internal = False
+        try:
+            if host.lower() == "localhost" or host.endswith(".local") or host.endswith(".lan"):
+                is_internal = True
+            else:
+                try:
+                    ip = ipaddress.ip_address(host)
+                    if ip.is_private or ip.is_loopback:
+                        is_internal = True
+                except ValueError:
+                    try:
+                        ip_str = socket.gethostbyname(host)
+                        ip = ipaddress.ip_address(ip_str)
+                        if ip.is_private or ip.is_loopback:
+                            is_internal = True
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        if is_internal:
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        else:
+            ctx.check_hostname = True
+            ctx.verify_mode = ssl.CERT_REQUIRED
+
+        with socket.create_connection(
+            (host, port), timeout=_CONNECTION_TIMEOUT_S
+        ) as raw_sock:
+            server_hostname = host if not is_internal else None
+            is_ip = False
+            try:
+                socket.inet_aton(host)
+                is_ip = True
+            except socket.error:
+                pass
+            if is_ip:
+                server_hostname = None
+
+            with ctx.wrap_socket(raw_sock, server_hostname=server_hostname) as ssock:
+                cipher_info = ssock.cipher()
+                tls_version_raw = ssock.version()
+                der_chain = ssock.getpeercert(binary_form=True)
+
+                chain_ders = []
+                try:
+                    raw_chain = ssock._sslobj.get_verified_chain()
+                    if raw_chain:
+                        chain_ders = [
+                            cert_obj.public_bytes(ssl._ssl.ENCODING_DER)
+                            for cert_obj in raw_chain
+                        ]
+                except (AttributeError, Exception):
+                    pass
+
+                if not chain_ders:
+                    if isinstance(der_chain, bytes):
+                        chain_ders = [der_chain]
+                    elif isinstance(der_chain, (list, tuple)):
+                        chain_ders = list(der_chain)
+                    else:
+                        chain_ders = [ssock.getpeercert(binary_form=True)]
+
+    except socket.timeout:
+        return _error_result(domain, scan_start, "CONNECTION_TIMEOUT",
+                             f"Connection to {host}:{port} timed out after {_CONNECTION_TIMEOUT_S}s")
+    except ConnectionRefusedError:
+        return _error_result(domain, scan_start, "CONNECTION_REFUSED",
+                             f"Connection to {host}:{port} was refused by the remote host")
+    except ssl.SSLCertVerificationError as exc:
+        return _error_result(domain, scan_start, "CERTIFICATE_ERROR",
+                             f"Certificate verification failed: {exc}")
+    except ssl.SSLError as exc:
+        return _error_result(domain, scan_start, "SSL_ERROR",
+                             f"SSL/TLS handshake error: {exc}")
+    except OSError as exc:
+        return _error_result(domain, scan_start, "NETWORK_ERROR",
+                             f"Network error: {exc}")
+    except Exception as exc:
+        return _error_result(domain, scan_start, "UNEXPECTED_ERROR",
+                             f"Unexpected error: {exc}")
+
+    cipher_name = cipher_info[0] if cipher_info else "UNKNOWN"
+    cipher_tls_version = cipher_info[1] if cipher_info and len(cipher_info) > 1 else ""
+    cipher_bits = cipher_info[2] if cipher_info and len(cipher_info) > 2 else 0
+
+    tls_label = tls_version_raw or cipher_tls_version or "UNKNOWN"
+    tls_meta = TLS_VERSION_RISK.get(tls_label, {"label": tls_label, "risk": "UNKNOWN", "points": 0})
+    cipher_analysis = _analyze_cipher_suite(cipher_name)
+
+    risk_points: float = 0.0
+    cert_results: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    total_assets = 0
+    vulnerable_assets = 0
+    compliant_assets = 0
+
+    for idx, der_bytes in enumerate(chain_ders):
+        total_assets += 1
+        try:
+            cert = x509.load_der_x509_certificate(der_bytes)
+        except Exception as exc:
+            cert_results.append({
+                "index": idx,
+                "error": f"Failed to parse certificate: {exc}",
+            })
+            vulnerable_assets += 1
+            continue
+
+        subject_str = _format_subject(cert.subject)
+        issuer_str = _format_subject(cert.issuer)
+
+        sig_algo = cert.signature_algorithm_oid._name if hasattr(
+            cert.signature_algorithm_oid, '_name'
+        ) else str(cert.signature_algorithm_oid.dotted_string)
+
+        try:
+            expires_at = cert.not_valid_after_utc
+        except AttributeError:
+            expires_at = cert.not_valid_after.replace(tzinfo=timezone.utc)
+        days_until_expiry = (expires_at - datetime.now(timezone.utc)).days
+        expiry_warning = days_until_expiry < 90
+
+        san_domains = _extract_san_domains(cert)
+        san_covers_domain = _domain_matches_san(domain, san_domains) if idx == 0 else None
+
+        pub_key = cert.public_key()
+        key_info = _classify_public_key(pub_key)
+
+        cert_risk_points = key_info["risk_points"]
+        risk_points += cert_risk_points
+
+        if key_info["quantum_vulnerable"] is True:
+            vulnerable_assets += 1
+        elif key_info["quantum_vulnerable"] is False:
+            compliant_assets += 1
+        else:
+            vulnerable_assets += 1
+
+        cert_record: dict[str, Any] = {
+            "index": idx,
+            "subject": subject_str,
+            "issuer": issuer_str,
+            "serial_number": str(cert.serial_number),
+            "algorithm": key_info["algorithm"],
+            "signature_algorithm": sig_algo,
+            "quantum_vulnerable": key_info["quantum_vulnerable"],
+            "vulnerability_reason": key_info["vulnerability_reason"],
+            "severity": key_info["severity"],
+            "expires_at": expires_at.strftime("%Y-%m-%d"),
+            "days_until_expiry": days_until_expiry,
+            "expiry_warning": expiry_warning,
+        }
+
+        if idx == 0:
+            cert_record["san_domains"] = san_domains
+            cert_record["san_covers_domain"] = san_covers_domain
+
+        cert_results.append(cert_record)
+
+        cert_label = "Leaf" if idx == 0 else f"Intermediate/Root #{idx}"
+        findings.append({
+            "severity": key_info["severity"],
+            "category": "CERTIFICATE_KEY",
+            "title": f"{key_info['algorithm']} Public Key Detected ({cert_label} Certificate)",
+            "description": key_info["vulnerability_reason"],
+            "affected_asset": subject_str,
+            "nist_reference": NIST_REFERENCES.get(
+                _key_family(pub_key), "See NIST PQC Migration resources"
+            ),
+            "remediation": _remediation_for_key(pub_key),
+        })
+
+        if expiry_warning:
+            findings.append({
+                "severity": "WARNING" if days_until_expiry > 30 else "HIGH",
+                "category": "CERTIFICATE_EXPIRY",
+                "title": f"Certificate Expiring in {days_until_expiry} Days ({cert_label})",
+                "description": (
+                    f"The certificate for '{subject_str}' expires on {expires_at.strftime('%Y-%m-%d')} "
+                    f"({days_until_expiry} days remaining). Renew before migration."
+                ),
+                "affected_asset": subject_str,
+                "nist_reference": "NIST SP 800-57 Part 1 Rev 5 — Crypto period management",
+                "remediation": "Renew certificate and consider deploying PQC-capable certificate upon renewal.",
+            })
+
+        if idx == 0 and san_covers_domain is False:
+            findings.append({
+                "severity": "WARNING",
+                "category": "CERTIFICATE_SAN",
+                "title": f"Domain '{domain}' Not Covered by Certificate SAN",
+                "description": (
+                    f"The leaf certificate's Subject Alternative Names {san_domains} "
+                    f"do not cover the scanned domain '{domain}'."
+                ),
+                "affected_asset": subject_str,
+                "nist_reference": "RFC 6125 — Representation and Verification of Domain-Based Application Service Identity",
+                "remediation": "Ensure the certificate SAN includes the target domain.",
+            })
+
+    risk_points += cipher_analysis["risk_points"]
+
+    findings.append({
+        "severity": "CRITICAL" if cipher_analysis["cipher_risk"] == "VULNERABLE" else (
+            "COMPLIANT" if cipher_analysis["cipher_risk"] == "COMPLIANT" else "MEDIUM"
+        ),
+        "category": "KEY_EXCHANGE",
+        "title": (
+            f"{'Quantum-Vulnerable' if not cipher_analysis['cipher_quantum_safe'] else 'PQC-Compliant'} "
+            f"Key Exchange: {cipher_name}"
+        ),
+        "description": cipher_analysis["cipher_reason"],
+        "affected_asset": f"TLS session to {host}:{port}",
+        "nist_reference": NIST_REFERENCES.get("KEX", ""),
+        "remediation": (
+            "Deploy ML-KEM-768 (FIPS 203) hybrid key exchange (e.g. X25519MLKEM768) "
+            "on the server. Requires TLS 1.3 and updated TLS library (e.g. OpenSSL 3.5+)."
+            if not cipher_analysis["cipher_quantum_safe"]
+            else "No action required — PQC hybrid key exchange is deployed."
+        ),
+    })
+
+    risk_points += tls_meta["points"]
+
+    if tls_meta["risk"] in ("CRITICAL", "WARNING"):
+        findings.append({
+            "severity": tls_meta["risk"],
+            "category": "TLS_VERSION",
+            "title": f"TLS Version {tls_meta['label']} Detected",
+            "description": (
+                f"The server negotiated {tls_meta['label']}. "
+                + ("This version is deprecated and insecure. " if tls_meta["risk"] == "CRITICAL" else "")
+                + "TLS 1.3 is required for PQC hybrid key exchange support."
+            ),
+            "affected_asset": f"TLS session to {host}:{port}",
+            "nist_reference": NIST_REFERENCES["TLS_OLD"],
+            "remediation": (
+                "Upgrade to TLS 1.3 to enable PQC hybrid cipher suites. "
+                "Disable TLS 1.0 and 1.1 immediately."
+            ),
+        })
+
+    risk_points = round(max(0.0, min(100.0, risk_points)), 1)
+    risk_level = _compute_risk_level(risk_points)
+
+    severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "WARNING": 3, "LOW": 4, "COMPLIANT": 5}
+    findings.sort(key=lambda f: severity_order.get(f["severity"], 99))
+
+    return {
+        "domain": domain,
+        "scan_timestamp": scan_start.isoformat(),
+        "scan_duration_ms": int((datetime.now(timezone.utc) - scan_start).total_seconds() * 1000),
+        "overall_risk_score": risk_points,
+        "risk_level": risk_level,
+        "tls_version": tls_meta["label"],
+        "tls_version_risk": tls_meta["risk"],
+        "cipher_suite": cipher_name,
+        "cipher_bits": cipher_bits,
+        "cipher_quantum_safe": cipher_analysis["cipher_quantum_safe"],
+        "certificates": cert_results,
+        "findings": findings,
+        "cbom_summary": {
+            "total_assets": total_assets,
+            "vulnerable_assets": vulnerable_assets,
+            "compliant_assets": compliant_assets,
+            "pqc_readiness_pct": round(
+                (compliant_assets / total_assets * 100) if total_assets > 0 else 0, 1
+            ),
+        },
+        "compliance_frameworks": {
+            "nist_pqc_migration": "https://csrc.nist.gov/projects/post-quantum-cryptography",
+            "cnsa_2_0": "https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF",
+            "fips_203_ml_kem": "https://csrc.nist.gov/pubs/fips/203/final",
+            "fips_204_ml_dsa": "https://csrc.nist.gov/pubs/fips/204/final",
+            "fips_205_slh_dsa": "https://csrc.nist.gov/pubs/fips/205/final",
+        },
+    }

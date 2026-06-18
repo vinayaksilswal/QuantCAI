@@ -215,6 +215,9 @@ app.include_router(billing_router)
 from routers.payment import router as payment_router
 app.include_router(payment_router)
 
+from routers.paypal_billing import router as stripe_billing_router
+app.include_router(stripe_billing_router)
+
 from quantum_engine import router as quantum_sim_router
 app.include_router(quantum_sim_router, dependencies=[Depends(enforce_limits("simulator"))])
 
@@ -230,8 +233,17 @@ app.include_router(developer_keys_router)
 from routers.developer import router as developer_router
 app.include_router(developer_router)
 
+from routers.cohorts import router as cohorts_router
+app.include_router(cohorts_router)
+
+from routers.ast import router as ast_router
+app.include_router(ast_router)
+
 from routers.public_circuit import router as public_circuit_router
 app.include_router(public_circuit_router)
+
+from routers.public_badge import router as public_badge_router
+app.include_router(public_badge_router)
 
 from routers.auth import router as auth_router
 app.include_router(auth_router)

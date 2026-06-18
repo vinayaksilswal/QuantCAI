@@ -195,3 +195,131 @@ def export_circuit_v1(
     except Exception as e:
         logger.error(f"Export error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 Sharing & Viral Loop Endpoints
+# ---------------------------------------------------------------------------
+import secrets
+
+class CircuitCreateRequest(BaseModel):
+    name: str
+    circuit_data: str
+    is_interactive: bool = False
+
+@router.post("/v1/circuits")
+@limiter.limit("15/minute")
+def save_circuit(
+    request: Request,
+    body: CircuitCreateRequest,
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Persist a circuit configuration to the database.
+    """
+    circuit = DBmodels.Circuit(
+        user_id=current_user.id,
+        name=body.name,
+        circuit_data=body.circuit_data,
+        is_interactive=body.is_interactive
+    )
+    db.add(circuit)
+    db.commit()
+    db.refresh(circuit)
+    
+    return {
+        "status": "success",
+        "id": circuit.id,
+        "name": circuit.name,
+        "circuit_data": circuit.circuit_data,
+        "is_public": circuit.is_public,
+        "share_slug": circuit.share_slug
+    }
+
+@router.post("/v1/circuits/{circuit_id}/share")
+@limiter.limit("10/minute")
+def share_circuit(
+    request: Request,
+    circuit_id: int,
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Expose a circuit publicly by generating a secure sharing slug.
+    """
+    circuit = db.query(DBmodels.Circuit).filter(DBmodels.Circuit.id == circuit_id).first()
+    if not circuit:
+        raise HTTPException(status_code=404, detail="Circuit not found")
+        
+    if circuit.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to share this circuit")
+        
+    if not circuit.share_slug:
+        # Generate clean, URL-safe unique token
+        circuit.share_slug = secrets.token_urlsafe(12)
+        
+    circuit.is_public = True
+    db.commit()
+    
+    return {
+        "status": "success",
+        "share_slug": circuit.share_slug,
+        "is_public": circuit.is_public
+    }
+
+
+@router.post("/v1/circuits/{circuit_id}/unshare")
+@limiter.limit("10/minute")
+def unshare_circuit(
+    request: Request,
+    circuit_id: int,
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Revoke public access to a circuit.
+    """
+    circuit = db.query(DBmodels.Circuit).filter(DBmodels.Circuit.id == circuit_id).first()
+    if not circuit:
+        raise HTTPException(status_code=404, detail="Circuit not found")
+        
+    if circuit.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this circuit")
+        
+    circuit.is_public = False
+    db.commit()
+    
+    return {
+        "status": "success",
+        "is_public": circuit.is_public
+    }
+
+
+@router.get("/v1/public/circuits/{share_slug}")
+@limiter.limit("30/minute")
+def get_public_circuit(
+    request: Request,
+    share_slug: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Public unauthenticated endpoint to fetch shared circuit configuration.
+    """
+    circuit = db.query(DBmodels.Circuit).filter(
+        DBmodels.Circuit.share_slug == share_slug,
+        DBmodels.Circuit.is_public == True
+    ).first()
+    
+    if not circuit:
+        raise HTTPException(status_code=404, detail="Public shared circuit not found or access revoked")
+        
+    return {
+        "id": circuit.id,
+        "name": circuit.name or "Untitled Circuit",
+        "circuit_data": circuit.circuit_data,
+        "is_interactive": circuit.is_interactive,
+        "created_at": circuit.created_at,
+        "author_name": circuit.user.name if circuit.user else "QuantCAI Innovator"
+    }
+

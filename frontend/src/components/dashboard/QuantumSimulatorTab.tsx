@@ -31,7 +31,16 @@ interface SimulationResult {
     noise_model: string;
     shots: number;
   };
+  qpu_telemetry?: {
+    provider: string;
+    qpu_name: string;
+    queue_time_seconds: number;
+    calibration_date: string;
+    readout_error_rate: number;
+    cnot_gate_fidelity: number;
+  };
 }
+
 
 const DEFAULT_QASM_3 = `OPENQASM 3.0;
 include "stdgates.inc";
@@ -341,7 +350,13 @@ export function QuantumSimulatorTab() {
                   <option value="AWS Braket">AWS Braket</option>
                   <option value="IBM Quantum">IBM Quantum</option>
                 </select>
+                {backend !== 'Local AerSimulator' && (
+                  <span className="text-[10px] text-amber-400 font-mono block mt-1.5 leading-snug">
+                    ⚠️ Surcharge: 1,000 base + 10 credits/shot will be deducted from your wallet.
+                  </span>
+                )}
               </div>
+
 
               {/* Noise Model Selector */}
               <div className="space-y-2">
@@ -480,8 +495,30 @@ export function QuantumSimulatorTab() {
                               );
                             })}
                         </div>
+
+                        {/* QPU Telemetry Panel */}
+                        {result.qpu_telemetry && (
+                          <div className="mt-6 p-4 border border-purple-900/30 bg-purple-950/5 rounded-xl space-y-3 font-mono text-xs">
+                            <div className="flex items-center gap-2 border-b border-purple-900/20 pb-2">
+                              <Cpu className="w-4 h-4 text-purple-400" />
+                              <h4 className="font-syne font-bold text-xs text-purple-300 uppercase tracking-wider">
+                                QPU Hardware Telemetry
+                              </h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px] text-slate-400">
+                              <div>QPU Target: <span className="text-slate-200 font-bold">{result.qpu_telemetry.qpu_name}</span></div>
+                              <div>Queue Delay: <span className="text-slate-200 font-bold">{result.qpu_telemetry.queue_time_seconds}s</span></div>
+                              <div>Readout Error: <span className="text-slate-200 font-bold">{(result.qpu_telemetry.readout_error_rate * 100).toFixed(1)}%</span></div>
+                              <div>CNOT Fidelity: <span className="text-slate-200 font-bold">{(result.qpu_telemetry.cnot_gate_fidelity * 100).toFixed(1)}%</span></div>
+                            </div>
+                            <div className="text-[9px] text-slate-500 pt-1">
+                              Calibration Timestamp: {new Date(result.qpu_telemetry.calibration_date).toLocaleString()}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
+
 
                     {/* Loading State for visualization */}
                     {loading && (

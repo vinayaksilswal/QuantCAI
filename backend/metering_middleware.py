@@ -4,7 +4,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from fastapi import Request, Depends, HTTPException, status
+from fastapi import Request, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -75,6 +75,7 @@ async def get_or_create_wallet(db: AsyncSession, user_id: int) -> DBmodels.Walle
 
 async def verify_api_key_and_meter(
     request: Request,
+    response: Response,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -130,17 +131,37 @@ async def verify_api_key_and_meter(
     # --- ENFORCE DAILY TIER LIMITS ---
     from tier_limits import get_user_tier
     tier = await get_user_tier(db, user_id)
-    daily_api_limit = 10 if tier == "FREE" else 500 if tier == "PRO" else 9999999
+    if tier == "PRO":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Developer API access is not available on the Pro tier. Please upgrade to the API Metered or Enterprise tier."
+        )
+    daily_api_limit = 10 if tier == "FREE" else 9999999
     
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    from datetime import time as datetime_time, timedelta
+    tomorrow = datetime.combine(now.date() + timedelta(days=1), datetime_time.min, tzinfo=timezone.utc)
+    seconds_until_midnight = int((tomorrow - now).total_seconds())
+
+    today_str = now.strftime("%Y-%m-%d")
     usage_key = f"developer:usage:daily:{api_key_id}:{today_str}"
     
     daily_requests = await redis_client.hget(usage_key, "requests")
-    if daily_requests and int(daily_requests) >= daily_api_limit:
+    current_requests = int(daily_requests) if daily_requests else 0
+    
+    if current_requests >= daily_api_limit:
+        response.headers["X-RateLimit-Limit"] = str(daily_api_limit)
+        response.headers["X-RateLimit-Remaining"] = "0"
+        response.headers["X-RateLimit-Reset"] = str(seconds_until_midnight)
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=f"Daily Developer API limit of {daily_api_limit} requests reached for your tier."
         )
+
+    # Set rate limit headers
+    response.headers["X-RateLimit-Limit"] = str(daily_api_limit)
+    response.headers["X-RateLimit-Remaining"] = str(max(0, daily_api_limit - current_requests - 1))
+    response.headers["X-RateLimit-Reset"] = str(seconds_until_midnight)
 
     # 3+4. Atomic wallet check + token bucket rate limit (Finding #3)
     # Both checks run in a single Redis round-trip via Lua, eliminating TOCTOU.
@@ -180,11 +201,10 @@ async def verify_api_key_and_meter(
 async def apply_transaction_charges(user_id: int, api_key_id: int, shots: int):
     """
     Deducts a micro-charge from the cached wallet balance and updates the daily usage hash.
-    Standard rate: $0.00015 (0.015 cents) per 1024 shots.
+    Standard rate: $0.001 per shot.
     """
-    # Calculate charge: e.g., 0.015 cents per 1024 shots
-    # Charge per shot = 0.015 / 1024
-    charge_cents = float((shots / 1024.0) * 0.015)
+    # Calculate charge: $0.001 per shot
+    charge_cents = float(shots * 0.001)
 
     wallet_cache_key = f"developer:wallet:{user_id}"
     

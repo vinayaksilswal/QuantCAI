@@ -116,7 +116,7 @@ const Community = () => {
   };
 
   return (
-    <div className="min-h-screen relative bg-[#0a0f1d]">
+    <div className="min-h-screen relative bg-transparent">
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-purple-500/10 pointer-events-none" />
       <Navbar />
       <div className="pt-32 pb-20 px-6 max-w-4xl mx-auto relative z-10">

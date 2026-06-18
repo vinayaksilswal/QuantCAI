@@ -255,3 +255,53 @@ async def perform_pro_pqc_scan(
         raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
 
 
+class MonitoredTargetCreateRequest(BaseModel):
+    target_type: str  # "domain" or "repository"
+    target_value: str
+    schedule_interval: str = "daily"
+
+@router.post("/pqc/monitored-targets")
+async def add_monitored_target(
+    payload: MonitoredTargetCreateRequest,
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Configure a domain or repository target for scheduled scans and public badge tracking.
+    """
+    stmt = select(DBmodels.MonitoredTarget).where(
+        DBmodels.MonitoredTarget.user_id == current_user.id,
+        DBmodels.MonitoredTarget.target_value == payload.target_value
+    )
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
+    if existing:
+        return {
+            "status": "success",
+            "id": existing.id,
+            "target_type": existing.target_type,
+            "target_value": existing.target_value,
+            "last_scan_score": existing.last_scan_score
+        }
+
+    target = DBmodels.MonitoredTarget(
+        user_id=current_user.id,
+        target_type=payload.target_type,
+        target_value=payload.target_value,
+        schedule_interval=payload.schedule_interval,
+        last_scan_score=None
+    )
+    db.add(target)
+    await db.commit()
+    await db.refresh(target)
+    
+    return {
+        "status": "success",
+        "id": target.id,
+        "target_type": target.target_type,
+        "target_value": target.target_value,
+        "last_scan_score": target.last_scan_score
+    }
+
+
+

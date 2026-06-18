@@ -91,6 +91,40 @@ export function DeveloperConsoleTab() {
     fetchKeys();
     fetchWallet();
     fetchUsage();
+
+    // Check for PayPal Topup redirect parameters
+    const searchParams = new URLSearchParams(window.location.search);
+    const topupStatus = searchParams.get('topup');
+    const orderToken = searchParams.get('token');
+
+    if (topupStatus === 'success' && orderToken) {
+      const captureTopup = async () => {
+        toast.info('Capturing PayPal deposit... Please do not close this window.');
+        try {
+          const response = await axiosClient.post<Wallet>('/api/v1/developer/wallet/capture', {
+            order_id: orderToken
+          });
+          setWallet(response.data);
+          toast.success('Credits successfully deposited into your wallet!');
+          
+          // Clear query params from URL without refreshing
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+          
+          // Refresh usage graph
+          fetchUsage();
+        } catch (err: any) {
+          console.error('Capture top-up error:', err);
+          const msg = err.response?.data?.detail || 'Failed to capture PayPal deposit.';
+          toast.error(msg);
+        }
+      };
+      captureTopup();
+    } else if (topupStatus === 'cancel') {
+      toast.warning('PayPal deposit cancelled.');
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
   }, []);
 
   const handleCreateKey = async (e: React.FormEvent) => {
@@ -177,16 +211,18 @@ export function DeveloperConsoleTab() {
 
     setSubmittingTopup(true);
     try {
-      const response = await axiosClient.post<Wallet>('/api/v1/developer/wallet/topup', {
+      const response = await axiosClient.post<{ url: string; order_id: string }>('/api/v1/developer/wallet/topup', {
         amount: amountFloat
       });
-      setWallet(response.data);
-      setTopupAmount('');
-      toast.success(`Simulated deposit of $${amountFloat.toFixed(2)} completed!`);
-      fetchUsage();
-    } catch (error) {
+      if (response.data && response.data.url) {
+        window.location.href = response.data.url;
+      } else {
+        toast.error('Failed to initiate deposit. Please try again.');
+      }
+    } catch (error: any) {
       console.error('Error processing topup:', error);
-      toast.error('Simulated transaction failed.');
+      const msg = error.response?.data?.detail || 'Top-up initiation failed.';
+      toast.error(msg);
     } finally {
       setSubmittingTopup(false);
     }
@@ -286,7 +322,7 @@ export function DeveloperConsoleTab() {
                   Top-Up
                 </Button>
               </div>
-              <p className="text-[9px] text-slate-500 italic">Simulates a Stripe/Razorpay hook. Charges credit card on test gateway.</p>
+              <p className="text-[9px] text-slate-500 italic">Simulates a PayPal callback. Credited to test wallet.</p>
             </form>
 
           </CardContent>

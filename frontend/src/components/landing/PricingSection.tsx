@@ -1,5 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { Link } from 'react-router-dom';
+import { CheckoutButton } from '@/components/CheckoutButton';
 
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────── */
@@ -20,28 +20,11 @@ interface PlanProps {
   features: string[];
   cta: string;
   ctaHref?: string;
-  onClick?: () => void;
   highlighted?: boolean;
-  loading?: boolean;
-  showDisclaimer?: boolean;
-  showWplusButton?: boolean;
-  wplusBuyUrl?: string;
+  planKey?: string; // "pro" or "enterprise" for PayPal checkout
 }
 
-const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badge, features, cta, ctaHref, onClick, highlighted, loading, showDisclaimer, showWplusButton, wplusBuyUrl }: PlanProps) => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
-  const handleWplusClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    if (!user) {
-      localStorage.setItem('pending_checkout', 'pro');
-      navigate('/login');
-    } else {
-      window.location.href = wplusBuyUrl || "https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63";
-    }
-  };
-
+const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badge, features, cta, ctaHref, highlighted, planKey }: PlanProps) => {
   return (
     <div className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col transition-all duration-300 backdrop-blur-xl h-full
       ${highlighted
@@ -79,42 +62,18 @@ const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badg
           </li>
         ))}
       </ul>
-      {showDisclaimer && (
-        /* Compliance placeholder tag for WarriorPlus crawler */
-        <div className="wplus_spdisclaimer" style={{ display: 'none' }}></div>
-      )}
-      {showWplusButton ? (
-        <div className="mt-auto mb-6 mx-4 p-4 bg-white rounded-xl flex flex-col items-center justify-center">
-          <a 
-            href={wplusBuyUrl || "https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63"}
-            onClick={handleWplusClick}
-            className="block w-full text-center hover:opacity-90 transition-all duration-300"
-          >
-            <img 
-              src="https://warriorplus.com/o2/btn/fn100011001/b0pzyf/jgbrsv/467202" 
-              alt="Buy Now on WarriorPlus" 
-              className="w-full h-auto object-cover border-0"
-            />
-          </a>
-        </div>
-      ) : onClick ? (
+      {planKey ? (
         <div className="mt-auto w-full">
-          <button
-            onClick={onClick}
-            disabled={loading}
-            className={`block w-full text-center py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 disabled:opacity-50
+          <CheckoutButton
+            planName={planKey}
+            className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-all duration-300
               ${highlighted
                 ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-400 hover:to-cyan-400 shadow-lg shadow-teal-500/30'
                 : 'border border-white/10 text-white hover:border-blue-400/30 hover:bg-white/10 backdrop-blur-sm'
               }`}
           >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
-                Processing...
-              </span>
-            ) : cta}
-          </button>
+            {cta}
+          </CheckoutButton>
         </div>
       ) : ctaHref?.startsWith('/') ? (
         <div className="mt-auto w-full">
@@ -148,13 +107,6 @@ const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badg
 };
 
 export const PricingSection = () => {
-  /* WarriorPlus script is loaded once in index.html — no duplicate injection needed */
-
-  const handleProClick = () => {
-    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63';
-    window.location.href = wplusCheckoutUrl;
-  };
-
   return (
     <section id="pricing" className="py-20 sm:py-28 px-4 sm:px-6 relative z-10">
       <div className="max-w-5xl mx-auto">
@@ -187,9 +139,9 @@ export const PricingSection = () => {
           />
           <PlanCard
             name="Pro Tier"
-            price="$27"
+            price="$49"
             originalPrice="$99"
-            discountPercentage="72% OFF"
+            discountPercentage="50% OFF"
             period="month"
             badge="Most Popular"
             highlighted
@@ -204,11 +156,7 @@ export const PricingSection = () => {
               'Static Cryptographic Bill of Materials (CBOM) Export & Priority Support',
             ]}
             cta="Upgrade to Pro"
-            onClick={handleProClick}
-            loading={false}
-            showDisclaimer={true}
-            showWplusButton={true}
-            wplusBuyUrl="https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63"
+            planKey="pro"
           />
           <PlanCard
             name="Enterprise Compliance"

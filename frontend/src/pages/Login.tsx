@@ -108,7 +108,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen relative flex flex-col justify-center items-center bg-[#0a0f1d]">
+    <div className="min-h-screen relative flex flex-col justify-center items-center bg-transparent">
       
       {/* Decorative animated/glowing background blobs */}
       <div 

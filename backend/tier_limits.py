@@ -120,9 +120,14 @@ async def get_user_tier(db: AsyncSession, user_id: int) -> str:
 
     tier_str = await get_subscription_plan(db, user_id, org_id)
     tier_enum = DBmodels.Tier.FREE
-    if tier_str.lower() == "pro":
+    tier_lower = tier_str.lower()
+    if tier_lower == "pro":
         tier_enum = DBmodels.Tier.PRO
-    elif tier_str.lower() == "enterprise":
+    elif tier_lower == "api_metered":
+        tier_enum = DBmodels.Tier.API_METERED
+    elif tier_lower == "institutional":
+        tier_enum = DBmodels.Tier.INSTITUTIONAL
+    elif tier_lower == "enterprise":
         tier_enum = DBmodels.Tier.ENTERPRISE
 
     # Initialize UserPlan
@@ -226,6 +231,18 @@ def enforce_limits(required_feature: str):
                         status_code=status.HTTP_402_PAYMENT_REQUIRED,
                         detail={"error": "SHOTS_LIMIT_EXCEEDED", "message": "Pro tier is limited to 65,536 shots. Upgrade to Enterprise for unlimited execution."}
                     )
+            elif tier == "API_METERED":
+                if num_qubits and num_qubits > 15:
+                    raise HTTPException(
+                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "API Metered tier is limited to 15 qubits. Upgrade to Institutional or Enterprise for more."}
+                    )
+            elif tier == "INSTITUTIONAL":
+                if num_qubits and num_qubits > 25:
+                    raise HTTPException(
+                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Institutional tier is limited to 25 qubits. Upgrade to Enterprise for unlimited execution."}
+                    )
             # Enterprise has no limitations
 
             # Redis rate limiting for daily circuit runs
@@ -293,10 +310,10 @@ def enforce_limits(required_feature: str):
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
                     detail={"error": "PQC_LIMIT_EXCEEDED", "message": "Free tier limit of 3 PQC scans per month reached. Upgrade to Pro for up to 50 scans."}
                 )
-            elif tier == "PRO" and usage.monthly_pqc_scans >= 50:
+            elif tier in ("PRO", "API_METERED") and usage.monthly_pqc_scans >= 50:
                 raise HTTPException(
                     status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": "Pro tier limit of 50 PQC scans per month reached. Upgrade to Enterprise for unlimited scans."}
+                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": f"{tier} tier limit of 50 PQC scans per month reached. Upgrade to Enterprise for unlimited scans."}
                 )
 
             # Increment count atomically (protected by row lock)

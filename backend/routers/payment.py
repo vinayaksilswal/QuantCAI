@@ -22,8 +22,18 @@ async def warriorplus_ipn_handler(
 ):
     """
     WarriorPlus IPN webhook handler.
+    
+    DEPRECATED: This handler is in a 90-day sunset period.
+    New subscriptions should use the Stripe billing integration at /api/billing/checkout.
+    This endpoint will be removed after the deprecation window closes.
+    
     Validates security key, creates/updates user account, and activates/cancels Pro plan.
     """
+    logger.warning(
+        "DEPRECATION: WarriorPlus IPN handler invoked. "
+        "This endpoint is deprecated and will be removed. "
+        "Migrate subscribers to Stripe billing at /api/billing/checkout."
+    )
     form_data = await request.form()
     logger.info(f"Received WarriorPlus IPN notification: {dict(form_data)}")
 

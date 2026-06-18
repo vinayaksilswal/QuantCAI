@@ -6,11 +6,10 @@ import { ShieldAlert } from 'lucide-react';
 const AuthCallback = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { loginWithGoogle, user } = useAuth() as any;
+  const { loginWithGoogle, loginWithToken, user } = useAuth() as any;
 
   useEffect(() => {
-    // If the user is already authenticated (either from a previous session or from the first mount's completed callback),
-    // redirect them to their target path immediately.
+    // If the user is already authenticated, redirect them
     if (user) {
       const redirectPath = localStorage.getItem('oauth_redirect_path') || '/profile';
       localStorage.removeItem('oauth_redirect_path');
@@ -19,14 +18,32 @@ const AuthCallback = () => {
     }
 
     const handleCallback = async () => {
+      // 1. Check for SAML SSO Callback query parameters
+      const searchParams = new URLSearchParams(window.location.search);
+      const ssoStatus = searchParams.get('sso');
+      const ssoToken = searchParams.get('token');
+
+      if (ssoStatus === 'success' && ssoToken) {
+        try {
+          await loginWithToken(ssoToken);
+          const redirectPath = localStorage.getItem('oauth_redirect_path') || '/profile';
+          localStorage.removeItem('oauth_redirect_path');
+          navigate(redirectPath, { replace: true });
+          return;
+        } catch (err: any) {
+          console.error('SSO login error:', err);
+          setError(err?.message || 'SAML Single Sign-On session establishment failed.');
+          return;
+        }
+      }
+
+      // 2. Fallback to Google OAuth Callback
       const storedState = localStorage.getItem('oauth_state');
       if (!storedState) {
-        // Exit early if the first mount's execution already cleared the stored state.
         return;
       }
 
       try {
-        // Parse fragment parameters
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         
@@ -46,12 +63,10 @@ const AuthCallback = () => {
           throw new Error('OAuth state mismatch. Request may have been compromised.');
         }
         
-        // Clear OAuth state from storage so no other run/mount can trigger it
-        localStorage.setItem('oauth_state', ''); // set empty to prevent other check while removing
+        localStorage.setItem('oauth_state', '');
         localStorage.removeItem('oauth_state');
         localStorage.removeItem('oauth_nonce');
         
-        // Execute Google login. This updates the global 'user' context state upon completion.
         await loginWithGoogle(idToken);
       } catch (err: any) {
         console.error('OAuth callback error:', err);
@@ -60,10 +75,10 @@ const AuthCallback = () => {
     };
     
     handleCallback();
-  }, [navigate, loginWithGoogle, user]);
+  }, [navigate, loginWithGoogle, loginWithToken, user]);
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center bg-[#0a0f1d] text-white">
+    <div className="min-h-screen flex flex-col justify-center items-center bg-transparent text-white">
       <div className="w-full max-w-[440px] px-6 text-center">
         {error ? (
           <div className="border border-red-500/20 bg-red-500/10 rounded-2xl p-8 shadow-lg">

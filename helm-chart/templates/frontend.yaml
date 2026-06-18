@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "quantcai.fullname" . }}-frontend
+  labels:
+    {{- include "quantcai.labels" . | nindent 4 }}
+    app: frontend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "quantcai.selectorLabels" . | nindent 6 }}
+      app: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "quantcai.selectorLabels" . | nindent 8 }}
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.images.frontend.repository }}:{{ .Values.images.frontend.tag }}"
+          imagePullPolicy: {{ .Values.images.frontend.pullPolicy }}
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+            - name: static-dist
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "quantcai.fullname" . }}-nginx-config
+        - name: static-dist
+          emptyDir: {}  # In a real environment, this maps to static build assets or a persistent volume
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "quantcai.fullname" . }}-frontend
+  labels:
+    {{- include "quantcai.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.frontendPort }}
+      targetPort: 80
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "quantcai.selectorLabels" . | nindent 4 }}
+    app: frontend
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "quantcai.fullname" . }}-nginx-config
+  labels:
+    {{- include "quantcai.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name localhost;
+
+        location / {
+            root /usr/share/nginx/html;
+            index index.html index.htm;
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api {
+            proxy_pass http://{{ include "quantcai.fullname" . }}-backend:{{ .Values.service.backendPort }};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            client_max_body_size 60M;
+        }
+    }

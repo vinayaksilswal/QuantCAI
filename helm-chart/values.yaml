@@ -1,0 +1,50 @@
+# Default values for quantcai helm deployment.
+# This is a YAML-formatted file.
+
+replicaCount: 1
+
+images:
+  backend:
+    repository: quantcai-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: nginx
+    tag: alpine
+    pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  backendPort: 8000
+  frontendPort: 80
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/client-max-body-size: "60m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  hosts:
+    - host: quantcai.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Database configuration: defaults connect to standard managed instances or Cluster IP services
+database:
+  url: "postgresql+psycopg2://quantcai_admin:secure_onprem_password_2026@quantcai-postgres-service:5432/quantcai_prod"
+
+redis:
+  url: "redis://quantcai-redis-service:6379/0"
+
+security:
+  jwtSecret: "secure_jwt_secret_key_onprem_generation_key_2026_quantcai"
+
+saml:
+  enabled: "true"
+  spEntityId: "https://quantcai.local/metadata"
+  spAcsUrl: "https://quantcai.local/api/auth/saml/acs"
+  idpSsoUrl: "https://corporate-idp.com/sso/saml"
+  idpEntityId: "https://corporate-idp.com/metadata"

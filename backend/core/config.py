@@ -20,8 +20,16 @@ class Settings(BaseSettings):
     
 
     
-    # WarriorPlus Integration
+    # WarriorPlus Integration (deprecated — 90-day sunset)
     WARRIORPLUS_SECURITY_KEY: str = ""
+    
+    # PayPal Billing Integration
+    PAYPAL_CLIENT_ID: str = ""
+    PAYPAL_CLIENT_SECRET: str = ""
+    PAYPAL_WEBHOOK_ID: str = ""
+    PAYPAL_PRO_PLAN_ID: str = ""          # PayPal subscription plan ID for Pro tier
+    PAYPAL_ENTERPRISE_PLAN_ID: str = ""   # PayPal subscription plan ID for Enterprise tier
+    PAYPAL_MODE: str = "sandbox"          # "sandbox" or "live"
     
     # External APIs
     GEMINI_API_KEY: str = ""

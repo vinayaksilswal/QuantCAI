@@ -86,6 +86,23 @@ def migrate_database():
             DBmodels.Base.metadata.create_all(bind=db.engine, tables=[DBmodels.RefreshToken.__table__])
             logger.info("✓ refresh_tokens table is present")
 
+            # Ensure monitored_targets and security_alerts tables exist
+            logger.info("Ensuring monitored_targets and security_alerts tables exist...")
+            DBmodels.Base.metadata.create_all(bind=db.engine, tables=[
+                DBmodels.MonitoredTarget.__table__,
+                DBmodels.SecurityAlert.__table__
+            ])
+            logger.info("✓ monitored_targets and security_alerts tables are present")
+
+            # Add 'qpu_run' to usage_event_type_enum
+            try:
+                connection.execute(text("ALTER TYPE usage_event_type_enum ADD VALUE IF NOT EXISTS 'qpu_run';"))
+                connection.commit()
+                logger.info("✓ Added 'qpu_run' to usage_event_type_enum if not exists")
+            except Exception as e:
+                logger.warning(f"Informational/Error adding enum value 'qpu_run': {e}")
+
+
             # Check if circuits table exists
             result = connection.execute(text("""
                 SELECT table_name 
@@ -99,6 +116,28 @@ def migrate_database():
                 logger.info("✓ Successfully created circuits table")
             else:
                 logger.info("✓ circuits table already exists")
+
+            # Ensure circuits table has is_public and share_slug columns
+            circuit_cols = {
+                "is_public": "BOOLEAN DEFAULT FALSE NOT NULL",
+                "share_slug": "VARCHAR(255) NULL"
+            }
+            for col, col_type in circuit_cols.items():
+                result = connection.execute(text(f"""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name='circuits' AND column_name='{col}'
+                """))
+                if result.fetchone() is None:
+                    logger.info(f"Adding {col} column to circuits table...")
+                    connection.execute(text(f"""
+                        ALTER TABLE circuits 
+                        ADD COLUMN {col} {col_type}
+                    """))
+                    connection.commit()
+                    logger.info(f"✓ Successfully added {col} to circuits table")
+                else:
+                    logger.info(f"✓ {col} column already exists in circuits table")
 
             # Account security: add columns to users
             # failed_login_attempts: INTEGER DEFAULT 0 NOT NULL
@@ -156,6 +195,7 @@ def migrate_database():
             ("ix_circuits_user_id", "circuits(user_id)"),
             ("ix_refresh_tokens_user_id", "refresh_tokens(user_id)"),
             ("ix_email_verification_tokens_user_id", "email_verification_tokens(user_id)"),
+            ("ix_circuits_share_slug", "circuits(share_slug)"),
         ]
 
         # Need a new connection with autocommit for CREATE INDEX CONCURRENTLY
@@ -168,14 +208,15 @@ def migrate_database():
                 """), {"idx": idx_name}).fetchone()
                 if result is None:
                     logger.info(f"Creating index {idx_name} on {table_columns}...")
+                    is_unique = "UNIQUE " if "share_slug" in idx_name else ""
                     try:
-                        conn.execute(text(f"CREATE INDEX CONCURRENTLY {idx_name} ON {table_columns}"))
+                        conn.execute(text(f"CREATE {is_unique}INDEX CONCURRENTLY {idx_name} ON {table_columns}"))
                         logger.info(f"✓ Created index {idx_name}")
                     except Exception as e:
                         # Fallback to non-concurrent if CONCURRENTLY fails (e.g., older PG version, or already running within transaction)
                         logger.warning(f"CONCURRENTLY failed for {idx_name}: {e}. Trying normal CREATE INDEX.")
                         try:
-                            conn.execute(text(f"CREATE INDEX {idx_name} ON {table_columns}"))
+                            conn.execute(text(f"CREATE {is_unique}INDEX {idx_name} ON {table_columns}"))
                             logger.info(f"✓ Created index {idx_name} (non-concurrent)")
                         except Exception as e2:
                             logger.error(f"Failed to create index {idx_name}: {e2}")

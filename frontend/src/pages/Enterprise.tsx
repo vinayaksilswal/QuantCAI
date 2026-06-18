@@ -10,7 +10,7 @@ export default function Enterprise() {
   usePageTracking('enterprise');
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-slate-950 text-white">
+    <div className="min-h-screen relative overflow-hidden bg-transparent text-white">
       {/* Visual background elements */}
       <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
       <div className="absolute top-1/4 right-1/4 w-[600px] h-[400px] bg-emerald-500/[0.03] rounded-full blur-[120px] pointer-events-none" />
@@ -38,7 +38,7 @@ export default function Enterprise() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href="mailto:quantc.info@gmail.com?subject=QuantCAI%20Enterprise%20PQC%20Compliance%20Request"
+              href="mailto:support@quantcai.in?subject=QuantCAI%20Enterprise%20PQC%20Compliance%20Request"
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-bold text-base flex items-center justify-center gap-2 shadow-2xl shadow-emerald-500/20 border border-emerald-400/30 transform hover:scale-105 transition-all duration-300"
             >
               Request Custom Demo
@@ -156,16 +156,16 @@ export default function Enterprise() {
               <div className="bg-slate-950/80 rounded-xl p-4 border border-slate-850 inline-flex flex-col sm:flex-row items-center gap-4 px-6 justify-center mx-auto mb-8 shadow-inner">
                 <span className="text-slate-400 text-sm">Official Inquiries:</span>
                 <a
-                  href="mailto:quantc.info@gmail.com?subject=QuantCAI%20Enterprise%20Procurement%20Inquiry"
+                  href="mailto:support@quantcai.in?subject=QuantCAI%20Enterprise%20Procurement%20Inquiry"
                   className="text-emerald-400 hover:text-emerald-300 font-mono font-semibold text-lg transition-colors underline decoration-dotted"
                 >
-                  quantc.info@gmail.com
+                  support@quantcai.in
                 </a>
               </div>
 
               <div>
                 <a
-                  href="mailto:quantc.info@gmail.com?subject=QuantCAI%20Enterprise%20Procurement%20Inquiry"
+                  href="mailto:support@quantcai.in?subject=QuantCAI%20Enterprise%20Procurement%20Inquiry"
                   className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-lg bg-emerald-500 text-slate-950 font-bold hover:bg-emerald-400 shadow-lg shadow-emerald-500/25 transition-all duration-300"
                 >
                   <Mail className="h-5 w-5" />

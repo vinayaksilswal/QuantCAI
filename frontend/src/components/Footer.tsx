@@ -64,6 +64,9 @@ export const Footer = () => {
               <Link to="/refund-policy" className="block text-blue-200 hover:text-white transition-colors">
                 Refund Policy
               </Link>
+              <Link to="/security" className="block text-blue-200 hover:text-white transition-colors">
+                Security & Compliance
+              </Link>
             </div>
           </div>
 
@@ -117,15 +120,14 @@ export const Footer = () => {
           </div>
         </div>
 
-        {/* WarriorPlus & AI Disclaimer Section */}
+        {/* Platform Disclaimer Section */}
         <div className="border-t border-blue-700/30 mt-12 pt-6 text-center">
           <p className="text-gray-500 text-[11px] leading-relaxed max-w-4xl mx-auto">
             AI was used to assist in code optimization and drafting foundational educational materials.
             The entire platform has been rigorously tested, audited, and finalized by a human developer.
           </p>
-          {/* wplus_spdisclaimer is rendered in PricingSection — only one copy allowed on the page */}
-          <p id="wplus-disclaimer" className="text-gray-500 text-[11px] leading-relaxed mt-2 max-w-4xl mx-auto">
-            <strong>Disclaimer:</strong> <em>WarriorPlus is used to help manage the sale of products on this site. While WarriorPlus helps facilitate the sale, all payments are made directly to the product vendor and NOT WarriorPlus. Thus, all product questions, support inquiries and/or refund requests must be sent to the vendor. WarriorPlus's role should not be construed as an endorsement, approval or review of these products or any claim, statement or opinion used in the marketing of these products.</em>
+          <p className="text-gray-500 text-[11px] leading-relaxed mt-2 max-w-4xl mx-auto">
+            All payments are securely processed via PayPal. Subscriptions can be managed directly from your dashboard.
           </p>
         </div>
 
@@ -135,7 +137,7 @@ export const Footer = () => {
             <div>
               <h4 className="font-bold text-slate-300 mb-2 uppercase tracking-wider">Privacy Policy</h4>
               <p className="leading-relaxed">
-                We collect personal information (name, email, billing details via WarriorPlus/payment processors) and usage data (simulation history, AI chat volume) to manage your subscription and prevent system abuse. We share data only with necessary processing services and do not sell your data. For requests or data deletion, contact <a href="mailto:quantc.info@gmail.com" className="text-blue-400 hover:underline">quantc.info@gmail.com</a>.
+                We collect personal information (name, email, billing details via PayPal) and usage data (simulation history, AI chat volume) to manage your subscription and prevent system abuse. We share data only with necessary processing services and do not sell your data. For requests or data deletion, contact <a href="mailto:support@quantcai.in" className="text-blue-400 hover:underline">support@quantcai.in</a>.
               </p>
             </div>
             <div>
@@ -150,10 +152,10 @@ export const Footer = () => {
         {/* Copyright & Support Email Bar at absolute bottom */}
         <div className="border-t border-blue-700/50 mt-10 pt-6">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 text-sm">
-            <p className="text-blue-200">© 2024 by QuantCAI</p>
+            <p className="text-blue-200">© 2026 QuantCAI. All rights reserved.</p>
             <p className="text-blue-200">
-              Support Email: <a href="mailto:quantc.info@gmail.com" className="text-blue-300 hover:text-white transition-colors font-semibold ml-1">
-                quantc.info@gmail.com
+              Support: <a href="mailto:support@quantcai.in" className="text-blue-300 hover:text-white transition-colors font-semibold ml-1">
+                support@quantcai.in
               </a>
             </p>
           </div>

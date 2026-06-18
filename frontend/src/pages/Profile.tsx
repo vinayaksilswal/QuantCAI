@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { api, PageProgress } from '@/lib/api';
-import { BookOpen, Bell, Shield, User as UserIcon, Calendar, AlertCircle, LayoutDashboard, Key, CreditCard, Settings as SettingsIcon, Terminal } from 'lucide-react';
+import { BookOpen, Bell, Shield, User as UserIcon, Calendar, AlertCircle, LayoutDashboard, Key, CreditCard, Settings as SettingsIcon, Terminal, Zap, ArrowRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useNavigate } from 'react-router-dom';
 
 import { OverviewTab } from '@/components/dashboard/OverviewTab';
 import { DeveloperConsoleTab } from '@/components/dashboard/DeveloperConsoleTab';
+import { ApiDocsTab } from '@/components/dashboard/ApiDocsTab';
 import { BillingTab } from '@/components/dashboard/BillingTab';
 import { SettingsTab } from '@/components/dashboard/SettingsTab';
 import { UpgradeModal } from '@/components/UpgradeModal';
@@ -60,7 +61,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen relative bg-[#0a0f1d] text-white">
+    <div className="min-h-screen relative bg-transparent text-white">
       <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
       <UpgradeModal />
       <Navbar />
@@ -89,6 +90,7 @@ const Profile = () => {
               { id: 'account', label: 'Account Profile', icon: UserIcon },
               { id: 'overview', label: 'Workspace Overview', icon: LayoutDashboard },
               { id: 'developer', label: 'Developer Console', icon: Terminal },
+              { id: 'apidocs', label: 'API Reference', icon: BookOpen },
               { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
               { id: 'settings', label: 'Settings', icon: SettingsIcon },
             ].map((tab) => {
@@ -275,6 +277,28 @@ const Profile = () => {
                         </div>
                       </CardContent>
                     </Card>
+
+                    {/* Live Cohort Promotion Card */}
+                    <Card className="bg-gradient-to-br from-slate-900/60 to-purple-900/40 border-slate-800 backdrop-blur-md shadow-lg overflow-hidden group hover:border-purple-500/40 transition-all duration-300">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-xs uppercase tracking-widest text-purple-400 font-syne flex items-center gap-1.5">
+                          <Zap className="h-3 w-3 animate-pulse text-purple-400" />
+                          Live Cohort Training
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <p className="text-xs text-slate-350 leading-relaxed font-sans">
+                          Elevate your skills in our upcoming 8-week **Applied Quantum Software Engineering** cohort program.
+                        </p>
+                        <button
+                          onClick={() => navigate('/learn')}
+                          className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-mono text-xs font-semibold shadow-lg shadow-purple-500/10 transition-all duration-200"
+                        >
+                          <span>Explore & Enroll</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
               </div>
@@ -295,6 +319,12 @@ const Profile = () => {
             {activeSection === 'billing' && (
               <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-850/80 rounded-2xl animate-fade-in shadow-2xl">
                 <BillingTab />
+              </div>
+            )}
+
+            {activeSection === 'apidocs' && (
+              <div className="p-6 bg-slate-900/40 backdrop-blur-xl border border-slate-850/80 rounded-2xl animate-fade-in shadow-2xl">
+                <ApiDocsTab />
               </div>
             )}
 

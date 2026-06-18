@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: quantcai-onprem-db
+    restart: always
+    environment:
+      POSTGRES_USER: quantcai_admin
+      POSTGRES_PASSWORD: secure_onprem_password_2026
+      POSTGRES_DB: quantcai_prod
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantcai_admin -d quantcai_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: quantcai-onprem-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: quantcai-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quantcai-onprem-backend
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://quantcai_admin:secure_onprem_password_2026@db:5432/quantcai_prod
+      REDIS_URL: redis://redis:6379/0
+      AUTH_SECRET_KEY: secure_jwt_secret_key_onprem_generation_key_2026_quantcai
+      ENV: production
+      ALLOWED_ORIGINS: "*"
+      FRONTEND_URL: "http://localhost"
+      SAML_ENABLED: "true"
+      SAML_SP_ENTITY_ID: "https://quantcai.onprem/metadata"
+      SAML_SP_ACS_URL: "http://localhost/api/auth/saml/acs"
+      SAML_IDP_SSO_URL: "https://corporate-idp.com/sso/saml"
+      SAML_IDP_ENTITY_ID: "https://corporate-idp.com/metadata"
+    ports:
+      - "8000:8000"
+
+  celery_worker:
+    image: quantcai-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quantcai-onprem-worker
+    restart: always
+    command: celery -A worker.celery worker --loglevel=info
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://quantcai_admin:secure_onprem_password_2026@db:5432/quantcai_prod
+      REDIS_URL: redis://redis:6379/0
+      AUTH_SECRET_KEY: secure_jwt_secret_key_onprem_generation_key_2026_quantcai
+      ENV: production
+
+  frontend:
+    image: nginx:alpine
+    container_name: quantcai-onprem-frontend
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./dist:/usr/share/nginx/html
+      - ./nginx.onprem.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+  redis_data:

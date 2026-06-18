@@ -4,7 +4,7 @@ import { usePageTracking } from '@/hooks/usePageTracking';
 import { Button } from '@/components/ui/button';
 import {
   Brain, Shield, Rocket, ArrowRight, Zap, Code2, Server, Globe2, ShieldCheck, Cpu,
-  Atom, Settings, Terminal, Check, Landmark, Globe, Lock
+  Atom, Settings, Terminal, Check, Landmark, Globe, Lock, Calendar, Users
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { PricingSection } from '@/components/landing/PricingSection';
@@ -116,11 +116,6 @@ export default function LandingPage() {
   usePageTracking('home');
   const navigate = useNavigate();
 
-  const handleProClick = () => {
-    const wplusCheckoutUrl = import.meta.env.VITE_WARRIORPLUS_CHECKOUT_URL || 'https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63';
-    window.location.href = wplusCheckoutUrl;
-  };
-
   const [scanDomain, setScanDomain] = useState('');
   const showResult = false;
 
@@ -218,6 +213,45 @@ export default function LandingPage() {
                 <Button className="w-full mt-6 bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white flex items-center justify-center gap-2 shadow-2xl shadow-blue-500/30 border border-blue-400/30">
                   Launch Interactive Quantum States
                   <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          NEW: COHORT PROMO BANNER — Promoting the 8-Week Cohort
+          ═══════════════════════════════════════════════════════════════ */}
+      <section className="py-10 px-6 relative z-10">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-gradient-to-r from-blue-900/40 via-purple-900/40 to-blue-900/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 p-8 sm:p-10 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl hover:border-blue-500/50 transition-all duration-300">
+            <div className="flex-1 space-y-4 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-xs font-mono font-semibold uppercase tracking-wider">
+                <Rocket className="w-3.5 h-3.5 animate-pulse" />
+                Live Cohort Program Enrolling
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white font-syne leading-tight">
+                Applied Quantum Software Engineering
+              </h2>
+              <p className="text-blue-200 text-sm sm:text-base max-w-2xl leading-relaxed">
+                An 8-week intensive training cohort led by post-quantum security researchers. 
+                Master Shor's algorithm, VQE, and CBOM compliance. Limited to 20 seats.
+              </p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-2 text-xs font-mono text-slate-400">
+                <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-purple-400" /> Starts August 1, 2026</span>
+                <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-purple-400" /> 20 Students Max Capacity</span>
+              </div>
+            </div>
+            <div className="shrink-0 flex flex-col items-center gap-3 w-full md:w-auto">
+              <div className="text-center">
+                <p className="text-2xl font-extrabold text-white">$1,500.00</p>
+                <p className="text-[10px] text-slate-500 font-mono uppercase">One-time Tuition</p>
+              </div>
+              <Link to="/learn" className="w-full md:w-auto">
+                <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-mono text-sm px-8 py-3 rounded-lg shadow-lg shadow-purple-500/20 transition-all duration-200 flex items-center justify-center gap-2">
+                  <span>Learn More & Enroll</span>
+                  <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
             </div>

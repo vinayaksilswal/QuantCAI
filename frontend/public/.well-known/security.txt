@@ -1,0 +1,6 @@
+Contact: mailto:support@quantcai.in
+Expires: 2027-06-18T16:00:00.000Z
+Encryption: https://quantcai.in/security
+Preferred-Languages: en
+Canonical: https://quantcai.in/.well-known/security.txt
+Policy: https://quantcai.in/security

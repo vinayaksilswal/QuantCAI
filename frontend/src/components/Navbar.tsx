@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 // Learning paths configuration
 const learningPaths = [
-  { path: '/learn', label: 'Learning Hub', icon: BookOpen, description: 'Start your journey' },
+  { path: '/learn', label: 'Quantum Cohorts', icon: Rocket, description: 'Live Cohort Programs' },
   { path: '/quantum-computing', label: 'Quantum Basics', icon: Atom, description: 'Fundamentals' },
   { path: '/learn/qubits', label: 'Module 1: Qubits', icon: Target, description: 'Pro Curriculum' },
   { path: '/learn/gates', label: 'Module 2: Gates', icon: Zap, description: 'Pro Curriculum' },
