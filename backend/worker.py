@@ -243,7 +243,14 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
         from datetime import datetime, timezone
 
         t_parse_start = time.perf_counter()
-        qc = QuantumCircuit.from_qasm_str(circuit_qasm)
+        import qiskit.qasm3
+        try:
+            qc = qiskit.qasm3.loads(circuit_qasm)
+        except Exception as e:
+            try:
+                qc = QuantumCircuit.from_qasm_str(circuit_qasm)
+            except Exception:
+                raise ValueError(f"QASM3 Parse Error: {str(e)}")
         num_qubits = qc.num_qubits
         circuit_depth = qc.depth()
         t_parse_ms = (time.perf_counter() - t_parse_start) * 1000
@@ -328,7 +335,13 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
             try:
                 from qiskit.quantum_info import Statevector
 
-                sv_qc = QuantumCircuit.from_qasm_str(circuit_qasm)
+                try:
+                    sv_qc = qiskit.qasm3.loads(circuit_qasm)
+                except Exception as e:
+                    try:
+                        sv_qc = QuantumCircuit.from_qasm_str(circuit_qasm)
+                    except Exception:
+                        raise ValueError(f"QASM3 Parse Error: {str(e)}")
                 # Remove measurement for statevector extraction
                 sv_qc.remove_final_measurements()
                 sv = Statevector.from_instruction(sv_qc)

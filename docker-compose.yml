@@ -1,0 +1,116 @@
+version: '3.8'
+
+# QuantCAI Enterprise — Docker Compose Development Environment
+# Usage: docker-compose up --build
+
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL 16
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: quantcai_postgres
+    environment:
+      POSTGRES_DB: quantcai
+      POSTGRES_USER: quantcai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quantcai_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantcai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Redis 7
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: quantcai_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # FastAPI Backend (with hot-reload)
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: quantcai_api
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://quantcai:${POSTGRES_PASSWORD:-quantcai_dev_password}@postgres:5432/quantcai
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      ENVIRONMENT: development
+      SECRET_KEY: ${SECRET_KEY:-change-me-quantcai-dev-key-32chars-minimum}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+      FRONTEND_URL: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Celery Worker (quantum job execution)
+  # --------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: quantcai_worker
+    command: celery -A worker worker --loglevel=info --concurrency=2
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://quantcai:${POSTGRES_PASSWORD:-quantcai_dev_password}@postgres:5432/quantcai
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      ENVIRONMENT: development
+      SECRET_KEY: ${SECRET_KEY:-change-me-quantcai-dev-key-32chars-minimum}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Vite Frontend (dev server with HMR)
+  # --------------------------------------------------------------------------
+  web:
+    image: node:20-alpine
+    container_name: quantcai_web
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+
+volumes:
+  postgres_data:
+  redis_data:

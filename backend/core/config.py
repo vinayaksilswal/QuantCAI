@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # Environment Configurations
     ALLOWED_ORIGINS: str = ""
     FRONTEND_URL: str = "https://quantcai.in"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
     LOG_LEVEL: str = "INFO"
     
     model_config = SettingsConfigDict(

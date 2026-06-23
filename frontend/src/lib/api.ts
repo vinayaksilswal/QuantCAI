@@ -177,6 +177,13 @@ export const circuitApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  simulate: (payload: { backend_id: string; circuit_qasm: string; shots: number; mitigation?: any }) =>
+    fetchApi<any>('/api/v1/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  pollSimulation: (jobId: string) =>
+    fetchApi<any>(`/api/v1/simulate/${jobId}`),
   exportQASM: (payload: { num_qubits: number; gates: { name: string; qubits: number[]; params: number[] }[] }) =>
     fetchApi<{ qasm: string; version: string; num_qubits: number; num_gates: number }>('/api/v1/circuit/export', {
       method: 'POST',

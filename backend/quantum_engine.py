@@ -199,9 +199,15 @@ def _validate_qasm_parse(qasm_str: str) -> tuple[int, int]:
     Returns (num_qubits, circuit_depth) on success; raises ValueError on failure.
     """
     try:
+        import qiskit.qasm3
         from qiskit import QuantumCircuit
-
-        qc = QuantumCircuit.from_qasm_str(qasm_str)
+        try:
+            qc = qiskit.qasm3.loads(qasm_str)
+        except Exception as e:
+            try:
+                qc = QuantumCircuit.from_qasm_str(qasm_str)
+            except Exception:
+                raise ValueError(f"QASM3 Parse Error: {str(e)}")
         return qc.num_qubits, qc.depth()
     except Exception as exc:
         raise ValueError(f"QASM parse error: {exc}") from exc

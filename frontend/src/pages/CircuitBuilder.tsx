@@ -103,10 +103,11 @@ function buildGatePayload(placedGates: PlacedGate[]): GateInstructionPayload[] {
 }
 // Templates are now loaded from @/circuitTemplates
 // ─── Execution Backend Config ────────────────────────────────────────
-const BACKENDS: { value: ExecutionBackend; label: string; available: boolean }[] = [
-    { value: 'local', label: 'Local Simulator', available: true },
-    { value: 'aws_braket', label: 'AWS Braket', available: false },
-    { value: 'ibm_quantum', label: 'IBM Quantum', available: false },
+const BACKENDS: { value: ExecutionBackend | string; label: string; available: boolean; isPro?: boolean }[] = [
+    { value: 'simulator_statevector', label: 'Local Simulator', available: true },
+    { value: 'aer_simulator', label: 'Aer Simulator', available: true, isPro: true },
+    { value: 'ibm_brisbane_127q', label: 'IBM Brisbane (127Q)', available: true, isPro: true },
+    { value: 'ionq_forte_36q', label: 'IonQ Forte (36Q)', available: true, isPro: true },
 ];
 
 // ─── Main Component ─────────────────────────────────────────────────
@@ -116,6 +117,7 @@ const CircuitBuilder = () => {
     const { tier } = useSubscription();
     const maxWires = tier === 'FREE' ? 3 : tier === 'PRO' ? 15 : 30;
     const [numWires, setNumWires] = useState(3);
+    const [mitigation, setMitigation] = useState({ zne: false, pec: false, readout: false });
 
     const [history, setHistory] = useState<PlacedGate[][]>(() => {
         const saved = localStorage.getItem('circuit-history');
@@ -203,7 +205,7 @@ const CircuitBuilder = () => {
     const [useNoise, setUseNoise] = useState(false);
     const [isSimulating, setIsSimulating] = useState(false);
     const [shots, setShots] = useState(1024);
-    const [backend, setBackend] = useState<ExecutionBackend>('local');
+    const [backend, setBackend] = useState<ExecutionBackend | string>('simulator_statevector');
     const [resultsTab, setResultsTab] = useState('chart');
 
     // Debugger State
@@ -319,26 +321,45 @@ const CircuitBuilder = () => {
                 return;
             }
 
+            // Fallback to legacy endpoint if 'local' is used somehow, or if we want to use the new API:
+            const qasm = generateQASM3(activeGates, numWires);
+            
             const payload = {
-                num_qubits: numWires,
+                backend_id: backend,
+                circuit_qasm: qasm,
                 shots: shots,
-                gates: buildGatePayload(activeGates),
-                use_noise: noiseConfig.enabled,
-                noise_model: noiseConfig.enabled ? { type: noiseConfig.type, rate: noiseConfig.rate } : undefined,
+                mitigation: mitigation
             };
 
-            const data = await api.simulateV1(payload);
-            setResults(data);
-            setResultsTab('chart');
+            const response = await api.simulate(payload);
+            const jobId = response.job_id;
+            
+            // Polling loop
+            let attempts = 0;
+            while (attempts < 60) {
+                const statusData = await api.pollSimulation(jobId);
+                if (statusData.status === "complete") {
+                    setResults(statusData.result);
+                    break;
+                } else if (statusData.status === "failed") {
+                    toast.error(`Simulation failed: ${statusData.error}`);
+                    break;
+                }
+                
+                await new Promise(r => setTimeout(r, 1000));
+                attempts++;
+            }
+            if (attempts >= 60) {
+                toast.error("Simulation timed out.");
+            }
             if (limitStep === undefined) toast.success("Simulation complete!", { icon: <Zap className="w-4 h-4 text-yellow-400" /> });
         } catch (error: any) {
-            console.error("Simulation failed:", error);
-            const msg = error instanceof Error ? error.message : String(error);
-            toast.error(msg || "Failed to run circuit");
+            console.error("Simulation error:", error);
+            toast.error(error?.response?.data?.detail || "Simulation failed");
         } finally {
             setIsSimulating(false);
         }
-    }, [user, placedGates, numWires, shots, noiseConfig]);
+    }, [user, placedGates, backend, shots, mitigation, numWires]);
 
     // Handle Debugger Step Change
     useEffect(() => {
@@ -575,7 +596,7 @@ const CircuitBuilder = () => {
         toast.success(`Circuit optimized! Simulated Cost Savings: $${savings}`);
     };
 
-    const currentBackend = BACKENDS.find(b => b.value === backend)!;
+    const currentBackend = BACKENDS.find(b => b.value === backend) || BACKENDS[0];
 
     return (
         <div className="min-h-screen relative overflow-hidden bg-transparent text-white font-sans">
@@ -757,9 +778,9 @@ const CircuitBuilder = () => {
                             {/* Noise Popover */}
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <button className={`flex items-center h-full px-3 gap-1.5 transition-colors ${noiseConfig.enabled ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                                    <button className={`flex items-center h-full px-3 gap-1.5 transition-colors ${noiseConfig.enabled || mitigation.zne || mitigation.pec || mitigation.readout ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                                         <Settings2 className="w-3.5 h-3.5" />
-                                        <span className="text-xs">Noise {noiseConfig.enabled ? 'ON' : 'OFF'}</span>
+                                        <span className="text-xs">Advanced</span>
                                     </button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-64 bg-slate-900 border-slate-700 p-4">
@@ -805,6 +826,24 @@ const CircuitBuilder = () => {
                                                     onChange={e => setNoiseConfig(prev => ({ ...prev, rate: parseFloat(e.target.value) }))}
                                                     className="w-full accent-cyan-500"
                                                 />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="pt-4 border-t border-slate-700">
+                                            <h4 className="font-medium text-slate-200 text-sm mb-3">Error Mitigation</h4>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-xs text-slate-400">Zero Noise Extrapolation</Label>
+                                                    <Switch checked={mitigation.zne} onCheckedChange={(val) => setMitigation(prev => ({ ...prev, zne: val }))} />
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-xs text-slate-400">Error Cancellation</Label>
+                                                    <Switch checked={mitigation.pec} onCheckedChange={(val) => setMitigation(prev => ({ ...prev, pec: val }))} />
+                                                </div>
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-xs text-slate-400">Readout Mitigation</Label>
+                                                    <Switch checked={mitigation.readout} onCheckedChange={(val) => setMitigation(prev => ({ ...prev, readout: val }))} />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

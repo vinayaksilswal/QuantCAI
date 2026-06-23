@@ -34,7 +34,11 @@ export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabCh
         }))
         : [];
 
-    const metrics = results?.metrics;
+    const metrics = results?.metrics || (results?.circuit_depth ? {
+        depth: results.circuit_depth,
+        qubit_count: results.num_qubits,
+        gate_count: {}
+    } : null);
 
     return (
         <Card className="bg-slate-900/60 border-slate-800/80 backdrop-blur-sm flex flex-col h-full">
@@ -124,19 +128,28 @@ export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabCh
                     {/* Statevector */}
                     <TabsContent value="statevector" className="flex-1 p-3 m-0 overflow-auto">
                         <div className="space-y-1.5">
-                            {results?.statevector && results.statevector.map((state: any, idx: number) => (
-                                <div key={idx} className="flex justify-between items-center p-2 rounded-md bg-slate-800/40 border border-slate-800/50 text-xs">
-                                    <span className="font-mono text-cyan-300 font-bold">|{state.basis}⟩</span>
-                                    <div className="text-right">
-                                        <div className="text-slate-200 font-mono">
-                                            {state.amplitude.real.toFixed(4)} {state.amplitude.imag >= 0 ? '+' : ''}{state.amplitude.imag.toFixed(4)}i
-                                        </div>
-                                        <div className="text-[10px] text-slate-600">
-                                            φ = {(state.phase * 180 / Math.PI).toFixed(1)}° · P = {(state.probability * 100).toFixed(1)}%
+                            {results?.statevector && results.statevector.map((sv: any, idx: number) => {
+                                const real = sv.real || 0;
+                                const imag = sv.imag || 0;
+                                const prob = (real * real + imag * imag) * 100;
+                                if (prob < 0.1) return null; // Hide near-zero amplitudes
+                                const phase = Math.atan2(imag, real) * 180 / Math.PI;
+                                const basis = idx.toString(2).padStart(Math.log2(results.statevector.length) || 1, '0');
+                                
+                                return (
+                                    <div key={idx} className="flex justify-between items-center p-2 rounded-md bg-slate-800/40 border border-slate-800/50 text-xs">
+                                        <span className="font-mono text-cyan-300 font-bold">|{basis}⟩</span>
+                                        <div className="text-right">
+                                            <div className="text-slate-200 font-mono">
+                                                {real.toFixed(4)} {imag >= 0 ? '+' : ''}{imag.toFixed(4)}i
+                                            </div>
+                                            <div className="text-[10px] text-slate-600">
+                                                θ = {phase.toFixed(1)}° • P = {prob.toFixed(1)}%
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             {(!results?.statevector || results.statevector.length === 0) && (
                                 <div className="text-center text-xs text-slate-600 py-8">
                                     Statevector only available for ideal (noiseless) simulations
