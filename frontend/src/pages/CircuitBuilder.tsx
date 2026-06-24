@@ -87,6 +87,52 @@ function generateQASM3(placedGates: PlacedGate[], numWires: number): string {
     return lines.join('\n');
 }
 
+function generateQASM2(placedGates: PlacedGate[], numWires: number): string {
+    const lines: string[] = [
+        'OPENQASM 2.0;',
+        'include "qelib1.inc";',
+        '',
+        `qreg q[${numWires}];`,
+        `creg c[${numWires}];`,
+        '',
+    ];
+
+    const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
+
+    sortedGates.forEach(g => {
+        const name = g.name.toLowerCase();
+        const params = g.params || [];
+
+        if (g.category === 'multi' && g.targetWire !== undefined) {
+            if (name === 'cx') lines.push(`cx q[${g.wire}], q[${g.targetWire}];`);
+            else if (name === 'cz') lines.push(`cz q[${g.wire}], q[${g.targetWire}];`);
+            else if (name === 'swap') lines.push(`swap q[${g.wire}], q[${g.targetWire}];`);
+            else if (name === 'ccx' && g.thirdWire !== undefined) {
+                lines.push(`ccx q[${g.wire}], q[${g.targetWire}], q[${g.thirdWire}];`);
+            } else if (name === 'ccx') {
+                // Fallback: if thirdWire not set, use next available
+                const third = Math.max(g.wire, g.targetWire) + 1;
+                if (third < numWires) {
+                    lines.push(`ccx q[${g.wire}], q[${g.targetWire}], q[${third}];`);
+                }
+            }
+        } else if (['rx', 'ry', 'rz'].includes(name)) {
+            const theta = params[0] !== undefined ? params[0] : (Math.PI / 2);
+            lines.push(`${name}(${theta.toFixed(6)}) q[${g.wire}];`);
+        } else {
+            lines.push(`${name} q[${g.wire}];`);
+        }
+    });
+
+    lines.push('');
+    for (let i = 0; i < numWires; i++) {
+        lines.push(`measure q[${i}] -> c[${i}];`);
+    }
+    lines.push('');
+
+    return lines.join('\n');
+}
+
 // ─── Build Backend Payload ───────────────────────────────────────────
 function buildGatePayload(placedGates: PlacedGate[]): GateInstructionPayload[] {
     const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);

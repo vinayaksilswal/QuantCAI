@@ -195,22 +195,15 @@ def _validate_qasm_security(qasm_str: str) -> None:
 
 def _validate_qasm_parse(qasm_str: str) -> tuple[int, int]:
     """
-    Attempt to parse the QASM string with Qiskit.
+    Attempt to parse the QASM 3.0 string with Qiskit.
     Returns (num_qubits, circuit_depth) on success; raises ValueError on failure.
     """
     try:
         import qiskit.qasm3
-        from qiskit import QuantumCircuit
-        try:
-            qc = qiskit.qasm3.loads(qasm_str)
-        except Exception as e:
-            try:
-                qc = QuantumCircuit.from_qasm_str(qasm_str)
-            except Exception:
-                raise ValueError(f"QASM3 Parse Error: {str(e)}")
+        qc = qiskit.qasm3.loads(qasm_str)
         return qc.num_qubits, qc.depth()
     except Exception as exc:
-        raise ValueError(f"QASM parse error: {exc}") from exc
+        raise ValueError(f"QASM3 Parse Error: {exc}") from exc
 
 
 def _estimate_execution_seconds(num_qubits: int, shots: int) -> int:
