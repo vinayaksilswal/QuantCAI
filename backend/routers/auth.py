@@ -40,7 +40,10 @@ def get_cookie_settings(request: Request) -> tuple[bool, str]:
     Otherwise (e.g. Render/production), SameSite=None and Secure=True to support cross-domain cookies.
     """
     host = request.headers.get("host", "").lower()
-    is_localhost = "localhost" in host or "127.0.0.1" in host
+    origin = request.headers.get("origin", "").lower()
+    referer = request.headers.get("referer", "").lower()
+    
+    is_localhost = "localhost" in host or "127.0.0.1" in host or "localhost" in origin or "127.0.0.1" in origin or "localhost" in referer or "127.0.0.1" in referer
     is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     
     if not is_localhost and is_https:
