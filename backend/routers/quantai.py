@@ -22,11 +22,6 @@ router = APIRouter(prefix="/api/v1/quantai", tags=["QuantAI Copilot"])
 
 # Initialize LLM
 api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=api_key,
-    temperature=0.2
-)
 
 @tool
 def open_tool(tool_name: str):
@@ -57,7 +52,21 @@ def apply_gate_to_visualizer(gate: str):
     """Applies a quantum gate to the single-qubit visualizer."""
     pass
 
-llm_with_tools = llm.bind_tools([open_tool, manage_circuit, navigate_to_learn, start_tutorial, apply_gate_to_visualizer])
+llm = None
+llm_with_tools = None
+
+if api_key:
+    try:
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=api_key,
+            temperature=0.2
+        )
+        llm_with_tools = llm.bind_tools([open_tool, manage_circuit, navigate_to_learn, start_tutorial, apply_gate_to_visualizer])
+    except Exception as e:
+        logger.warning(f"Could not initialize QuantAI ChatGoogleGenerativeAI: {e}")
+else:
+    logger.warning("GEMINI_API_KEY is not set. QuantAI features will be disabled.")
 
 # System prompts for agents
 TUTOR_AGENT_PROMPT = (

@@ -30,15 +30,17 @@ logger = logging.getLogger("quantcai.tutor")
 
 # LLM Configuration
 api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-if not api_key:
-    logger.warning("Neither GEMINI_API_KEY nor GOOGLE_API_KEY found in environment.")
 
 # Initialize primary tutor LLM (Gemini 2.5 Flash)
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=api_key,
-    temperature=0
-)
+if api_key:
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        google_api_key=api_key,
+        temperature=0
+    )
+else:
+    llm = None
+    logger.warning("Neither GEMINI_API_KEY nor GOOGLE_API_KEY found in environment. Tutor disabled.")
 
 # Socratic prompt for tutor
 TUTOR_SYSTEM_PROMPT = (
@@ -96,17 +98,19 @@ class SimulationResponse(PydanticBaseModel):
     )
 
 # Setup structured outputs
-try:
-    structured_classifier = llm.with_structured_output(IntentClassifier)
-except Exception as e:
-    logger.warning(f"Could not initialize structured intent classifier: {e}")
-    structured_classifier = None
+structured_classifier = None
+structured_simulation = None
 
-try:
-    structured_simulation = llm.with_structured_output(SimulationResponse)
-except Exception as e:
-    logger.warning(f"Could not initialize structured simulation generator: {e}")
-    structured_simulation = None
+if llm:
+    try:
+        structured_classifier = llm.with_structured_output(IntentClassifier)
+    except Exception as e:
+        logger.warning(f"Could not initialize structured intent classifier: {e}")
+
+    try:
+        structured_simulation = llm.with_structured_output(SimulationResponse)
+    except Exception as e:
+        logger.warning(f"Could not initialize structured simulation generator: {e}")
 
 
 # Helper: query daily usage count

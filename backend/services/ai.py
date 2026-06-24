@@ -14,7 +14,15 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Initialize Gemini
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+llm = None
+if api_key:
+    try:
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key, temperature=0)
+    except Exception as e:
+        logger.warning(f"Could not initialize AI ChatGoogleGenerativeAI: {e}")
+else:
+    logger.warning("GEMINI_API_KEY is not set. AI features will be disabled.")
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
