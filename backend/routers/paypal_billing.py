@@ -1,25 +1,17 @@
 """
-PayPal Billing Integration Router
+PayPal Wallet Top-Up Router
 ===================================
-Handles PayPal Subscription creation, management, and Webhook events
-for subscription lifecycle management.
+Handles one-time PayPal payments for adding developer API credits to the user's wallet.
+Uses PayPal REST API v2 (Orders API).
 
-Uses the PayPal REST API v2 (Subscriptions API) with server-side
-OAuth2 authentication via Client ID + Secret.
-
-Replaces the WarriorPlus IPN handler as the primary payment gateway.
-
-Copyright (c) 2026 QuantCAI — All rights reserved.
+Replaces the previous subscription-based PayPal integration.
 """
 
 import logging
 import httpx
-import hashlib
-import hmac
 import json
-import base64
-import zlib
-from datetime import datetime, timezone, timedelta, date
+from decimal import Decimal
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -30,37 +22,38 @@ import models as DBmodels
 from core.database import get_db
 from core.config import settings
 from core.auth import get_current_user
-from billing import clear_feature_access_cache
+from security import redis_client
 
-logger = logging.getLogger("quantcai.paypal")
+logger = logging.getLogger("quantcai.paypal_wallet")
 
-router = APIRouter(prefix="/api/billing", tags=["PayPal Billing"])
-
+router = APIRouter(prefix="/api/billing/wallet", tags=["Wallet Top-up"])
 
 # ---------------------------------------------------------------------------
-# PayPal API Configuration
+# PayPal API Configuration & Helpers
 # ---------------------------------------------------------------------------
 def _paypal_base_url() -> str:
-    """Return the PayPal API base URL based on mode (sandbox/live)."""
     if settings.PAYPAL_MODE == "live":
         return "https://api-m.paypal.com"
     return "https://api-m.sandbox.paypal.com"
 
 
 async def _get_paypal_access_token() -> str:
-    """
-    Obtain a PayPal OAuth2 access token using Client ID + Secret.
-    Tokens are short-lived (~9 hours) — obtained fresh per webhook batch.
-    """
+    """Obtain and cache PayPal OAuth2 access token."""
+    cache_key = "paypal_access_token"
+    cached_token = await redis_client.get(cache_key)
+    if cached_token:
+        return cached_token
+
     if not settings.PAYPAL_CLIENT_ID or not settings.PAYPAL_CLIENT_SECRET:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="PayPal billing is not configured on this server."
+            detail="PayPal wallet top-up is not configured on this server."
         )
 
     url = f"{_paypal_base_url()}/v1/oauth2/token"
     auth = (settings.PAYPAL_CLIENT_ID, settings.PAYPAL_CLIENT_SECRET)
 
+    # Use a connection pool for better performance (simulate by sharing client if possible, but context manager is fine for now)
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             url,
@@ -78,566 +71,283 @@ async def _get_paypal_access_token() -> str:
         )
 
     data = resp.json()
-    return data["access_token"]
+    token = data["access_token"]
+    expires_in = int(data.get("expires_in", 32400))  # Usually 9 hours
+
+    # Cache token with TTL slightly less than expiry
+    await redis_client.setex(cache_key, max(1, expires_in - 300), token)
+    return token
+
+
+async def _get_or_create_wallet(db: AsyncSession, user_id: int) -> DBmodels.WalletBalance:
+    """Get the user's wallet, creating one if it doesn't exist."""
+    stmt = select(DBmodels.WalletBalance).where(DBmodels.WalletBalance.user_id == user_id).with_for_update()
+    res = await db.execute(stmt)
+    wallet = res.scalar_one_or_none()
+
+    if not wallet:
+        wallet = DBmodels.WalletBalance(user_id=user_id, balance=0.0)
+        db.add(wallet)
+        await db.flush()
+    return wallet
 
 
 # ---------------------------------------------------------------------------
 # Request Schemas
 # ---------------------------------------------------------------------------
-class SubscriptionRequest(BaseModel):
-    plan: str  # "pro" or "enterprise"
+class TopUpRequest(BaseModel):
+    amount: int  # Must be one of the allowed amounts in settings.PAYPAL_WALLET_TOPUP_AMOUNTS
     return_url: str | None = None
     cancel_url: str | None = None
 
 
+class CaptureRequest(BaseModel):
+    order_id: str
+
+
 # ---------------------------------------------------------------------------
-# Endpoints: Create Subscription
+# Endpoints
 # ---------------------------------------------------------------------------
 
-@router.post("/subscribe")
-async def create_paypal_subscription(
-    body: SubscriptionRequest,
+@router.get("/balance")
+async def get_wallet_balance(
     current_user: DBmodels.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Get current wallet balance."""
+    stmt = select(DBmodels.WalletBalance.balance).where(DBmodels.WalletBalance.user_id == current_user.id)
+    res = await db.execute(stmt)
+    balance = res.scalar_one_or_none() or 0.0
+    return {"balance": balance}
+
+
+@router.post("/topup")
+async def create_topup_order(
+    body: TopUpRequest,
+    current_user: DBmodels.User = Depends(get_current_user),
+):
     """
-    Create a PayPal Subscription for upgrading to Pro or Enterprise.
-    Returns the PayPal approval URL for frontend redirect.
-    
-    Flow:
-    1. Backend creates a subscription via PayPal Subscriptions API
-    2. Frontend redirects user to PayPal approval URL
-    3. User approves on PayPal
-    4. PayPal sends webhook to /api/billing/webhooks/paypal
-    5. Backend activates the subscription
+    Step 1: Create a PayPal order for a specific amount.
+    Returns the PayPal approval URL for the frontend to redirect the user.
     """
-    # Map plan to PayPal Plan ID
-    plan_id_map = {
-        "pro": settings.PAYPAL_PRO_PLAN_ID,
-        "enterprise": settings.PAYPAL_ENTERPRISE_PLAN_ID,
-    }
-    plan_id = plan_id_map.get(body.plan.lower())
-    if not plan_id:
+    if body.amount not in settings.wallet_topup_amounts:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid plan: '{body.plan}'. Must be 'pro' or 'enterprise'."
+            detail=f"Invalid amount. Allowed amounts: {settings.wallet_topup_amounts}"
         )
 
-    frontend_url = settings.FRONTEND_URL.split(",")[0]
-    return_url = body.return_url or f"{frontend_url}/dashboard?checkout=success"
-    cancel_url = body.cancel_url or f"{frontend_url}/get-started?checkout=cancelled"
-
-    # Check for existing active subscription — prevent double-billing
-    stmt = select(DBmodels.Subscription).where(
-        DBmodels.Subscription.user_id == current_user.id,
-        DBmodels.Subscription.status == DBmodels.SubscriptionStatus.ACTIVE,
-    )
-    res = await db.execute(stmt)
-    existing_sub = res.scalars().first()
-
-    if existing_sub and existing_sub.stripe_subscription_id and existing_sub.stripe_subscription_id.startswith("PAYPAL_"):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="You already have an active subscription. Cancel your current plan before subscribing to a new one."
-        )
-
-    # Create PayPal Subscription
     access_token = await _get_paypal_access_token()
+    
+    frontend_url = settings.FRONTEND_URL.split(",")[0]
+    return_url = body.return_url or f"{frontend_url}/developer?topup=success"
+    cancel_url = body.cancel_url or f"{frontend_url}/developer?topup=cancelled"
 
-    subscription_payload = {
-        "plan_id": plan_id,
-        "subscriber": {
-            "name": {
-                "given_name": current_user.name.split(" ")[0] if current_user.name else "User",
-                "surname": " ".join(current_user.name.split(" ")[1:]) if current_user.name and len(current_user.name.split(" ")) > 1 else "",
-            },
-            "email_address": current_user.email,
-        },
+    order_payload = {
+        "intent": "CAPTURE",
+        "purchase_units": [
+            {
+                "reference_id": f"wallet_{current_user.id}_{int(datetime.now().timestamp())}",
+                "description": f"QuantCAI Developer API Credits - ${body.amount}",
+                "amount": {
+                    "currency_code": "USD",
+                    "value": f"{body.amount}.00"
+                },
+                "custom_id": str(current_user.id)
+            }
+        ],
         "application_context": {
             "brand_name": "QuantCAI",
             "locale": "en-US",
             "shipping_preference": "NO_SHIPPING",
-            "user_action": "SUBSCRIBE_NOW",
+            "user_action": "PAY_NOW",
             "return_url": return_url,
-            "cancel_url": cancel_url,
-        },
-        "custom_id": str(current_user.id),  # Store our user ID for webhook correlation
+            "cancel_url": cancel_url
+        }
     }
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{_paypal_base_url()}/v1/billing/subscriptions",
-            json=subscription_payload,
+            f"{_paypal_base_url()}/v2/checkout/orders",
+            json=order_payload,
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
-                "Prefer": "return=representation",
             },
             timeout=20.0,
         )
 
     if resp.status_code not in (200, 201):
-        logger.error(f"PayPal subscription creation failed: {resp.status_code} {resp.text}")
+        logger.error(f"PayPal order creation failed: {resp.status_code} {resp.text}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to create PayPal subscription. Please try again."
+            detail="Failed to create PayPal checkout session."
         )
 
-    sub_data = resp.json()
-    paypal_sub_id = sub_data.get("id")
-
-    # Extract approval URL
+    data = resp.json()
+    order_id = data.get("id")
+    
     approval_url = None
-    for link in sub_data.get("links", []):
+    for link in data.get("links", []):
         if link.get("rel") == "approve":
             approval_url = link.get("href")
             break
 
     if not approval_url:
-        logger.error(f"No approval URL in PayPal response: {sub_data}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="PayPal did not return an approval URL."
         )
 
-    # Store a PENDING subscription record so webhook can activate it
-    plan_enum = DBmodels.SubscriptionPlan.PRO if "pro" in body.plan.lower() else DBmodels.SubscriptionPlan.ENTERPRISE
-
-    stmt = select(DBmodels.Subscription).where(DBmodels.Subscription.user_id == current_user.id)
-    res = await db.execute(stmt)
-    db_sub = res.scalars().first()
-
-    if db_sub:
-        db_sub.stripe_subscription_id = f"PAYPAL_{paypal_sub_id}"
-        db_sub.plan = plan_enum
-        db_sub.status = DBmodels.SubscriptionStatus.TRIALING  # Pending approval
-        db_sub.updated_at = datetime.now(timezone.utc)
-        db.add(db_sub)
-    else:
-        db_sub = DBmodels.Subscription(
-            user_id=current_user.id,
-            stripe_subscription_id=f"PAYPAL_{paypal_sub_id}",
-            plan=plan_enum,
-            status=DBmodels.SubscriptionStatus.TRIALING,
-        )
-        db.add(db_sub)
-
-    await db.commit()
-
-    logger.info(
-        f"PayPal subscription created: user={current_user.id}, "
-        f"paypal_sub_id={paypal_sub_id}, plan={body.plan}"
-    )
-
     return {
-        "url": approval_url,
-        "subscription_id": paypal_sub_id,
-        "plan": body.plan,
+        "order_id": order_id,
+        "url": approval_url
     }
 
 
-@router.post("/cancel")
-async def cancel_paypal_subscription(
+@router.post("/capture")
+async def capture_topup_order(
+    body: CaptureRequest,
     current_user: DBmodels.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Cancel the user's active PayPal subscription.
+    Step 2: Capture the PayPal order after user approval.
+    Idempotent operation that credits the user's wallet.
     """
-    stmt = select(DBmodels.Subscription).where(
-        DBmodels.Subscription.user_id == current_user.id,
-        DBmodels.Subscription.status == DBmodels.SubscriptionStatus.ACTIVE,
-    )
-    res = await db.execute(stmt)
-    db_sub = res.scalars().first()
+    # 1. Idempotency Check
+    idempotency_key = f"wallet_topup:{body.order_id}"
+    already_processed = await redis_client.set(idempotency_key, "1", nx=True, ex=86400 * 7) # Keep for 7 days
+    
+    if not already_processed:
+        # Check DB to see if already credited
+        stmt = select(DBmodels.WalletTransaction).where(DBmodels.WalletTransaction.reference_id == f"paypal_{body.order_id}")
+        res = await db.execute(stmt)
+        if res.scalar_one_or_none():
+            return {"status": "ok", "message": "Order already captured and credited."}
+        # If not in DB, allow retry by deleting redis key
+        await redis_client.delete(idempotency_key)
 
-    if not db_sub or not db_sub.stripe_subscription_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active subscription found."
-        )
-
-    # Only handle PayPal subscriptions
-    if not db_sub.stripe_subscription_id.startswith("PAYPAL_"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This subscription is not managed by PayPal."
-        )
-
-    paypal_sub_id = db_sub.stripe_subscription_id.replace("PAYPAL_", "")
-
-    # Cancel on PayPal's side
+    # 2. Capture Payment on PayPal
     access_token = await _get_paypal_access_token()
+    
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{_paypal_base_url()}/v1/billing/subscriptions/{paypal_sub_id}/cancel",
-            json={"reason": "User requested cancellation via QuantCAI dashboard"},
+            f"{_paypal_base_url()}/v2/checkout/orders/{body.order_id}/capture",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
             },
-            timeout=15.0,
+            timeout=20.0,
         )
 
-    if resp.status_code not in (200, 204):
-        logger.error(f"PayPal cancellation failed: {resp.status_code} {resp.text}")
+    # If already captured, PayPal returns 422 with issue=ORDER_ALREADY_CAPTURED.
+    # We should query the order status to verify.
+    if resp.status_code == 422 and "ORDER_ALREADY_CAPTURED" in resp.text:
+        # Query order to get capture details
+        async with httpx.AsyncClient() as client_get:
+            get_resp = await client_get.get(
+                f"{_paypal_base_url()}/v2/checkout/orders/{body.order_id}",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+        if get_resp.status_code == 200:
+            capture_data = get_resp.json()
+        else:
+            await redis_client.delete(idempotency_key)
+            raise HTTPException(status_code=502, detail="Failed to verify captured order status.")
+    elif resp.status_code not in (200, 201):
+        await redis_client.delete(idempotency_key)
+        logger.error(f"PayPal capture failed: {resp.status_code} {resp.text}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to cancel subscription on PayPal. Please try again or contact support."
+            detail="Failed to capture payment. Please try again."
         )
+    else:
+        capture_data = resp.json()
 
-    # Update local records
-    db_sub.status = DBmodels.SubscriptionStatus.CANCELLED
-    db_sub.plan = DBmodels.SubscriptionPlan.FREE
-    db_sub.updated_at = datetime.now(timezone.utc)
-    db.add(db_sub)
+    # 3. Extract amount and verify it matches user
+    try:
+        purchase_unit = capture_data.get("purchase_units", [])[0]
+        custom_id = purchase_unit.get("custom_id")
+        
+        # Verify the order belongs to this user
+        if custom_id and str(custom_id) != str(current_user.id):
+            logger.error(f"Order {body.order_id} belongs to user {custom_id}, not {current_user.id}")
+            raise HTTPException(status_code=403, detail="Order does not belong to you.")
+            
+        captures = purchase_unit.get("payments", {}).get("captures", [])
+        if not captures:
+            raise ValueError("No captures found in order.")
+            
+        capture = captures[0]
+        if capture.get("status") != "COMPLETED":
+            raise ValueError(f"Capture status is not COMPLETED (got {capture.get('status')}).")
+            
+        amount_str = capture.get("amount", {}).get("value", "0")
+        amount = float(amount_str)
+        if amount <= 0:
+            raise ValueError("Amount must be greater than zero.")
+            
+    except Exception as e:
+        await redis_client.delete(idempotency_key)
+        logger.error(f"Error parsing capture data for order {body.order_id}: {e}")
+        raise HTTPException(status_code=400, detail="Invalid capture data received from PayPal.")
 
-    # Downgrade UserPlan
-    plan_stmt = select(DBmodels.UserPlan).where(DBmodels.UserPlan.user_id == current_user.id)
-    plan_res = await db.execute(plan_stmt)
-    user_plan = plan_res.scalar_one_or_none()
-    if user_plan:
-        user_plan.tier = DBmodels.Tier.FREE
-        db.add(user_plan)
+    # 4. Credit Wallet & Record Transaction
+    wallet = await _get_or_create_wallet(db, current_user.id)
+    
+    # Check one more time inside lock to be absolutely safe against race conditions
+    stmt_tx = select(DBmodels.WalletTransaction).where(DBmodels.WalletTransaction.reference_id == f"paypal_{body.order_id}")
+    res_tx = await db.execute(stmt_tx)
+    if res_tx.scalar_one_or_none():
+        return {"status": "ok", "message": "Already credited."}
 
+    wallet.balance += amount
+    
+    transaction = DBmodels.WalletTransaction(
+        wallet_id=wallet.id,
+        amount=amount,
+        transaction_type=DBmodels.TransactionType.CREDIT,
+        description=f"PayPal Wallet Top-up",
+        reference_id=f"paypal_{body.order_id}"
+    )
+    
+    db.add(wallet)
+    db.add(transaction)
     await db.commit()
-    await clear_feature_access_cache(current_user.id)
-
-    logger.info(f"PayPal subscription cancelled: user={current_user.id}, paypal_sub_id={paypal_sub_id}")
-
-    return {"status": "cancelled", "message": "Your subscription has been cancelled. You retain access until the end of your current billing period."}
-
-
-@router.get("/subscription")
-async def get_subscription_status(
-    current_user: DBmodels.User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Return the current user's subscription status."""
-    stmt = select(DBmodels.Subscription).where(
-        DBmodels.Subscription.user_id == current_user.id,
-    )
-    res = await db.execute(stmt)
-    db_sub = res.scalars().first()
-
-    if not db_sub:
-        return {
-            "plan": "free",
-            "status": "active",
-            "provider": None,
-            "current_period_end": None,
-        }
-
-    provider = "paypal" if (db_sub.stripe_subscription_id or "").startswith("PAYPAL_") else (
-        "warriorplus" if (db_sub.stripe_subscription_id or "").startswith("warriorplus_") else "stripe"
-    )
-
+    
+    logger.info(f"Wallet top-up successful: user={current_user.id}, amount=${amount}, order={body.order_id}")
+    
     return {
-        "plan": db_sub.plan.value,
-        "status": db_sub.status.value,
-        "provider": provider,
-        "current_period_end": db_sub.current_period_end.isoformat() if db_sub.current_period_end else None,
+        "status": "success",
+        "new_balance": wallet.balance,
+        "amount_added": amount
     }
 
-
-# ---------------------------------------------------------------------------
-# PayPal Webhook Handler
-# ---------------------------------------------------------------------------
-
-@router.post("/webhooks/paypal")
-async def paypal_webhook(
-    request: Request,
+@router.get("/history")
+async def get_wallet_history(
+    current_user: DBmodels.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = 50
 ):
-    """
-    Handle PayPal webhook events for subscription lifecycle management.
+    """Get user's wallet transaction history."""
+    wallet = await _get_or_create_wallet(db, current_user.id)
     
-    Events handled:
-    - BILLING.SUBSCRIPTION.ACTIVATED: Subscription approved and active
-    - BILLING.SUBSCRIPTION.CANCELLED: User cancelled subscription
-    - BILLING.SUBSCRIPTION.SUSPENDED: Payment failed, subscription suspended
-    - BILLING.SUBSCRIPTION.EXPIRED: Subscription expired
-    - BILLING.SUBSCRIPTION.UPDATED: Plan change or renewal
-    - PAYMENT.SALE.COMPLETED: Recurring payment received
-    """
-    payload = await request.body()
-
-    # Verify webhook signature if webhook ID is configured
-    if settings.PAYPAL_WEBHOOK_ID:
-        is_valid = await _verify_paypal_webhook(request, payload)
-        if not is_valid:
-            logger.warning("PayPal webhook signature verification failed")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid webhook signature"
-            )
-
-    try:
-        event = json.loads(payload)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON payload"
-        )
-
-    event_type = event.get("event_type", "")
-    resource = event.get("resource", {})
-
-    logger.info(f"Received PayPal webhook: {event_type} (ID: {event.get('id', 'unknown')})")
-
-    # ─── BILLING.SUBSCRIPTION.ACTIVATED ───────────────────────────────
-    if event_type == "BILLING.SUBSCRIPTION.ACTIVATED":
-        await _handle_subscription_activated(db, resource)
-
-    # ─── BILLING.SUBSCRIPTION.CANCELLED ───────────────────────────────
-    elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
-        await _handle_subscription_cancelled(db, resource)
-
-    # ─── BILLING.SUBSCRIPTION.SUSPENDED ───────────────────────────────
-    elif event_type == "BILLING.SUBSCRIPTION.SUSPENDED":
-        await _handle_subscription_suspended(db, resource)
-
-    # ─── BILLING.SUBSCRIPTION.EXPIRED ─────────────────────────────────
-    elif event_type == "BILLING.SUBSCRIPTION.EXPIRED":
-        await _handle_subscription_cancelled(db, resource)  # Same downgrade logic
-
-    # ─── BILLING.SUBSCRIPTION.UPDATED ─────────────────────────────────
-    elif event_type == "BILLING.SUBSCRIPTION.UPDATED":
-        await _handle_subscription_activated(db, resource)  # Re-sync plan status
-
-    # ─── PAYMENT.SALE.COMPLETED ───────────────────────────────────────
-    elif event_type == "PAYMENT.SALE.COMPLETED":
-        await _handle_payment_completed(db, resource)
-
-    else:
-        logger.debug(f"Unhandled PayPal event type: {event_type}")
-
-    return {"status": "ok"}
-
-
-# ---------------------------------------------------------------------------
-# Webhook Signature Verification
-# ---------------------------------------------------------------------------
-
-async def _verify_paypal_webhook(request: Request, payload: bytes) -> bool:
-    """
-    Verify PayPal webhook signature using the PayPal verification API.
-    This is the recommended approach per PayPal documentation.
-    """
-    try:
-        access_token = await _get_paypal_access_token()
-
-        verification_body = {
-            "auth_algo": request.headers.get("paypal-auth-algo", ""),
-            "cert_url": request.headers.get("paypal-cert-url", ""),
-            "transmission_id": request.headers.get("paypal-transmission-id", ""),
-            "transmission_sig": request.headers.get("paypal-transmission-sig", ""),
-            "transmission_time": request.headers.get("paypal-transmission-time", ""),
-            "webhook_id": settings.PAYPAL_WEBHOOK_ID,
-            "webhook_event": json.loads(payload),
+    stmt = (
+        select(DBmodels.WalletTransaction)
+        .where(DBmodels.WalletTransaction.wallet_id == wallet.id)
+        .order_by(DBmodels.WalletTransaction.created_at.desc())
+        .limit(limit)
+    )
+    res = await db.execute(stmt)
+    transactions = res.scalars().all()
+    
+    return [
+        {
+            "id": tx.id,
+            "amount": tx.amount,
+            "type": tx.transaction_type.value,
+            "description": tx.description,
+            "date": tx.created_at.isoformat()
         }
-
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{_paypal_base_url()}/v1/notifications/verify-webhook-signature",
-                json=verification_body,
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json",
-                },
-                timeout=15.0,
-            )
-
-        if resp.status_code == 200:
-            result = resp.json()
-            return result.get("verification_status") == "SUCCESS"
-
-        logger.warning(f"PayPal webhook verification returned {resp.status_code}: {resp.text}")
-        return False
-
-    except Exception as e:
-        logger.error(f"PayPal webhook verification error: {e}")
-        # In production, fail closed (reject unverified webhooks)
-        # In sandbox, allow through for testing
-        return settings.PAYPAL_MODE == "sandbox"
-
-
-# ---------------------------------------------------------------------------
-# Event Handlers
-# ---------------------------------------------------------------------------
-
-def _find_user_id_from_resource(resource: dict) -> Optional[int]:
-    """Extract the QuantCAI user_id from PayPal subscription custom_id."""
-    custom_id = resource.get("custom_id")
-    if custom_id and custom_id.isdigit():
-        return int(custom_id)
-    return None
-
-
-async def _handle_subscription_activated(db: AsyncSession, resource: dict):
-    """Activate subscription after PayPal approval."""
-    paypal_sub_id = resource.get("id")
-    plan_id = resource.get("plan_id", "")
-    custom_user_id = _find_user_id_from_resource(resource)
-
-    if not paypal_sub_id:
-        logger.warning("BILLING.SUBSCRIPTION.ACTIVATED: missing subscription ID")
-        return
-
-    # Find subscription by PayPal ID
-    local_id = f"PAYPAL_{paypal_sub_id}"
-    stmt = select(DBmodels.Subscription).where(
-        DBmodels.Subscription.stripe_subscription_id == local_id
-    )
-    res = await db.execute(stmt)
-    db_sub = res.scalar_one_or_none()
-
-    # Fallback: find by user_id from custom_id
-    if not db_sub and custom_user_id:
-        stmt = select(DBmodels.Subscription).where(
-            DBmodels.Subscription.user_id == custom_user_id
-        )
-        res = await db.execute(stmt)
-        db_sub = res.scalar_one_or_none()
-        if db_sub:
-            db_sub.stripe_subscription_id = local_id
-
-    if not db_sub:
-        logger.error(f"BILLING.SUBSCRIPTION.ACTIVATED: No subscription found for PayPal ID={paypal_sub_id}")
-        return
-
-    # Determine plan from PayPal plan_id
-    if plan_id == settings.PAYPAL_ENTERPRISE_PLAN_ID:
-        plan_enum = DBmodels.SubscriptionPlan.ENTERPRISE
-        tier_enum = DBmodels.Tier.ENTERPRISE
-    else:
-        plan_enum = DBmodels.SubscriptionPlan.PRO
-        tier_enum = DBmodels.Tier.PRO
-
-    # Activate subscription
-    db_sub.plan = plan_enum
-    db_sub.status = DBmodels.SubscriptionStatus.ACTIVE
-    db_sub.current_period_end = datetime.now(timezone.utc) + timedelta(days=30)
-    db_sub.updated_at = datetime.now(timezone.utc)
-    db.add(db_sub)
-
-    # Update UserPlan tier
-    user_id = db_sub.user_id
-    if user_id:
-        plan_stmt = select(DBmodels.UserPlan).where(DBmodels.UserPlan.user_id == user_id)
-        plan_res = await db.execute(plan_stmt)
-        user_plan = plan_res.scalar_one_or_none()
-        if user_plan:
-            user_plan.tier = tier_enum
-            db.add(user_plan)
-        else:
-            user_plan = DBmodels.UserPlan(
-                user_id=user_id,
-                tier=tier_enum,
-                cycle_reset_date=date.today() + timedelta(days=30)
-            )
-            db.add(user_plan)
-
-    await db.commit()
-
-    if user_id:
-        await clear_feature_access_cache(user_id)
-
-    logger.info(
-        f"PayPal subscription activated: user={user_id}, "
-        f"paypal_sub_id={paypal_sub_id}, plan={plan_enum.value}"
-    )
-
-
-async def _handle_subscription_cancelled(db: AsyncSession, resource: dict):
-    """Handle subscription cancellation or expiration — downgrade to free."""
-    paypal_sub_id = resource.get("id")
-    if not paypal_sub_id:
-        return
-
-    local_id = f"PAYPAL_{paypal_sub_id}"
-    stmt = select(DBmodels.Subscription).where(
-        DBmodels.Subscription.stripe_subscription_id == local_id
-    )
-    res = await db.execute(stmt)
-    db_sub = res.scalar_one_or_none()
-
-    if not db_sub:
-        logger.warning(f"SUBSCRIPTION.CANCELLED: No subscription found for PayPal ID={paypal_sub_id}")
-        return
-
-    db_sub.status = DBmodels.SubscriptionStatus.CANCELLED
-    db_sub.plan = DBmodels.SubscriptionPlan.FREE
-    db_sub.current_period_end = None
-    db_sub.updated_at = datetime.now(timezone.utc)
-    db.add(db_sub)
-
-    # Downgrade UserPlan
-    user_id = db_sub.user_id
-    if user_id:
-        plan_stmt = select(DBmodels.UserPlan).where(DBmodels.UserPlan.user_id == user_id)
-        plan_res = await db.execute(plan_stmt)
-        user_plan = plan_res.scalar_one_or_none()
-        if user_plan:
-            user_plan.tier = DBmodels.Tier.FREE
-            db.add(user_plan)
-
-    await db.commit()
-
-    if user_id:
-        await clear_feature_access_cache(user_id)
-
-    logger.info(f"PayPal subscription cancelled: paypal_sub_id={paypal_sub_id}, user_id={user_id}")
-
-
-async def _handle_subscription_suspended(db: AsyncSession, resource: dict):
-    """Handle subscription suspension (failed payment) — mark as past_due."""
-    paypal_sub_id = resource.get("id")
-    if not paypal_sub_id:
-        return
-
-    local_id = f"PAYPAL_{paypal_sub_id}"
-    stmt = select(DBmodels.Subscription).where(
-        DBmodels.Subscription.stripe_subscription_id == local_id
-    )
-    res = await db.execute(stmt)
-    db_sub = res.scalar_one_or_none()
-
-    if not db_sub:
-        logger.warning(f"SUBSCRIPTION.SUSPENDED: No subscription found for PayPal ID={paypal_sub_id}")
-        return
-
-    db_sub.status = DBmodels.SubscriptionStatus.PAST_DUE
-    db_sub.updated_at = datetime.now(timezone.utc)
-    db.add(db_sub)
-    await db.commit()
-
-    logger.warning(f"PayPal subscription suspended (payment failed): paypal_sub_id={paypal_sub_id}, user_id={db_sub.user_id}")
-
-
-async def _handle_payment_completed(db: AsyncSession, resource: dict):
-    """Handle successful recurring payment — extend subscription period."""
-    billing_agreement_id = resource.get("billing_agreement_id")
-    if not billing_agreement_id:
-        return
-
-    local_id = f"PAYPAL_{billing_agreement_id}"
-    stmt = select(DBmodels.Subscription).where(
-        DBmodels.Subscription.stripe_subscription_id == local_id
-    )
-    res = await db.execute(stmt)
-    db_sub = res.scalar_one_or_none()
-
-    if not db_sub:
-        # Payment may reference a different ID format — log but don't error
-        logger.debug(f"PAYMENT.SALE.COMPLETED: No subscription found for agreement={billing_agreement_id}")
-        return
-
-    # Extend period
-    db_sub.status = DBmodels.SubscriptionStatus.ACTIVE
-    db_sub.current_period_end = datetime.now(timezone.utc) + timedelta(days=30)
-    db_sub.updated_at = datetime.now(timezone.utc)
-    db.add(db_sub)
-    await db.commit()
-
-    logger.info(f"PayPal payment completed: agreement={billing_agreement_id}, user_id={db_sub.user_id}")
+        for tx in transactions
+    ]

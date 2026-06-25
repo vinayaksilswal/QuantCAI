@@ -103,7 +103,14 @@ const Terms = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-white mb-4">7. User Conduct</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">7. Enterprise SLAs and Uptime Guarantees</h2>
+              <p className="text-gray-300 leading-relaxed">
+                For users on our "Enterprise" tier, we guarantee a 99.9% uptime for core simulation APIs and Post-Quantum Cryptography scanning endpoints. In the event of an outage exceeding SLA thresholds, pro-rated service credits will be issued according to your specific Enterprise contract. Free, Pro, and Developer API tiers are provided "as-is" without a binding uptime SLA, though we continually monitor and maintain highly available infrastructure.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-white mb-4">8. User Conduct</h2>
               <p className="text-gray-300 leading-relaxed">
                 You agree not to misuse the Platform, attempt to gain unauthorized access to any systems, interfere
                 with other users' access, reverse-engineer any proprietary tools or algorithms, or use the Platform
@@ -112,7 +119,7 @@ const Terms = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-white mb-4">8. Limitation of Liability</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">9. Limitation of Liability</h2>
               <p className="text-gray-300 leading-relaxed">
                 QuantCAI shall not be liable for any indirect, incidental, special, consequential, or punitive
                 damages arising out of your use of or inability to use the Platform. Our total liability shall not
@@ -121,7 +128,7 @@ const Terms = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-white mb-4">9. Modifications to Terms</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">10. Modifications to Terms</h2>
               <p className="text-gray-300 leading-relaxed">
                 QuantCAI reserves the right to modify these Terms & Conditions at any time. Changes will be posted
                 on this page with an updated effective date. Your continued use of the Platform after any modifications
@@ -130,11 +137,11 @@ const Terms = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-white mb-4">10. Contact</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">11. Legal & Compliance Contact</h2>
               <p className="text-gray-300 leading-relaxed">
-                For any questions regarding these Terms & Conditions, please contact us at{' '}
-                <a href="mailto:support@quantcai.in" className="text-blue-400 hover:text-blue-300 underline">
-                  support@quantcai.in
+                For any questions regarding these Terms & Conditions, SLAs, or Enterprise compliance, please contact us at{' '}
+                <a href="mailto:legal@quantcai.in" className="text-blue-400 hover:text-blue-300 underline">
+                  legal@quantcai.in
                 </a>.
               </p>
             </section>

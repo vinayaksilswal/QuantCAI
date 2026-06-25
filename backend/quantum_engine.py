@@ -22,34 +22,11 @@ import redis.asyncio as aioredis
 import structlog
 
 from core.database import get_db
-from security import get_current_user_or_api_key, get_subscription_plan
+from security import get_current_user_or_api_key, get_subscription_plan, redis_client
 import models as DBmodels
-
-# ---------------------------------------------------------------------------
-# Structlog configuration
-# ---------------------------------------------------------------------------
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(0),
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=True,
-)
+from tier_limits import _extract_qubit_count
 
 log = structlog.get_logger("quantcai.quantum_engine")
-
-# ---------------------------------------------------------------------------
-# Redis client (reuses the REDIS_URL from .env)
-# ---------------------------------------------------------------------------
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
 
 # ---------------------------------------------------------------------------
 # Constants — Tier Limits
@@ -60,31 +37,25 @@ TIER_LIMITS = {
         "max_qubits": 20,
         "noise_models": {"ideal"},
         "statevector_access": False,
+        "max_concurrent_jobs": 1,
     },
     "pro": {
         "max_shots": 65536,
         "max_qubits": 29,
         "noise_models": {"ideal", "depolarizing", "thermal"},
         "statevector_access": True,
+        "max_concurrent_jobs": 5,
     },
     "enterprise": {
         "max_shots": 65536,
         "max_qubits": 29,
         "noise_models": {"ideal", "depolarizing", "thermal"},
         "statevector_access": True,
+        "max_concurrent_jobs": 20,
     },
 }
 
-# Security: patterns that indicate potentially dangerous QASM constructs
-FORBIDDEN_QASM_PATTERNS = [
-    re.compile(r"\bwhile\b", re.IGNORECASE),
-    re.compile(r"\bfor\b", re.IGNORECASE),
-    re.compile(r"\bif\b", re.IGNORECASE),
-    re.compile(r"\brecursive\b", re.IGNORECASE),
-]
 
-# ---------------------------------------------------------------------------
-# Pydantic Models
 # ---------------------------------------------------------------------------
 class NoiseModelType(str, Enum):
     IDEAL = "ideal"
@@ -164,46 +135,10 @@ class JobStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _extract_qubit_count(qasm_str: str) -> int:
-    """
-    Parse the number of qubits declared in a QASM string.
-    Supports multiple qreg declarations — returns the total.
-    """
-    total = 0
-    for match in re.finditer(r"qreg\s+\w+\s*\[\s*(\d+)\s*\]", qasm_str):
-        total += int(match.group(1))
-    return total
 
 
-def _validate_qasm_security(qasm_str: str) -> None:
-    """
-    Reject QASM strings containing while-loops, for-loops, if-statements,
-    or recursive gate definitions — all of which are potential DoS vectors.
-    Only scans non-comment lines.
-    """
-    for line_no, raw_line in enumerate(qasm_str.splitlines(), start=1):
-        line = raw_line.split("//")[0].strip()  # strip inline comments
-        if not line:
-            continue
-        for pattern in FORBIDDEN_QASM_PATTERNS:
-            if pattern.search(line):
-                raise ValueError(
-                    f"Forbidden construct detected on line {line_no}: "
-                    f"'{pattern.pattern.strip()}' statements are not allowed for security reasons"
-                )
 
 
-def _validate_qasm_parse(qasm_str: str) -> tuple[int, int]:
-    """
-    Attempt to parse the QASM 3.0 string with Qiskit.
-    Returns (num_qubits, circuit_depth) on success; raises ValueError on failure.
-    """
-    try:
-        import qiskit.qasm3
-        qc = qiskit.qasm3.loads(qasm_str)
-        return qc.num_qubits, qc.depth()
-    except Exception as exc:
-        raise ValueError(f"QASM3 Parse Error: {exc}") from exc
 
 
 def _estimate_execution_seconds(num_qubits: int, shots: int) -> int:
@@ -264,6 +199,28 @@ async def submit_simulation(
         noise_model=body.noise_model.value,
     )
 
+    # --- 0. Validate: concurrent job limits ----------------------------------
+    concurrent_jobs_key = f"user:{current_user.id}:concurrent_jobs"
+    current_concurrent_jobs = await redis_client.scard(concurrent_jobs_key)
+    max_concurrent = limits.get("max_concurrent_jobs", 1)
+    
+    if current_concurrent_jobs >= max_concurrent:
+        log.warning(
+            "simulation.concurrent_jobs_exceeded",
+            job_id=job_id,
+            user_id=current_user.id,
+            tier=tier,
+            current_jobs=current_concurrent_jobs,
+            max_jobs=max_concurrent,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"You have reached the maximum of {max_concurrent} concurrent simulation jobs "
+                f"for the '{tier}' tier. Please wait for them to finish."
+            ),
+        )
+
     # --- 1. Validate: noise model access ------------------------------------
     if body.noise_model.value not in limits["noise_models"]:
         log.warning(
@@ -300,8 +257,9 @@ async def submit_simulation(
         )
 
     # --- 3. Validate: security scan (forbidden constructs) ------------------
+    from services.qasm_validator import validate_qasm_security
     try:
-        _validate_qasm_security(body.circuit_qasm)
+        validate_qasm_security(body.circuit_qasm)
     except ValueError as exc:
         log.warning(
             "simulation.qasm_security_violation",
@@ -315,8 +273,9 @@ async def submit_simulation(
         )
 
     # --- 4. Validate: parse the QASM with Qiskit ----------------------------
+    from services.qasm_validator import parse_and_validate_qasm
     try:
-        num_qubits, circuit_depth = _validate_qasm_parse(body.circuit_qasm)
+        num_qubits, circuit_depth = parse_and_validate_qasm(body.circuit_qasm)
     except ValueError as exc:
         log.warning(
             "simulation.qasm_parse_failed",
@@ -402,6 +361,9 @@ async def submit_simulation(
     await redis_client.setex(
         f"sim_job:{job_id}", 3600, json.dumps(job_meta)
     )
+    # Track concurrent jobs (they should be removed from this set in worker.py)
+    await redis_client.sadd(concurrent_jobs_key, job_id)
+    await redis_client.expire(concurrent_jobs_key, 3600)
 
 
     # Dispatch either to Celery or use FastAPI BackgroundTasks based on configuration

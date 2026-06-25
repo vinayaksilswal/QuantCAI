@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAI } from '@/hooks/useAI';
 import { Navbar } from '@/components/Navbar';
+import { useNavigate } from 'react-router-dom';
 
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { SEO } from '@/components/SEO';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -54,7 +56,7 @@ function generateQASM3(placedGates: PlacedGate[], numWires: number): string {
     const sortedGates = [...placedGates].sort((a, b) => a.step - b.step);
 
     sortedGates.forEach(g => {
-        const name = g.name.toLowerCase();
+        const name = (g.name || 'id_gate').toLowerCase();
         const params = g.params || [];
 
         if (g.category === 'multi' && g.targetWire !== undefined) {
@@ -141,7 +143,7 @@ function buildGatePayload(placedGates: PlacedGate[]): GateInstructionPayload[] {
         if (g.targetWire !== undefined) qubits.push(g.targetWire);
         if (g.thirdWire !== undefined) qubits.push(g.thirdWire);
         return {
-            name: g.name.toLowerCase(),
+            name: (g.name || 'id_gate').toLowerCase(),
             qubits,
             params: g.params || [],
         };
@@ -158,6 +160,7 @@ const BACKENDS: { value: ExecutionBackend | string; label: string; available: bo
 
 // ─── Main Component ─────────────────────────────────────────────────
 const CircuitBuilder = () => {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const { circuitActions, ackCircuitAction, updateClientContext } = useAI();
     const { tier } = useSubscription();
@@ -165,20 +168,41 @@ const CircuitBuilder = () => {
     const [numWires, setNumWires] = useState(3);
     const [mitigation, setMitigation] = useState({ zne: false, pec: false, readout: false });
 
+    const handleBackendSelect = (value: string) => {
+        if (value === 'ibm_brisbane_127q') {
+            const key = localStorage.getItem('ibm_quantum_key');
+            if (!key) {
+                toast.error("IBM Quantum API key not found! Redirecting to Developer Console...");
+                navigate('/profile', { state: { tab: 'developer' } });
+                return;
+            }
+        } else if (value === 'ionq_forte_36q') {
+            const key = localStorage.getItem('ionq_api_key');
+            if (!key) {
+                toast.error("IonQ API key not found! Redirecting to Developer Console...");
+                navigate('/profile', { state: { tab: 'developer' } });
+                return;
+            }
+        }
+        setBackend(value);
+    };
+
     const [history, setHistory] = useState<PlacedGate[][]>(() => {
         const saved = localStorage.getItem('circuit-history');
         if (saved) {
             try {
                 const parsed: PlacedGate[][] = JSON.parse(saved);
-                return parsed.map(stepGates => 
-                    stepGates.map(g => {
-                        const baseGate = gates.find(bg => bg.id === g.id);
-                        if (baseGate) {
-                            return { ...baseGate, ...g, icon: baseGate.icon, color: baseGate.color };
-                        }
-                        return g;
-                    })
-                );
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed.map(stepGates => 
+                        (Array.isArray(stepGates) ? stepGates : []).map(g => {
+                            const baseGate = gates.find(bg => bg.id === g.id);
+                            if (baseGate) {
+                                return { ...baseGate, ...g, icon: baseGate.icon, color: baseGate.color };
+                            }
+                            return g;
+                        })
+                    );
+                }
             } catch (e) {
                 console.error("Failed to parse circuit history", e);
             }
@@ -186,31 +210,40 @@ const CircuitBuilder = () => {
         return [[...TEMPLATES[0].fn()]];
     });
     const [historyIndex, setHistoryIndex] = useState(() => {
+        const savedHistory = localStorage.getItem('circuit-history');
+        let maxIndex = 0;
+        if (savedHistory) {
+            try {
+                const parsed = JSON.parse(savedHistory);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    maxIndex = parsed.length - 1;
+                }
+            } catch (e) {}
+        }
+        
         const saved = localStorage.getItem('circuit-history-index');
-        return saved ? parseInt(saved) : 0;
+        let index = saved ? parseInt(saved) : 0;
+        if (isNaN(index) || index < 0) index = 0;
+        if (index > maxIndex) index = maxIndex;
+        return index;
     });
 
     const placedGates = useMemo(() => history[historyIndex] || [], [history, historyIndex]);
 
     const setPlacedGates = useCallback((action: React.SetStateAction<PlacedGate[]>) => {
         setHistory(prev => {
-            const current = prev[historyIndex] || [];
+            const currentIdx = Math.min(historyIndex, prev.length - 1);
+            const current = prev[currentIdx] || [];
             const next = typeof action === 'function' ? action(current) : action;
             
-            const newHistory = prev.slice(0, historyIndex + 1);
+            const newHistory = prev.slice(0, currentIdx + 1);
             newHistory.push(next);
             
             if (newHistory.length > 50) newHistory.shift();
+            
+            setHistoryIndex(newHistory.length - 1);
+            
             return newHistory;
-        });
-        setHistoryIndex(prev => {
-            setHistory(h => {
-                // This state setter uses previous history length, safe inside functional update if needed
-                return h;
-            });
-            // We just know the next index will be the end of the new array
-            // actually it's easier to calculate it after setHistory, but for simplicity:
-            return prev >= 49 ? 49 : prev + 1;
         });
     }, [historyIndex]);
 
@@ -560,7 +593,8 @@ const CircuitBuilder = () => {
             line = line.trim();
             if (!line || line.startsWith('//') || line.startsWith('OPENQASM') || line.startsWith('include') || line.startsWith('qubit') || line.startsWith('bit') || line.startsWith('c[')) return;
             
-            const match = line.match(/^([a-z]+)(?:\(([^)]+)\))?\s+([^;]+);/i);
+            // Allow missing semicolon so live editing doesn't drop the gate while typing
+            const match = line.match(/^([a-z]+)(?:\(([^)]+)\))?\s+([^;]+)/i);
             if (match) {
                 const name = match[1].toLowerCase();
                 const paramsStr = match[2];
@@ -645,8 +679,13 @@ const CircuitBuilder = () => {
     const currentBackend = BACKENDS.find(b => b.value === backend) || BACKENDS[0];
 
     return (
-        <div className="min-h-screen relative overflow-hidden bg-transparent text-white font-sans">
+        <div className="min-h-screen relative overflow-hidden bg-slate-950 font-sans selection:bg-cyan-500/30">
             <Navbar />
+            <SEO 
+                title="Quantum Circuit Simulator - QuantCAI" 
+                description="Build, optimize, and simulate complex quantum circuits using QuantCAI's interactive quantum circuit builder." 
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none"></div>
             <div className="pt-20 pb-4 px-3 md:px-4 max-w-[1800px] mx-auto flex flex-col" style={{ height: 'calc(100vh - 0px)' }}>
 
                 {/* ─── HEADER BAR ──────────────────────────────────── */}
@@ -703,7 +742,7 @@ const CircuitBuilder = () => {
                                     {BACKENDS.map(b => (
                                         <DropdownMenuItem
                                             key={b.value}
-                                            onClick={() => b.available && setBackend(b.value)}
+                                            onClick={() => b.available && handleBackendSelect(b.value)}
                                             className={`text-xs ${!b.available ? 'opacity-40 cursor-not-allowed' : 'text-slate-300 focus:text-white focus:bg-slate-800'}`}
                                             disabled={!b.available}
                                         >

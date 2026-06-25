@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface Props {
     children: ReactNode;
@@ -23,6 +24,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
     public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("Uncaught error:", error, errorInfo);
+        // Report to backend
+        api.reportClientError({
+            message: error.message,
+            stack: error.stack,
+            componentStack: errorInfo.componentStack
+        });
     }
 
     private handleReset = () => {

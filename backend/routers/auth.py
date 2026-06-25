@@ -95,12 +95,16 @@ class GoogleOAuthRequest(BaseModel):
 @limiter.limit("5/minute")
 def login(request: Request, login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """User login with rate limiting and account lockout"""
-    logger.info(f"Login attempt for email: {login_data.email}")
+    logger.info("Login attempt for email: [REDACTED]")
+    # Pre-compute a dummy hash for timing-safe comparison when user is not found.
+    # This prevents user enumeration via response time differences.
+    _DUMMY_HASH = "$2b$12$FxRbyEr9aWmh8G2j2ndpN.Ks5E9vHmZB0vJPfGPw4X6bQvZdR5HXi"
     try:
         user = db.query(DBmodels.User).filter(DBmodels.User.email == login_data.email).first()
         if not user:
-            # Generic error to prevent user enumeration
-            logger.warning(f"Login failed: User not found - {login_data.email}")
+            # Run bcrypt anyway to make timing consistent with the "wrong password" path
+            verify_password(login_data.password, _DUMMY_HASH)
+            logger.warning(f"Login failed: User not found")
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Check if account is locked
@@ -175,7 +179,8 @@ def register(request: Request, reg_data: RegisterRequest, response: Response, db
             name=reg_data.name.strip(),
             is_active=True,
             is_blocked=False,
-            role=DBmodels.UserRole.LEARNER
+            role=DBmodels.UserRole.LEARNER,
+            email_verified=False  # Explicitly set; verification email should be triggered
         )
         db.add(new_user)
         db.commit()
@@ -402,8 +407,8 @@ def saml_acs_callback(
         logger.warning(f"SAML decode assertion failed, using mock placeholder parsing: {parse_err}")
         decoded_xml = ""
 
-    email = "sso.user@enterprise.com"
-    name = "Enterprise Member"
+    email = None
+    name = None
     
     email_match = re.search(r'<saml:NameID[^>]*>([^<]+)</saml:NameID>', decoded_xml)
     if email_match:
@@ -414,6 +419,17 @@ def saml_acs_callback(
         if email_attr:
             email = email_attr.group(1).strip()
             name = email.split("@")[0].title()
+    
+    # SECURITY: Never use hardcoded fallback emails — if parsing fails, reject the assertion
+    if not email:
+        logger.error("SAML ACS: Failed to extract email from SAML assertion")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SAML assertion does not contain a valid email address. "
+                   "Please contact your IT administrator."
+        )
+    if not name:
+        name = email.split("@")[0].title()
 
     user = db.query(DBmodels.User).filter(DBmodels.User.email == email).first()
     if not user:

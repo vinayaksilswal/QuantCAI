@@ -55,12 +55,14 @@ async def simulate_public_circuit(
 
         t_elapsed = (time.perf_counter() - t_start) * 1000
 
-        # Successful response: deduct micro-charge
-        await apply_transaction_charges(user_id=user_id, api_key_id=api_key_id, shots=body.shots)
+        # Successful response: deduct micro-charge only if it's an overage
+        is_overage = getattr(request.state, "is_overage", False)
+        if is_overage:
+            await apply_transaction_charges(user_id=user_id, api_key_id=api_key_id, shots=body.shots)
 
         logger.info(
             f"Public simulation completed successfully: User={user_id}, Key={api_key_id}, "
-            f"Qubits={body.num_qubits}, Shots={body.shots}, Elapsed={t_elapsed:.1f}ms"
+            f"Qubits={body.num_qubits}, Shots={body.shots}, Elapsed={t_elapsed:.1f}ms, Overage={is_overage}"
         )
 
         return result

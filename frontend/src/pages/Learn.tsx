@@ -8,6 +8,7 @@ import {
   ExternalLink, Loader2 
 } from 'lucide-react';
 import { usePageTracking } from '@/hooks/usePageTracking';
+import { SEO } from '@/components/SEO';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +17,7 @@ import { toast } from 'sonner';
 
 interface Cohort {
   id: number;
-  title: str;
+  title: string;
   description: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -170,7 +171,12 @@ const Learn = () => {
   };
 
   return (
-    <div className="min-h-screen relative bg-transparent text-white">
+    <div className="min-h-screen relative overflow-hidden font-sans bg-slate-950 text-slate-100 selection:bg-purple-500/30">
+      <SEO 
+        title="Learn Quantum Computing - QuantCAI Tutorials" 
+        description="Master quantum mechanics, quantum circuits, and post-quantum cryptography with our interactive learning platform." 
+      />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
       <Navbar />
       
       <div className="flex pt-32 pb-20 px-6 gap-8 items-stretch max-w-7xl mx-auto">
@@ -342,16 +348,12 @@ const Learn = () => {
             <section>
               <div className="flex items-center mb-6">
                 <Cpu className="h-8 w-8 text-blue-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">What is Quantum Computing?</h2>
+                <h2 className="text-3xl font-bold text-white">Start Your Quantum Journey with our Interactive Simulator</h2>
               </div>
               <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
                 <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed">
-                    Quantum computing is not just an evolution; it's a revolution. While classical computers use bits that 
-                    represent either 0 or 1, quantum computers leverage qubits. These qubits can exist in multiple states 
-                    simultaneously, unlocking unparalleled computing power. Quantum computing holds the potential to solve 
-                    complex problems exponentially faster than classical computers, revolutionizing industries from healthcare 
-                    to finance and beyond.
+                  <p className="text-gray-300 leading-relaxed mb-4">
+                    Quantum computing sounds like science fiction, but learning how it works shouldn't require a PhD in physics. If you're a student, hobbyist, or developer curious about the quantum revolution, the biggest hurdle is usually complex math and intimidating code. That's why we built a visual, interactive playground. You don't need to write a single line of code to experience the magic of quantum mechanics—you just need curiosity and a web browser.
                   </p>
                 </CardContent>
               </Card>
@@ -360,15 +362,12 @@ const Learn = () => {
             <section>
               <div className="flex items-center mb-6">
                 <Atom className="h-8 w-8 text-purple-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">What are Qubits?</h2>
+                <h2 className="text-3xl font-bold text-white">1. Visual Drag-and-Drop Learning</h2>
               </div>
               <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
                 <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed">
-                    Qubits are the fundamental units of quantum information. Unlike classical bits that represent either a 0 or a 1, 
-                    qubits can exist in a state known as superposition, representing both 0 and 1 simultaneously. Additionally, 
-                    qubits can be entangled, meaning the state of one qubit can instantly affect the state of another, even if 
-                    they are physically separated.
+                  <p className="text-gray-300 leading-relaxed mb-4">
+                    Forget staring at lines of confusing syntax. Our platform uses an intuitive drag-and-drop interface that makes building a quantum circuit as easy as playing with digital building blocks. Simply grab a "gate" (like the Hadamard gate) and drop it onto a qubit wire. Instantly watch how the quantum state changes in real-time, helping you visually grasp abstract concepts.
                   </p>
                 </CardContent>
               </Card>
@@ -377,15 +376,12 @@ const Learn = () => {
             <section>
               <div className="flex items-center mb-6">
                 <Zap className="h-8 w-8 text-green-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">Potential Applications</h2>
+                <h2 className="text-3xl font-bold text-white">2. Experience Real-Time Superposition and Entanglement</h2>
               </div>
               <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
                 <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed">
-                    Quantum computers have the potential to revolutionize various fields such as cryptography, optimization problems, 
-                    drug discovery, material science, and artificial intelligence. They could solve problems that are currently 
-                    intractable for classical computers due to their ability to process vast amounts of data and perform complex 
-                    calculations rapidly.
+                  <p className="text-gray-300 leading-relaxed mb-4">
+                    What exactly is superposition? Instead of reading a textbook definition, see it happen live. As you interact with our simulator, you'll see visualizations of quantum states collapsing and changing. Experiment with entangling two qubits together, so that a change in one instantly affects the other. It's hands-on, visual learning that makes the impossible feel tangible.
                   </p>
                 </CardContent>
               </Card>
@@ -394,47 +390,27 @@ const Learn = () => {
             <section>
               <div className="flex items-center mb-6">
                 <Globe className="h-8 w-8 text-blue-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">Current Availability</h2>
+                <h2 className="text-3xl font-bold text-white">3. Pre-Built Templates to Get You Started</h2>
               </div>
               <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
                 <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed">
-                    Quantum computers are still in the early stages of development and are primarily in the hands of research 
-                    institutions and tech companies. However, as the technology progresses, efforts are being made to make quantum 
-                    computing more accessible through cloud-based platforms that allow users to run algorithms on quantum hardware remotely.
+                  <p className="text-gray-300 leading-relaxed mb-4">
+                    Staring at a blank screen can be overwhelming. We've included a library of beginner-friendly templates ranging from coin-flip probability generators to basic teleportation algorithms. Load a template with one click, run the simulation, and tinker with the gates to see what happens. Learning by doing is the fastest way to become a quantum visionary!
                   </p>
                 </CardContent>
               </Card>
             </section>
 
             <section>
-              <div className="flex items-center mb-6">
-                <Shield className="h-8 w-8 text-red-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">Development Challenges</h2>
-              </div>
-              <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed">
-                    Developing practical quantum computers faces several challenges, including maintaining the stability of qubits 
-                    (decoherence), error correction, scaling up the number of qubits while retaining their quantum properties, 
-                    and creating a robust infrastructure for large-scale quantum computing.
+              <Card className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 border-blue-500/50 backdrop-blur-sm">
+                <CardContent className="p-8 text-center">
+                  <h3 className="text-2xl font-bold text-white mb-4">Ready to leap into the quantum world?</h3>
+                  <p className="text-slate-300 mb-6">
+                    Discover how easy it is to build your very first quantum algorithm. Create your Free QuantCAI Account today and start experimenting with our interactive simulator!
                   </p>
-                </CardContent>
-              </Card>
-            </section>
-
-            <section>
-              <div className="flex items-center mb-6">
-                <BookOpen className="h-8 w-8 text-yellow-400 mr-4" />
-                <h2 className="text-3xl font-bold text-white">Quantum vs Classical Computing</h2>
-              </div>
-              <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <p className="text-gray-300 leading-relaxed">
-                    Classical computers process information using bits that are in a definite state of 0 or 1. Quantum computers 
-                    leverage qubits that can exist in multiple states simultaneously due to superposition and entanglement, enabling 
-                    them to perform certain calculations much faster than classical computers.
-                  </p>
+                  <Button onClick={() => navigate('/signup')} className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-blue-500/20">
+                    Create your Free QuantCAI Account <ArrowRight className="ml-2 w-5 h-5" />
+                  </Button>
                 </CardContent>
               </Card>
             </section>

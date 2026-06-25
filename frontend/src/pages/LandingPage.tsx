@@ -11,6 +11,7 @@ import { PricingSection } from '@/components/landing/PricingSection';
 import { Footer } from '@/components/Footer';
 import { NewsletterForm } from '@/components/NewsletterForm';
 import { LogoProcessor } from '@/components/LogoProcessor';
+import { SEO } from '@/components/SEO';
 
 /* ─────────────────────────── CODE SNIPPETS ─────────────────────────── */
 const curlSnippet = `curl -X POST https://api.quantcai.in/v1/simulate \\
@@ -128,6 +129,10 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      <SEO 
+        title="QuantCAI - Enterprise Quantum Computing Simulations & APIs" 
+        description="QuantCAI equips learners, researchers, and developers with an interactive ecosystem to master quantum computing, deploy algorithms, and secure post-quantum infrastructure." 
+      />
       <Navbar />
 
       {/* ═══════════════════════════════════════════════════════════════
@@ -151,31 +156,31 @@ export default function LandingPage() {
               </div>
 
               <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight text-white drop-shadow-lg">
-                Quantum Visionaries
+                Your Gateway to the <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">Quantum Era</span>
               </h1>
               <h2 className="text-2xl md:text-3xl mb-5 font-light text-blue-100 drop-shadow-md">
-                Leap Forward to Innovate, Educate, and Elevate <br />
-                Tech Horizons
+                Accelerate Learning. Power Research. <br />
+                Scale Operations.
               </h2>
               <p className="text-lg mb-12 max-w-2xl leading-relaxed text-blue-200 drop-shadow-sm">
-                QuantCAI is leading the quantum computer adaptation to the world through
-                interactive education and cutting-edge simulations.
+                QuantCAI equips learners, researchers, and developers with an interactive, production-ready ecosystem to master quantum computing and secure post-quantum infrastructure.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/learn" className="w-full sm:w-auto">
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-2xl shadow-blue-500/30 border border-blue-400/30">
+                <Link to="/signup" className="w-full sm:w-auto">
+                  <Button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-8 py-6 text-lg font-bold rounded-xl transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2 shadow-2xl shadow-cyan-500/40 border border-cyan-400/50">
                     <Rocket className="h-5 w-5" />
-                    Explore Quantum World
+                    Start Free Trial
                   </Button>
                 </Link>
                 <Link to="/sandbox" className="w-full sm:w-auto">
                   <Button
                     variant="outline"
-                    className="w-full border-2 border-blue-400 text-blue-200 hover:bg-blue-500/20 hover:text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center gap-2 backdrop-blur-sm bg-white/5 shadow-xl"
+                    className="w-full border-2 border-blue-400/60 text-blue-100 hover:bg-blue-500/20 hover:border-blue-400 hover:text-white px-8 py-6 text-lg font-semibold rounded-xl transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-md bg-white/5 shadow-xl shadow-blue-500/10"
                   >
                     <Settings className="h-5 w-5" />
-                    Try Simulator
+                    Launch Simulator
                   </Button>
                 </Link>
               </div>
@@ -267,12 +272,15 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           {/* Section header */}
           <div className="text-center mb-16">
-            <p className="text-qc-accent text-xs font-mono uppercase tracking-widest mb-3 drop-shadow-sm">
-              Two APIs. One Platform.
+            <p className="text-qc-accent text-sm font-mono uppercase tracking-widest mb-3 drop-shadow-sm font-semibold">
+              Developer & Security APIs
             </p>
-            <h2 className="font-bold text-2xl sm:text-3xl text-white drop-shadow-md">
-              Built for developers. Trusted by security teams.
+            <h2 className="font-bold text-3xl sm:text-4xl text-white drop-shadow-md mb-4">
+              Build the Future. Secure the Present.
             </h2>
+            <p className="text-blue-200 text-base max-w-2xl mx-auto drop-shadow-sm">
+              Deploy quantum algorithms and audit post-quantum cryptography with our high-performance APIs. Purchase credits directly in your developer console.
+            </p>
           </div>
 
           <div className="grid lg:grid-cols-2 gap-6">
@@ -447,31 +455,65 @@ export default function LandingPage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
+          NEW: DEVELOPER CONSOLE & LEAD GEN CTA
+          ═══════════════════════════════════════════════════════════════ */}
+      <section className="py-20 sm:py-28 px-6 relative z-10 bg-gradient-to-b from-transparent to-blue-950/20">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="bg-gradient-to-br from-slate-900/90 to-blue-900/50 p-10 rounded-3xl border border-blue-500/30 shadow-2xl backdrop-blur-xl relative overflow-hidden group hover:border-cyan-500/50 transition-all duration-500">
+              <div className="absolute -top-20 -right-20 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl group-hover:bg-cyan-500/20 transition-all duration-500"></div>
+              <Terminal className="w-12 h-12 text-cyan-400 mb-6 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]" />
+              <h3 className="text-2xl font-bold text-white mb-4 font-syne">For Developers</h3>
+              <p className="text-blue-100 mb-8 leading-relaxed">
+                Need to run thousands of circuits or perform extensive vulnerability mapping? Top up your developer wallet instantly and scale your API usage seamlessly.
+              </p>
+              <Link to="/profile?tab=developer" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500 hover:text-slate-950 font-bold transition-all duration-300 shadow-[0_0_20px_rgba(34,211,238,0.1)] hover:shadow-[0_0_30px_rgba(34,211,238,0.4)]">
+                <Code2 className="w-5 h-5" />
+                Access Developer Console
+              </Link>
+            </div>
+            
+            <div className="bg-gradient-to-br from-slate-900/90 to-emerald-900/50 p-10 rounded-3xl border border-emerald-500/30 shadow-2xl backdrop-blur-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all duration-500">
+              <div className="absolute -top-20 -right-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all duration-500"></div>
+              <Shield className="w-12 h-12 text-emerald-400 mb-6 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]" />
+              <h3 className="text-2xl font-bold text-white mb-4 font-syne">For Enterprises</h3>
+              <p className="text-emerald-100 mb-8 leading-relaxed">
+                Looking for a custom SLA, sovereign PQC compliance suite, or bulk licensing? Connect with our team to architect a robust quantum-ready solution.
+              </p>
+              <Link to="/enterprise" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500 hover:text-slate-950 font-bold transition-all duration-300 shadow-[0_0_20px_rgba(52,211,153,0.1)] hover:shadow-[0_0_30px_rgba(52,211,153,0.4)]">
+                <Server className="w-5 h-5" />
+                Request Enterprise Demo
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
           NEW: CTA BANNER — "The quantum advantage starts now."
           ═══════════════════════════════════════════════════════════════ */}
       <section className="py-20 sm:py-28 px-6 relative z-10">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="font-bold text-2xl sm:text-3xl text-white mb-4 drop-shadow-lg">
-            The quantum advantage starts now.
+          <h2 className="font-bold text-3xl sm:text-4xl text-white mb-6 drop-shadow-lg leading-tight">
+            The quantum advantage <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">starts right now.</span>
           </h2>
-          <p className="text-blue-200 text-sm sm:text-base max-w-xl mx-auto mb-8 leading-relaxed drop-shadow-sm">
-            Whether you're building quantum algorithms or hardening your infrastructure
-            against quantum threats — QuantCAI gives you the tools to move first.
+          <p className="text-blue-100 text-lg max-w-xl mx-auto mb-10 leading-relaxed drop-shadow-sm">
+            Whether you're building quantum algorithms or hardening your infrastructure against quantum threats — QuantCAI gives you the tools to move first.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href="/signup"
-              className="w-full sm:w-auto px-6 py-3 rounded-lg bg-qc-accent text-black font-semibold text-sm hover:brightness-110 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/25"
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              to="/signup"
+              className="w-full sm:w-auto px-10 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-lg hover:brightness-110 hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2 shadow-xl shadow-cyan-500/30"
             >
               Get Started Free
-              <ArrowRight className="w-4 h-4" />
-            </a>
-            <a
-              href="/docs"
-              className="w-full sm:w-auto px-6 py-3 rounded-lg border border-blue-400/30 text-white font-medium text-sm hover:border-blue-400/50 hover:bg-white/10 transition-all duration-200"
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+            <Link
+              to="/docs"
+              className="w-full sm:w-auto px-10 py-4 rounded-xl border-2 border-blue-400/40 text-blue-100 font-semibold text-lg hover:border-blue-400 hover:bg-white/10 hover:-translate-y-1 transition-all duration-300"
             >
               Read the Docs
-            </a>
+            </Link>
           </div>
         </div>
       </section>

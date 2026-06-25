@@ -10,6 +10,13 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: quantcai_postgres
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    command: postgres -c shared_buffers=256MB -c effective_cache_size=768MB
     environment:
       POSTGRES_DB: quantcai
       POSTGRES_USER: quantcai
@@ -30,6 +37,12 @@ services:
   redis:
     image: redis:7-alpine
     container_name: quantcai_redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     ports:
       - "6379:6379"
     volumes:
@@ -48,6 +61,12 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     container_name: quantcai_api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend:/app
@@ -79,6 +98,12 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     container_name: quantcai_worker
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
     command: celery -A worker worker --loglevel=info --concurrency=2
     volumes:
       - ./backend:/app
@@ -101,6 +126,12 @@ services:
   web:
     image: node:20-alpine
     container_name: quantcai_web
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
     working_dir: /app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     volumes:

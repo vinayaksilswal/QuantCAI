@@ -1,7 +1,9 @@
 import os
 import sys
+import pytest
 import pytest_asyncio
-
+from unittest.mock import patch
+from datetime import datetime, timezone, timedelta
 # Add backend directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -56,3 +58,94 @@ async def cleanup_database_connections():
     Base.metadata.drop_all(bind=sync_engine)
         
     await engine.dispose()
+
+@pytest.fixture(autouse=True, scope="function")
+def mock_redis():
+    """Mock Redis client globally using fakeredis."""
+    try:
+        import fakeredis.aioredis
+    except ImportError:
+        pytest.skip("fakeredis is required to run tests with Redis mocks")
+        
+    server = fakeredis.FakeServer()
+    mock_redis_client = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
+    
+    with patch("security.redis_client", mock_redis_client):
+        yield mock_redis_client
+
+@pytest_asyncio.fixture
+async def free_user(cleanup_database_connections):
+    """Fixture for a free tier user."""
+    from models import User
+    from core.database import async_session_factory
+    
+    async with async_session_factory() as session:
+        user = User(
+            email="free@example.com",
+            name="Free User",
+            password_hash="fakehash",
+            role="user",
+            created_at=datetime.now(timezone.utc)
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+@pytest_asyncio.fixture
+async def pro_user(cleanup_database_connections):
+    """Fixture for a pro tier user with an active subscription."""
+    from models import User, Subscription
+    from core.database import async_session_factory
+    
+    async with async_session_factory() as session:
+        user = User(
+            email="pro@example.com",
+            name="Pro User",
+            password_hash="fakehash",
+            role="user",
+            created_at=datetime.now(timezone.utc)
+        )
+        session.add(user)
+        await session.flush()
+        
+        sub = Subscription(
+            user_id=user.id,
+            plan="PRO",
+            status="active",
+            current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
+            created_at=datetime.now(timezone.utc)
+        )
+        session.add(sub)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+@pytest_asyncio.fixture
+async def enterprise_user(cleanup_database_connections):
+    """Fixture for an enterprise tier user with an active subscription."""
+    from models import User, Subscription
+    from core.database import async_session_factory
+    
+    async with async_session_factory() as session:
+        user = User(
+            email="enterprise@example.com",
+            name="Enterprise User",
+            password_hash="fakehash",
+            role="enterprise_user",
+            created_at=datetime.now(timezone.utc)
+        )
+        session.add(user)
+        await session.flush()
+        
+        sub = Subscription(
+            user_id=user.id,
+            plan="ENTERPRISE",
+            status="active",
+            current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
+            created_at=datetime.now(timezone.utc)
+        )
+        session.add(sub)
+        await session.commit()
+        await session.refresh(user)
+        return user

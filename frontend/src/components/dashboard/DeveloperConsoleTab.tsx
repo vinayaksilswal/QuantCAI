@@ -51,6 +51,9 @@ export function DeveloperConsoleTab() {
   const [newKeyDetails, setNewKeyDetails] = useState<{ api_key: string; name: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [ibmKey, setIbmKey] = useState(localStorage.getItem('ibm_quantum_key') || '');
+  const [ionqKey, setIonqKey] = useState(localStorage.getItem('ionq_api_key') || '');
+
   const fetchKeys = async () => {
     try {
       const response = await axiosClient.get<APIKey[]>('/api/v1/developer/keys');
@@ -231,6 +234,12 @@ export function DeveloperConsoleTab() {
   const closeKeyModal = () => {
     setNewKeyDetails(null);
     setModalOpen(false);
+  };
+
+  const handleSaveHardwareKeys = () => {
+    localStorage.setItem('ibm_quantum_key', ibmKey);
+    localStorage.setItem('ionq_api_key', ionqKey);
+    toast.success('Hardware BYOK API keys saved successfully!');
   };
 
   return (
@@ -463,6 +472,49 @@ export function DeveloperConsoleTab() {
               </table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Hardware BYOK Panel */}
+      <Card className="bg-slate-900/60 border-slate-800 backdrop-blur-xl shadow-2xl">
+        <CardHeader className="border-b border-slate-800 pb-5">
+          <CardTitle className="text-xl text-white font-syne flex items-center gap-2">
+            <Key className="w-5 h-5 text-emerald-400" />
+            Hardware Provider BYOK (Bring Your Own Key)
+          </CardTitle>
+          <CardDescription className="text-slate-400 text-xs mt-1">
+            Provide your own API keys to run simulations directly on third-party cloud hardware. Keys are stored securely in your browser's local storage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono font-bold tracking-wide uppercase text-slate-500">IBM Quantum API Key</label>
+              <Input
+                type="password"
+                placeholder="Enter IBM Quantum token"
+                value={ibmKey}
+                onChange={(e) => setIbmKey(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-white text-xs font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono font-bold tracking-wide uppercase text-slate-500">IonQ API Key</label>
+              <Input
+                type="password"
+                placeholder="Enter IonQ API key"
+                value={ionqKey}
+                onChange={(e) => setIonqKey(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-white text-xs font-mono"
+              />
+            </div>
+          </div>
+          <Button 
+            onClick={handleSaveHardwareKeys}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-mono text-xs px-6"
+          >
+            Save BYOK Keys
+          </Button>
         </CardContent>
       </Card>
 

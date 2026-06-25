@@ -38,11 +38,22 @@ class AuthSettings(BaseModel):
 
 settings = AuthSettings()
 
-# Security warning for production
+# Security enforcement for production
 if settings.secret_key == "change-me" or "change-me" in settings.secret_key:
-    # In a real production scenario, you might want to raise an error.
-    # For now, we print a warning so local dev works but the risk is known.
-    print("WARNING: AUTH_SECRET_KEY is set to default 'change-me' value. This is unsafe for production!")
+    import os
+    _env = os.getenv("ENVIRONMENT", "production").lower()
+    if _env == "production":
+        raise RuntimeError(
+            "CRITICAL: AUTH_SECRET_KEY is set to default 'change-me' value in production. "
+            "Set a strong, random SECRET_KEY environment variable before deploying."
+        )
+    else:
+        import warnings
+        warnings.warn(
+            "AUTH_SECRET_KEY is set to default 'change-me' value. "
+            "This is acceptable for local development only.",
+            stacklevel=2,
+        )
 
 
 def get_db_session():

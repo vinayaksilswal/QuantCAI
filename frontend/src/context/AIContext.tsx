@@ -68,7 +68,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         return [];
     });
     const [isLoading, setIsLoading] = useState(false);
-    const [activeTool, setActiveTool] = useState<"quantum-states" | "circuit-builder" | null>(null);
+    const [activeTool, setActiveTool] = useState<"quantum-states" | "circuit-builder" | "pqc-scanner" | null>(null);
     const [circuitActions, setCircuitActions] = useState<{ id: string; action: string; params: any }[]>([]);
     const [visualizerActions, setVisualizerActions] = useState<{ id: string; gate: string }[]>([]);
     const [clientContext, setClientContext] = useState<{ contextName: string | null; metadata: any }>({
@@ -242,7 +242,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         console.log("AI Tool Call:", name, args);
         if (name === "open_tool") {
             const tool = args.tool_name;
-            if (tool === "quantum-states" || tool === "circuit-builder") {
+            if (tool === "quantum-states" || tool === "circuit-builder" || tool === "pqc-scanner") {
                 setActiveTool(tool);
             }
         } else if (name === "manage_circuit") {
@@ -255,6 +255,8 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         } else if (name === "apply_gate_to_visualizer") {
             const id = Math.random().toString(36).substring(7);
             setVisualizerActions(prev => [...prev, { id, gate: args.gate }]);
+        } else if (name === "run_pqc_scan") {
+            window.dispatchEvent(new CustomEvent("ai-run-pqc", { detail: { target: args.target_url } }));
         }
     };
 

@@ -1,6 +1,14 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { fetchApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+
+// In-memory cache for entitlements (5-minute TTL)
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+const CACHE_TTL_MS = 5 * 60 * 1000;
+let entitlementsCache: CacheEntry | null = null;
 
 export interface Entitlements {
   qubits: number;
@@ -70,43 +78,71 @@ export const SubscriptionProvider = ({ children }: { children: ReactNode }) => {
   const [limits, setLimits] = useState<Entitlements>(defaultLimits);
   const [loading, setLoading] = useState(true);
 
-  const refreshEntitlements = useCallback(async () => {
+  const refreshEntitlements = useCallback(async (force = false) => {
     if (!user) {
       setTier('FREE');
       setCycleResetDate('');
       setUsage(defaultUsage);
       setLimits(defaultLimits);
       setLoading(false);
+      entitlementsCache = null; // Clear cache on logout
       return;
     }
 
-    try {
-      const data = await fetchApi<{
-        tier: 'FREE' | 'PRO' | 'ENTERPRISE';
-        cycle_reset_date: string;
-        usage: Usage;
-        limits: Entitlements;
-      }>('/api/v1/entitlements');
-      
+    // Check cache
+    if (!force && entitlementsCache && Date.now() - entitlementsCache.timestamp < CACHE_TTL_MS) {
+      const data = entitlementsCache.data;
       setTier(data.tier);
       setCycleResetDate(data.cycle_reset_date);
       setUsage(data.usage);
       setLimits(data.limits);
-    } catch (err) {
-      console.error('Error fetching entitlements:', err);
-    } finally {
       setLoading(false);
+      return;
     }
+
+    let retries = 3;
+    let data: any = null;
+
+    while (retries > 0) {
+      try {
+        data = await fetchApi<{
+          tier: 'FREE' | 'PRO' | 'ENTERPRISE';
+          cycle_reset_date: string;
+          usage: Usage;
+          limits: Entitlements;
+        }>('/api/v1/entitlements');
+        break; // Success
+      } catch (err) {
+        retries -= 1;
+        if (retries === 0) {
+          console.error('Error fetching entitlements after 3 attempts:', err);
+        } else {
+          // Exponential backoff: 1s, 2s
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, 3 - retries - 1)));
+        }
+      }
+    }
+
+    if (data) {
+      setTier(data.tier);
+      setCycleResetDate(data.cycle_reset_date);
+      setUsage(data.usage);
+      setLimits(data.limits);
+      // Update cache
+      entitlementsCache = { data, timestamp: Date.now() };
+    }
+    
+    setLoading(false);
   }, [user]);
 
   useEffect(() => {
     refreshEntitlements();
   }, [refreshEntitlements]);
 
-  // Listen for subscription-updated events to refresh entitlements dynamically
+  // Listen for subscription-updated events to force refresh entitlements dynamically
   useEffect(() => {
     const handleUpdate = () => {
-      refreshEntitlements();
+      refreshEntitlements(true); // Force refresh bypassing cache
     };
     window.addEventListener('subscription-updated', handleUpdate);
     return () => window.removeEventListener('subscription-updated', handleUpdate);

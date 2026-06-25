@@ -61,7 +61,7 @@ export function CheckoutButton({
       {isLoading ? (
         <>
           <Loader2 className="w-4 h-4 animate-spin" />
-          Redirecting to PayPal...
+          Redirecting to WarriorPlus...
         </>
       ) : (
         children || `Upgrade now`

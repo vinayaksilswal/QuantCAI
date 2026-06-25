@@ -77,7 +77,7 @@ axiosClient.interceptors.response.use(
           const isPublicPage = publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith('/learn'));
           
           if (!isPublicPage) {
-            window.location.href = '/login';
+            window.dispatchEvent(new CustomEvent('auth-unauthorized'));
           }
         }
       } else if (status === 429 || status === 402) {

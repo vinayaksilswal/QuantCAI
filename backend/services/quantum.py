@@ -10,6 +10,7 @@ import time
 import math
 import numpy as np
 from qiskit import QuantumCircuit, transpile
+import qiskit.qasm3 as q3
 from qiskit_aer import AerSimulator
 from qiskit.quantum_info import Statevector, DensityMatrix
 from qiskit_aer.noise import NoiseModel, depolarizing_error
@@ -301,6 +302,94 @@ class QuantumEngine:
             raise
         except Exception as e:
             logger.error(f"Error running v1 circuit: {str(e)}")
+            raise SimulationError(f"Simulation failed: {e}") from e
+
+    def run_qasm_v1(self, qasm_string: str, shots: int = 1024, use_noise: bool = False):
+        """
+        V1 Enterprise endpoint: Builds and runs a quantum circuit from OpenQASM 3.0 string.
+        Returns a structured response compatible with SimulationResultResponse.
+        """
+        try:
+            t_start = time.perf_counter()
+
+            qc = q3.loads(qasm_string)
+            num_qubits = qc.num_qubits
+
+            # Analysis Metrics
+            depth = qc.depth()
+            gate_count = dict(qc.count_ops())
+
+            metrics = {
+                "depth": depth,
+                "gate_count": gate_count,
+                "qubit_count": num_qubits
+            }
+
+            # Noise Model
+            noise_model = None
+            if use_noise:
+                noise_model = NoiseModel()
+                error_1 = depolarizing_error(0.01, 1)
+                error_2 = depolarizing_error(0.05, 2)
+                noise_model.add_all_qubit_quantum_error(error_1, ['h', 'x', 'y', 'z', 's', 't', 'rx', 'ry', 'rz'])
+                noise_model.add_all_qubit_quantum_error(error_2, ['cx', 'cz', 'swap'])
+
+                if not any(inst.operation.name == "measure" for inst in qc.data):
+                    qc.measure_all()
+                    
+                transpiled_qc = transpile(qc, self.simulator)
+                result = self.simulator.run(transpiled_qc, noise_model=noise_model, shots=shots).result()
+                counts = result.get_counts()
+                
+                # Normalize Space-separated registers in counts output keys
+                counts = {k.replace(" ", ""): v for k, v in counts.items()}
+                total_shots = sum(counts.values())
+                probs = {k: v / total_shots for k, v in counts.items()}
+
+                t_elapsed_ms = (time.perf_counter() - t_start) * 1000
+
+                return {
+                    "type": "noisy",
+                    "probabilities": probs,
+                    "statevector": None,
+                    "metrics": metrics,
+                    "execution_time_ms": round(t_elapsed_ms, 2),
+                }
+            else:
+                # Ideal Statevector Simulation
+                qc_for_sv = qc.copy()
+                qc_for_sv.remove_final_measurements()
+                qc_for_sv.save_statevector()
+                transpiled_qc = transpile(qc_for_sv, self.simulator)
+                result = self.simulator.run(transpiled_qc).result()
+                statevector = result.get_statevector()
+
+                sv_dict = []
+                probs = {}
+                for i, amp in enumerate(statevector):
+                    if abs(amp) > 1e-10:
+                        binary_string = format(i, f'0{num_qubits}b')
+                        prob = abs(amp) ** 2
+                        probs[binary_string] = prob
+                        sv_dict.append({
+                            "basis": binary_string,
+                            "amplitude": {"real": float(amp.real), "imag": float(amp.imag)},
+                            "probability": prob,
+                            "phase": float(np.angle(amp))
+                        })
+
+                t_elapsed_ms = (time.perf_counter() - t_start) * 1000
+
+                return {
+                    "type": "ideal",
+                    "probabilities": probs,
+                    "statevector": sv_dict,
+                    "metrics": metrics,
+                    "execution_time_ms": round(t_elapsed_ms, 2),
+                }
+
+        except Exception as e:
+            logger.error(f"Error running qasm v1 circuit: {str(e)}")
             raise SimulationError(f"Simulation failed: {e}") from e
 
     def export_qasm3(self, circuit_data: list, num_qubits: int) -> str:

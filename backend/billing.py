@@ -19,7 +19,19 @@ FRONTEND_URL = settings.FRONTEND_URL.split(",")[0]
 # -----------------------------------------------------------------------------
 # FastAPI Router Setup
 # -----------------------------------------------------------------------------
-router = APIRouter(prefix="/billing", tags=["Billing & Subscriptions"])
+router = APIRouter(prefix="/api/billing", tags=["Billing & Subscriptions"])
+
+@router.get("/status")
+async def get_subscription_status(
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's active subscription tier."""
+    plan = await get_subscription_plan(db, current_user.id, current_user.org_id)
+    return {
+        "tier": plan.upper(),
+        "status": "active" if plan != "free" else "inactive"
+    }
 
 # -----------------------------------------------------------------------------
 # Redis Caching Helpers
@@ -59,7 +71,7 @@ async def check_feature_access(
     Check if a user has access to a specific feature based on their active plan.
     Feature options: "ai_tutor_pro", "pqc_scan", "api_access", "cbom_export"
     
-    Caches the access result in Redis for 60 seconds.
+    Caches the access result in Redis for 300 seconds.
     """
     valid_features = {"ai_tutor_pro", "pqc_scan", "api_access", "cbom_export"}
     if feature not in valid_features:
@@ -105,7 +117,7 @@ async def check_feature_access(
 
     # 4. Cache response
     try:
-        await redis_client.setex(cache_key, 60, "true" if has_access else "false")
+        await redis_client.setex(cache_key, 300, "true" if has_access else "false")
     except Exception as e:
         logger.error(f"Redis cache write failed: {e}", exc_info=True)
 

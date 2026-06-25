@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { api, PageProgress } from '@/lib/api';
 import { BookOpen, Bell, Shield, User as UserIcon, Calendar, AlertCircle, LayoutDashboard, Key, CreditCard, Settings as SettingsIcon, Terminal, Zap, ArrowRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import { OverviewTab } from '@/components/dashboard/OverviewTab';
 import { DeveloperConsoleTab } from '@/components/dashboard/DeveloperConsoleTab';
@@ -19,12 +19,19 @@ import { UpgradeModal } from '@/components/UpgradeModal';
 
 const Profile = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, role, session, subscriptionPlan } = useAuth();
   const [progress, setProgress] = useState<PageProgress[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [activeSection, setActiveSection] = useState('account');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (location.state && (location.state as any).tab) {
+      setActiveSection((location.state as any).tab);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const load = async () => {

@@ -5,6 +5,7 @@ from datetime import date
 
 import models as DBmodels
 from core.database import get_db
+from core.config import settings
 from security import get_current_user, redis_client
 from tier_limits import get_user_tier
 
@@ -20,6 +21,7 @@ async def get_user_entitlements(
     for the authenticated user based on their subscription tier.
     """
     tier = await get_user_tier(db, current_user.id)
+    tier = tier.upper() if tier else "FREE"
 
     # Retrieve cycle reset date from UserPlan
     stmt_plan = select(DBmodels.UserPlan).where(DBmodels.UserPlan.user_id == current_user.id)
@@ -40,50 +42,8 @@ async def get_user_entitlements(
     pqc_scans = usage.monthly_pqc_scans if usage else 0
     compute_overhead = usage.total_compute_overhead if usage else 0.0
 
-    # Limits mapping matrix
-    limits_matrix = {
-        "FREE": {
-            "qubits": 3,
-            "depth": 15,
-            "shots": 1024,
-            "noise_models": ["ideal"],
-            "ai_chats_daily": 10,
-            "pqc_scans_monthly": 3,
-            "api_requests_daily": 10,
-            "circuit_runs_daily": 10,
-            "custom_cbom": False,
-            "internal_scanning": False,
-            "qpu_priority": False
-        },
-        "PRO": {
-            "qubits": 15,
-            "depth": -1,  # -1 represents unlimited/unconstrained
-            "shots": 65536,
-            "noise_models": ["ideal", "depolarizing", "thermal"],
-            "ai_chats_daily": -1,
-            "pqc_scans_monthly": 50,
-            "api_requests_daily": 500,
-            "circuit_runs_daily": 500,
-            "custom_cbom": False,
-            "internal_scanning": False,
-            "qpu_priority": False
-        },
-        "ENTERPRISE": {
-            "qubits": -1,
-            "depth": -1,
-            "shots": -1,
-            "noise_models": ["ideal", "depolarizing", "thermal"],
-            "ai_chats_daily": -1,
-            "pqc_scans_monthly": -1,
-            "api_requests_daily": -1,
-            "circuit_runs_daily": -1,
-            "custom_cbom": True,
-            "internal_scanning": True,
-            "qpu_priority": True
-        }
-    }
-
-    tier_limits = limits_matrix.get(tier, limits_matrix["FREE"])
+    # Retrieve centralized limits from settings
+    tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["FREE"])
 
     return {
         "tier": tier,

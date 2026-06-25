@@ -1,8 +1,9 @@
 import os
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 import models as DBmodels
 from core.database import get_db
@@ -14,6 +15,7 @@ from security import (
 )
 
 router = APIRouter(tags=["Authentication & Keys"])
+logger = logging.getLogger("quantcai.api_keys")
 
 # -----------------------------------------------------------------------------
 # Schemas
@@ -60,10 +62,10 @@ async def create_developer_key(
     }
     daily_limit = limit_map[api_key_tier]
     
-    # Count existing keys
-    stmt = select(DBmodels.APIKey).where(DBmodels.APIKey.user_id == current_user.id)
+    # Count existing keys efficiently
+    stmt = select(func.count()).select_from(DBmodels.APIKey).where(DBmodels.APIKey.user_id == current_user.id)
     res = await db.execute(stmt)
-    existing_keys = len(res.scalars().all())
+    existing_keys = res.scalar_one() or 0
     
     max_keys = 20 if user_plan in ["pro", "enterprise"] else 5
     if existing_keys >= max_keys:
@@ -86,6 +88,8 @@ async def create_developer_key(
     db.add(new_api_key)
     await db.commit()
     await db.refresh(new_api_key)
+
+    logger.info(f"AUDIT: User {current_user.id} created API key '{key_data.label}' (Tier: {api_key_tier.value})")
 
     return {
         "id": new_api_key.id,
@@ -140,5 +144,41 @@ async def delete_developer_key(
     
     await db.delete(key)
     await db.commit()
+    
+    logger.info(f"AUDIT: User {current_user.id} deleted API key ID {key_id}")
     return {"message": "API key deleted successfully"}
 
+
+@router.post("/developer/keys/{key_id}/rotate")
+async def rotate_developer_key(
+    key_id: int,
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Rotate an API key: generates a new key string but keeps the same ID, label, and limits.
+    Invalidates the old key immediately.
+    """
+    stmt = select(DBmodels.APIKey).where(
+        (DBmodels.APIKey.id == key_id) & (DBmodels.APIKey.user_id == current_user.id)
+    ).with_for_update()
+    res = await db.execute(stmt)
+    key = res.scalar_one_or_none()
+    
+    if not key:
+        raise HTTPException(status_code=404, detail="API Key not found or access denied")
+    
+    # Generate new key pair
+    plaintext_key = generate_api_key()
+    hashed_key = hash_api_key(plaintext_key)
+    
+    key.key_hash = hashed_key
+    db.add(key)
+    await db.commit()
+    
+    logger.info(f"AUDIT: User {current_user.id} rotated API key ID {key_id}")
+    
+    return {
+        "message": "API key rotated successfully",
+        "api_key": plaintext_key  # Plaintext key returned ONCE
+    }

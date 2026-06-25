@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { CookieConsent } from "./components/CookieConsent";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -59,9 +60,11 @@ const RootRedirect = ({ children }: { children: ReactElement }) => {
   }
   return children;
 };
+import { HelmetProvider } from 'react-helmet-async';
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <HelmetProvider>
+    <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
       <TooltipProvider>
         <Toaster />
@@ -121,6 +124,7 @@ const App = () => (
                 <TeachingOverlay />
                 <PaymentAutoTrigger />
                 <BackendWaker />
+                <CookieConsent />
               </AIProvider>
               </BrowserRouter>
             </ErrorBoundary>
@@ -130,6 +134,7 @@ const App = () => (
       </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
+  </HelmetProvider>
 );
 
 export default App;

@@ -57,8 +57,9 @@ engine_kwargs = {
 
 # Apply connection pooling options for PostgreSQL (asyncpg)
 if "sqlite" not in DATABASE_URL:
-    engine_kwargs["pool_size"] = 10
-    engine_kwargs["max_overflow"] = 20
+    engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
+    engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
+    engine_kwargs["pool_recycle"] = settings.DB_POOL_RECYCLE  # Prevent stale connections on cloud DBs
 
 # Create the async engine
 engine = create_async_engine(
@@ -86,5 +87,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 # Sync compatibility layer for sync routers and scripts
 SYNC_DATABASE_URL = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://").replace("sqlite+aiosqlite://", "sqlite://")
-sync_engine = create_engine(SYNC_DATABASE_URL, pool_pre_ping=True)
+sync_engine_kwargs = {"pool_pre_ping": True}
+if "sqlite" not in SYNC_DATABASE_URL:
+    sync_engine_kwargs["pool_size"] = max(5, settings.DB_POOL_SIZE // 2)
+    sync_engine_kwargs["max_overflow"] = max(5, settings.DB_MAX_OVERFLOW // 2)
+    sync_engine_kwargs["pool_recycle"] = settings.DB_POOL_RECYCLE
+sync_engine = create_engine(SYNC_DATABASE_URL, **sync_engine_kwargs)
 SessionLocal = sessionmaker(bind=sync_engine, autocommit=False, autoflush=False)

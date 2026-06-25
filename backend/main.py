@@ -25,22 +25,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("quantcai.main")
 
-# Configure structlog for request logging
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-    context_class=dict,
-    logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=True,
-)
-struct_logger = structlog.get_logger("quantcai.requests")
+from core.logger import get_structlog_logger
+struct_logger = get_structlog_logger("quantcai.requests")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -67,6 +53,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown operations
     logger.info("Shutting down QuantCAI FastAPI Backend...")
+    app.state.is_shutting_down = True
     
     # Cancel periodic DB sync task
     flush_task.cancel()
@@ -111,13 +98,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+# CORS configuration — restrict to specific methods and headers in production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Authorization", "Content-Type", "X-API-Key", "X-Requested-With",
+        "X-RapidAPI-Proxy-Secret", "X-RapidAPI-User", "X-RapidAPI-Key",
+        "Accept", "Origin", "Cache-Control",
+    ],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
 
 # Mount RapidAPI middleware
@@ -136,9 +128,25 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=()"
-    if settings.is_production:
+    if settings.is_production or settings.is_staging:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+# Request size limit middleware — prevents oversized QASM/payload attacks
+@app.middleware("http")
+async def enforce_request_size_limit(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > settings.MAX_REQUEST_SIZE_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={
+                "status": "error",
+                "error": "REQUEST_TOO_LARGE",
+                "message": f"Request body exceeds the maximum allowed size of "
+                           f"{settings.MAX_REQUEST_SIZE_BYTES // 1024}KB."
+            }
+        )
+    return await call_next(request)
 
 # Request logging middleware
 @app.middleware("http")
@@ -233,6 +241,9 @@ app.include_router(developer_keys_router)
 from routers.developer import router as developer_router
 app.include_router(developer_router)
 
+from routers.developer_api import router as developer_api_router
+app.include_router(developer_api_router)
+
 from routers.cohorts import router as cohorts_router
 app.include_router(cohorts_router)
 
@@ -288,13 +299,23 @@ def liveness_check():
 
 @app.get("/ready")
 @app.get("/health")
-async def readiness_check(db: AsyncSession = Depends(get_db)):
+async def readiness_check(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Detailed readiness check endpoint.
     Validates database and Redis cache connectivity.
     """
     db_ok = "ok"
     redis_ok = "ok"
+    
+    if getattr(request.app.state, "is_shutting_down", False):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "shutting_down",
+                "message": "Server is shutting down",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
     
     # Check DB
     try:

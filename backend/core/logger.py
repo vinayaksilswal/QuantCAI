@@ -3,6 +3,7 @@ import logging.handlers
 import sys
 import warnings
 from datetime import datetime, timezone
+import structlog
 from pathlib import Path
 from typing import Optional
 import traceback
@@ -12,6 +13,31 @@ from sqlalchemy.orm import Session
 
 # Log file in backend directory
 LOG_FILE = Path(__file__).parent / "logfile.txt"
+
+def configure_structlog(log_level=logging.INFO):
+    """Configure structlog globally if not already configured."""
+    if structlog.is_configured():
+        return
+        
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+def get_structlog_logger(name: str):
+    """Return a configured structlog logger."""
+    configure_structlog()
+    return structlog.get_logger(name)
 
 class DatabaseLogHandler(logging.Handler):
     """Custom logging handler that writes to database"""

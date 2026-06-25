@@ -3,6 +3,8 @@ import { api, User as ApiUser } from '@/lib/api';
 import { AuthContext, Role, FrontendUser } from './AuthContextInstance';
 
 // JWT decode helper function
+// Note: This is acceptable for reading non-sensitive claims for UI purposes,
+// but the token MUST be verified server-side. Never trust client-decoded claims for authorization.
 function decodeJwt(token: string): any {
   try {
     const base64Url = token.split('.')[1];

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { axiosClient } from '@/lib/axiosClient';
 import { toast } from 'sonner';
@@ -54,14 +54,13 @@ export function PqcScannerTab() {
 
   const isFree = subscriptionPlan === 'free' || !subscriptionPlan;
 
-  const handleScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const target = domain.trim();
+  const executeScan = async (target: string) => {
     if (!target) {
       toast.error('Please enter a domain name.');
       return;
     }
 
+    setDomain(target);
     setLoading(true);
     setReport(null);
 
@@ -135,6 +134,23 @@ export function PqcScannerTab() {
       setLoading(false);
     }
   };
+
+  const handleScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeScan(domain.trim());
+  };
+
+  useEffect(() => {
+    const handleAiRunPqc = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.target) {
+        executeScan(customEvent.detail.target);
+      }
+    };
+    
+    window.addEventListener('ai-run-pqc', handleAiRunPqc);
+    return () => window.removeEventListener('ai-run-pqc', handleAiRunPqc);
+  }, []);
 
   const handleExportPDF = () => {
     if (isFree) {

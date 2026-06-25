@@ -1,3 +1,4 @@
+import asyncio
 import ipaddress
 import socket
 import logging
@@ -9,6 +10,8 @@ from sqlalchemy import select
 
 import models as DBmodels
 from core.database import get_db
+from core.config import settings
+from core.exceptions import TierLimitError
 from security import redis_client, get_current_user_or_api_key
 
 logger = logging.getLogger("quantcai.limits")
@@ -54,8 +57,9 @@ def is_internal_domain(domain: str) -> bool:
         return ip.is_private or ip.is_loopback
     except ValueError:
         try:
-            # Try resolving DNS
-            ip_str = socket.gethostbyname(domain_clean)
+            # Try resolving DNS asynchronously to avoid blocking the event loop
+            loop = asyncio.get_running_loop()
+            ip_str = await loop.run_in_executor(None, socket.gethostbyname, domain_clean)
             ip = ipaddress.ip_address(ip_str)
             return ip.is_private or ip.is_loopback
         except Exception:
@@ -163,11 +167,16 @@ def enforce_limits(required_feature: str):
         request.state.tier = tier
 
         if required_feature == "circuit" or required_feature == "simulator":
-            # Verify body fields
-            try:
-                body = await request.json()
-            except Exception:
-                body = {}
+            # Verify body fields (and cache it so route handler can reuse it)
+            if hasattr(request.state, "parsed_body"):
+                body = request.state.parsed_body
+            else:
+                try:
+                    body = await request.json()
+                    request.state.parsed_body = body
+                except Exception:
+                    body = {}
+                    request.state.parsed_body = {}
 
             num_qubits = body.get("num_qubits")
             shots = body.get("shots")
@@ -192,58 +201,41 @@ def enforce_limits(required_feature: str):
                         qc = QuantumCircuit.from_qasm_str(qasm_string)
                     num_qubits = qc.num_qubits
                     depth = qc.depth()
-                except Exception:
+                except ImportError:
+                    logger.error("Qiskit is not installed, but QASM parsing was requested.")
+                    raise HTTPException(
+                        status_code=500, detail="Quantum simulation engine is not properly installed."
+                    )
+                except Exception as e:
                     # Fallback to regex & estimation
+                    logger.warning(f"QASM parse failed, falling back to regex: {e}")
                     num_qubits = num_qubits or _extract_qubit_count(qasm_string)
             else:
                 depth = calculate_gates_depth(gates, num_qubits or 5)
 
-            # Limit checking
-            if tier == "FREE":
-                if num_qubits and num_qubits > 3:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Free tier is limited to 3 qubits. Upgrade to Pro for up to 15 qubits."}
-                    )
-                if depth and depth > 15:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "DEPTH_LIMIT_EXCEEDED", "message": "Free tier is limited to circuit depth of 15. Upgrade to Pro for unlimited depth."}
-                    )
-                if shots and shots > 1024:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "SHOTS_LIMIT_EXCEEDED", "message": "Free tier is limited to 1,024 shots. Upgrade to Pro for up to 65,536 shots."}
-                    )
-                if has_noise:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "NOISE_MODEL_RESTRICTED", "message": "Noise models are restricted on the Free tier. Upgrade to Pro for Thermal/Depolarizing noise."}
-                    )
-            elif tier == "PRO":
-                if num_qubits and num_qubits > 15:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Pro tier is limited to 15 qubits. Upgrade to Enterprise for unlimited execution."}
-                    )
-                if shots and shots > 65536:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "SHOTS_LIMIT_EXCEEDED", "message": "Pro tier is limited to 65,536 shots. Upgrade to Enterprise for unlimited execution."}
-                    )
-            elif tier == "API_METERED":
-                if num_qubits and num_qubits > 15:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "API Metered tier is limited to 15 qubits. Upgrade to Institutional or Enterprise for more."}
-                    )
-            elif tier == "INSTITUTIONAL":
-                if num_qubits and num_qubits > 25:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail={"error": "QUBIT_LIMIT_EXCEEDED", "message": "Institutional tier is limited to 25 qubits. Upgrade to Enterprise for unlimited execution."}
-                    )
-            # Enterprise has no limitations
+            # Limit checking via Centralized settings
+            tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["FREE"])
+            
+            if num_qubits and num_qubits > tier_limits["max_qubits"]:
+                raise TierLimitError(
+                    error="QUBIT_LIMIT_EXCEEDED", 
+                    message=f"{tier} tier is limited to {tier_limits['max_qubits']} qubits."
+                )
+            if depth and depth > tier_limits["max_depth"]:
+                raise TierLimitError(
+                    error="DEPTH_LIMIT_EXCEEDED", 
+                    message=f"{tier} tier is limited to circuit depth of {tier_limits['max_depth']}."
+                )
+            if shots and shots > tier_limits["max_shots"]:
+                raise TierLimitError(
+                    error="SHOTS_LIMIT_EXCEEDED", 
+                    message=f"{tier} tier is limited to {tier_limits['max_shots']} shots."
+                )
+            if has_noise and "ideal" in tier_limits["noise_models"] and len(tier_limits["noise_models"]) == 1:
+                raise TierLimitError(
+                    error="NOISE_MODEL_RESTRICTED", 
+                    message=f"Noise models are restricted on the {tier} tier."
+                )
 
             # Redis rate limiting for daily circuit runs
             redis_key = f"user:{current_user.id}:circuit_runs:count"
@@ -251,7 +243,7 @@ def enforce_limits(required_feature: str):
             tomorrow = datetime.combine(now.date() + timedelta(days=1), time.min, tzinfo=timezone.utc)
             seconds_until_midnight = int((tomorrow - now).total_seconds())
 
-            run_limit = 10 if tier == "FREE" else 500 if tier == "PRO" else 999999
+            run_limit = tier_limits["daily_circuit_runs"]
             
             result = await redis_client.eval(
                 LUA_AI_CHAT_LIMITER, 1, redis_key, 
@@ -273,11 +265,15 @@ def enforce_limits(required_feature: str):
             # Extract domain
             domain = request.path_params.get("domain")
             if not domain:
-                try:
-                    body = await request.json()
-                    domain = body.get("domain")
-                except Exception:
-                    pass
+                if hasattr(request.state, "parsed_body"):
+                    body = request.state.parsed_body
+                else:
+                    try:
+                        body = await request.json()
+                        request.state.parsed_body = body
+                    except Exception:
+                        body = {}
+                domain = body.get("domain")
 
             if domain:
                 if is_internal_domain(domain) and tier != "ENTERPRISE":
@@ -305,15 +301,13 @@ def enforce_limits(required_feature: str):
                 db.add(usage)
                 await db.flush()  # Flush to get the lock
 
-            if tier == "FREE" and usage.monthly_pqc_scans >= 3:
-                raise HTTPException(
-                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": "Free tier limit of 3 PQC scans per month reached. Upgrade to Pro for up to 50 scans."}
-                )
-            elif tier in ("PRO", "API_METERED") and usage.monthly_pqc_scans >= 50:
-                raise HTTPException(
-                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                    detail={"error": "PQC_LIMIT_EXCEEDED", "message": f"{tier} tier limit of 50 PQC scans per month reached. Upgrade to Enterprise for unlimited scans."}
+            tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["FREE"])
+            max_scans = tier_limits["monthly_pqc_scans"]
+            
+            if usage.monthly_pqc_scans >= max_scans:
+                raise TierLimitError(
+                    error="PQC_LIMIT_EXCEEDED", 
+                    message=f"{tier} tier limit of {max_scans} PQC scans per month reached."
                 )
 
             # Increment count atomically (protected by row lock)
@@ -330,8 +324,8 @@ def enforce_limits(required_feature: str):
             tomorrow = datetime.combine(now.date() + timedelta(days=1), time.min, tzinfo=timezone.utc)
             seconds_until_midnight = int((tomorrow - now).total_seconds())
 
-            # Check and increment atomically via Lua
-            limit = 10 if tier == "FREE" else 999999
+            tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["FREE"])
+            limit = tier_limits["daily_ai_chats"]
             result = await redis_client.eval(
                 LUA_AI_CHAT_LIMITER, 1, redis_key, 
                 limit,  
@@ -339,13 +333,10 @@ def enforce_limits(required_feature: str):
             )
             
             if result == -1:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "AI_LIMIT_EXCEEDED", 
-                        "reset_in_seconds": seconds_until_midnight, 
-                        "message": "Daily AI chat limit of 10 messages reached. Upgrade to Pro for unlimited chats."
-                    }
+                raise TierLimitError(
+                    error="AI_LIMIT_EXCEEDED", 
+                    message=f"Daily AI chat limit of {limit} messages reached.",
+                    details={"reset_in_seconds": seconds_until_midnight}
                 )
 
             # Sync with database

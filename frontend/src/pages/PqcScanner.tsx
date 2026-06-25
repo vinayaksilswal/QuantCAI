@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
+import { SEO } from '@/components/SEO';
 import { usePageTracking } from '@/hooks/usePageTracking';
 
 interface TlsDetails {
@@ -339,6 +340,10 @@ export default function PqcScanner() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-transparent text-slate-100">
+      <SEO 
+        title="Post-Quantum Cryptography (PQC) Vulnerability Scanner - QuantCAI" 
+        description="Audit your TLS infrastructure for quantum vulnerabilities. Verify FIPS 203, FIPS 204, and FIPS 205 post-quantum compliance in seconds." 
+      />
       <Navbar />
 
       <div className="pt-32 pb-20 px-6 relative z-10">

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Clock, Zap, Copy, Check, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface CircuitResultsProps {
     results: any;
@@ -16,6 +16,18 @@ interface CircuitResultsProps {
 
 export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabChange, onQASMChange, onOptimize }: CircuitResultsProps) => {
     const [copied, setCopied] = useState(false);
+    const [localQasm, setLocalQasm] = useState<string | undefined>(qasmCode);
+    const [isFocused, setIsFocused] = useState(false);
+    const lastExternalQasm = useRef(qasmCode);
+
+    useEffect(() => {
+        if (qasmCode !== lastExternalQasm.current) {
+            lastExternalQasm.current = qasmCode;
+            if (!isFocused) {
+                setLocalQasm(qasmCode);
+            }
+        }
+    }, [qasmCode, isFocused]);
 
     const handleCopyQASM = () => {
         if (qasmCode) {
@@ -25,19 +37,24 @@ export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabCh
         }
     };
 
+    // Normalize probabilities from counts if necessary
+    const probabilities = results?.probabilities || (results?.counts && results?.shots ? 
+        Object.fromEntries(Object.entries(results.counts).map(([k, v]) => [k, (v as number) / results.shots])) 
+        : null);
+
     // Build chart data from results
-    const data = results?.probabilities
-        ? Object.keys(results.probabilities).sort().map(key => ({
+    const data = probabilities
+        ? Object.keys(probabilities).sort().map(key => ({
             state: `|${key}⟩`,
-            probability: results.probabilities[key] * 100,
-            raw: results.probabilities[key]
+            probability: probabilities[key] * 100,
+            raw: probabilities[key]
         }))
         : [];
 
     const metrics = results?.metrics || (results?.circuit_depth ? {
         depth: results.circuit_depth,
         qubit_count: results.num_qubits,
-        gate_count: {}
+        gate_count: results.gate_count || {}
     } : null);
 
     return (
@@ -172,8 +189,13 @@ export const CircuitResults = ({ results, qasmCode, activeTab = 'chart', onTabCh
                         </div>
                         <div className="flex-1 overflow-auto rounded-lg bg-[#0a0f1a] border border-slate-800/50 p-3">
                             <textarea
-                                value={qasmCode}
-                                onChange={(e) => onQASMChange?.(e.target.value)}
+                                value={localQasm || ''}
+                                onFocus={() => setIsFocused(true)}
+                                onBlur={() => setIsFocused(false)}
+                                onChange={(e) => {
+                                    setLocalQasm(e.target.value);
+                                    onQASMChange?.(e.target.value);
+                                }}
                                 className="w-full h-full bg-transparent text-xs font-mono text-slate-300 whitespace-pre leading-relaxed focus:outline-none resize-none"
                                 spellCheck={false}
                                 placeholder="// Add gates to see live QASM output"

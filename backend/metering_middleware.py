@@ -29,11 +29,14 @@ local blocked_key = KEYS[2]
 local capacity = tonumber(ARGV[1])
 local refill_rate = tonumber(ARGV[2])
 local now = tonumber(ARGV[3])
+local check_wallet = tonumber(ARGV[4])
 
 -- 1. Check if wallet is already blocked (atomic read)
-local blocked = redis.call('get', blocked_key)
-if blocked == '1' then
-    return {0, 'WALLET_BLOCKED'}
+if check_wallet == 1 then
+    local blocked = redis.call('get', blocked_key)
+    if blocked == '1' then
+        return {0, 'WALLET_BLOCKED'}
+    end
 end
 
 -- 2. Token bucket rate limiting (atomic)
@@ -58,7 +61,17 @@ return {1, 'OK'}
 """
 
 def hash_key_sha256(key: str) -> str:
-    """Hash an API key using SHA-256 for database lookup."""
+    """
+    Hash an API key using SHA-256 for database lookup.
+    
+    IMPORTANT ARCHITECTURE NOTE:
+    There is a split in the hashing strategy for API keys:
+    - User API keys (in the `api_keys` table) are hashed using bcrypt with a 
+      deterministic salt, managed in `security.py`.
+    - Developer API keys (in the `developer_api_keys` table) are hashed using 
+      SHA-256, managed here.
+    Ensure lookups are routed to the correct table using the corresponding hash function.
+    """
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 async def get_or_create_wallet(db: AsyncSession, user_id: int) -> DBmodels.WalletBalance:
@@ -130,13 +143,11 @@ async def verify_api_key_and_meter(
 
     # --- ENFORCE DAILY TIER LIMITS ---
     from tier_limits import get_user_tier
+    from core.config import settings
+    
     tier = await get_user_tier(db, user_id)
-    if tier == "PRO":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Developer API access is not available on the Pro tier. Please upgrade to the API Metered or Enterprise tier."
-        )
-    daily_api_limit = 10 if tier == "FREE" else 9999999
+    tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["FREE"])
+    daily_api_limit = tier_limits.get("developer_api_requests_daily", 10)
     
     now = datetime.now(timezone.utc)
     from datetime import time as datetime_time, timedelta
@@ -149,19 +160,26 @@ async def verify_api_key_and_meter(
     daily_requests = await redis_client.hget(usage_key, "requests")
     current_requests = int(daily_requests) if daily_requests else 0
     
+    is_overage = False
+    
     if current_requests >= daily_api_limit:
-        response.headers["X-RateLimit-Limit"] = str(daily_api_limit)
-        response.headers["X-RateLimit-Remaining"] = "0"
-        response.headers["X-RateLimit-Reset"] = str(seconds_until_midnight)
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail=f"Daily Developer API limit of {daily_api_limit} requests reached for your tier."
-        )
+        if tier == "FREE":
+            response.headers["X-RateLimit-Limit"] = str(daily_api_limit)
+            response.headers["X-RateLimit-Remaining"] = "0"
+            response.headers["X-RateLimit-Reset"] = str(seconds_until_midnight)
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=f"Daily Developer API limit of {daily_api_limit} requests reached. Upgrade to Pro to unlock overage billing."
+            )
+        else:
+            # PRO or ENTERPRISE
+            is_overage = True
 
     # Set rate limit headers
     response.headers["X-RateLimit-Limit"] = str(daily_api_limit)
-    response.headers["X-RateLimit-Remaining"] = str(max(0, daily_api_limit - current_requests - 1))
+    response.headers["X-RateLimit-Remaining"] = str(max(0, daily_api_limit - current_requests - 1)) if not is_overage else "0"
     response.headers["X-RateLimit-Reset"] = str(seconds_until_midnight)
+    response.headers["X-RateLimit-Overage"] = str(is_overage)
 
     # 3+4. Atomic wallet check + token bucket rate limit (Finding #3)
     # Both checks run in a single Redis round-trip via Lua, eliminating TOCTOU.
@@ -169,7 +187,7 @@ async def verify_api_key_and_meter(
     blocked_key = f"developer:wallet_blocked:{user_id}"
     gate_result = await redis_client.eval(
         LUA_ATOMIC_GATE, 2, rate_key, blocked_key,
-        60, 1.0, time.time()
+        60, 1.0, time.time(), 1 if is_overage else 0
     )
 
     if gate_result[0] == 0:
@@ -195,6 +213,7 @@ async def verify_api_key_and_meter(
     request.state.user_id = user_id
     request.state.hashed_key = hashed_key
     request.state.tier = tier
+    request.state.is_overage = is_overage
 
     return key_info
 

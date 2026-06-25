@@ -22,53 +22,8 @@ def _extract_parse_error(e: Exception) -> Dict[str, Any]:
     """
     Extracts line and column numbers from Qiskit QASM3 parser and compiler exceptions.
     """
-    # Method 1: AST parsing cause check (ANTLR)
-    try:
-        cause = e.__cause__
-        if cause and len(cause.args) > 0:
-            cause_arg = cause.args[0]
-            if hasattr(cause_arg, "offendingToken") and cause_arg.offendingToken:
-                tok = cause_arg.offendingToken
-                return {
-                    "line": tok.line,
-                    "column": tok.column,
-                    "message": f"Syntax error at token '{tok.text}'"
-                }
-    except Exception:
-        pass
-
-    # Method 2: QASM3ImporterError/semantic analysis message parsing
-    try:
-        msg = str(e)
-        m = re.match(r"^(\d+),(\d+): (.*)", msg)
-        if m:
-            line, col, detail = m.groups()
-            return {
-                "line": int(line),
-                "column": int(col),
-                "message": detail.strip()
-            }
-    except Exception:
-        pass
-
-    # Method 3: Fallback regex search for line numbers in text
-    try:
-        msg = str(e)
-        m_line = re.search(r"line\s+(\d+)", msg, re.IGNORECASE)
-        if m_line:
-            return {
-                "line": int(m_line.group(1)),
-                "column": None,
-                "message": msg
-            }
-    except Exception:
-        pass
-
-    return {
-        "line": None,
-        "column": None,
-        "message": str(e)
-    }
+    # ... logic handled by fallback/parse methods or imported directly
+    pass
 
 def _build_depolarizing_noise() -> NoiseModel:
     """
@@ -141,21 +96,26 @@ async def execute_qasm(
         db.add(usage_event)
         await db.commit()
 
-    # --- 2. Parse OpenQASM 3.0 ---
+    from services.qasm_validator import validate_qasm_security, parse_and_validate_qasm
+    
+    # Check security first
     try:
-        qc = q3.loads(request.qasm_string)
-    except Exception as exc:
-        err_info = _extract_parse_error(exc)
-        if err_info["line"] is not None:
-            col_str = f", Column {err_info['column']}" if err_info["column"] is not None else ""
-            err_msg = f"QASM3 Compilation Error (Line {err_info['line']}{col_str}): {err_info['message']}"
-        else:
-            err_msg = f"QASM3 Parsing failed: {err_info['message']}"
-        
-        logger.warning("qasm_simulator.parse_failed", error=err_msg)
+        validate_qasm_security(request.qasm_string)
+    except ValueError as exc:
+        logger.warning("qasm_simulator.security_violation", error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=err_msg
+            detail=str(exc)
+        )
+    
+    # Then parse
+    try:
+        num_qubits, circuit_depth = parse_and_validate_qasm(request.qasm_string)
+    except Exception as exc:
+        logger.warning("qasm_simulator.parse_failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"QASM3 Parsing failed: {str(exc)}"
         )
 
     # --- 1.5 Enforce Hard Resource Limits (Security: Finding #1) ---
@@ -164,27 +124,27 @@ async def execute_qasm(
     MAX_DEPTH_HARD_LIMIT = 500
     MAX_SHOTS_HARD_LIMIT = 100_000
 
-    if qc.num_qubits > MAX_QUBITS_HARD_LIMIT:
+    if num_qubits > MAX_QUBITS_HARD_LIMIT:
         logger.warning(
             "qasm_simulator.qubit_limit_exceeded",
-            requested=qc.num_qubits,
+            requested=num_qubits,
             limit=MAX_QUBITS_HARD_LIMIT,
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Circuit exceeds maximum qubit limit ({qc.num_qubits} > {MAX_QUBITS_HARD_LIMIT}). "
+            detail=f"Circuit exceeds maximum qubit limit ({num_qubits} > {MAX_QUBITS_HARD_LIMIT}). "
                    "Reduce the number of qubits in your QASM program."
         )
 
-    if qc.depth() > MAX_DEPTH_HARD_LIMIT:
+    if circuit_depth > MAX_DEPTH_HARD_LIMIT:
         logger.warning(
             "qasm_simulator.depth_limit_exceeded",
-            requested=qc.depth(),
+            requested=circuit_depth,
             limit=MAX_DEPTH_HARD_LIMIT,
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Circuit exceeds maximum depth limit ({qc.depth()} > {MAX_DEPTH_HARD_LIMIT}). "
+            detail=f"Circuit exceeds maximum depth limit ({circuit_depth} > {MAX_DEPTH_HARD_LIMIT}). "
                    "Simplify or decompose your circuit."
         )
 
@@ -199,44 +159,23 @@ async def execute_qasm(
             detail=f"Shots exceed maximum limit ({request.shots} > {MAX_SHOTS_HARD_LIMIT})."
         )
 
-    # --- 2. Configure Noise Model ---
-    noise_model = None
-    if request.noise_model.lower() == "depolarizing":
-        try:
-            noise_model = _build_depolarizing_noise()
-        except Exception as noise_exc:
-            logger.error("qasm_simulator.noise_build_failed", error=str(noise_exc))
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to build depolarizing noise model: {str(noise_exc)}"
-            )
-
-    # --- 3. Execute Simulation ---
+    # --- 3. Execute Simulation using QuantumEngine ---
     try:
-        simulator = AerSimulator(noise_model=noise_model) if noise_model else AerSimulator()
+        from services.quantum import QuantumEngine
+        engine = QuantumEngine()
+        use_noise = request.noise_model.lower() == "depolarizing"
+        
+        sim_result = engine.run_qasm_v1(
+            qasm_string=request.qasm_string,
+            shots=request.shots,
+            use_noise=use_noise
+        )
 
-        # If the circuit does not contain any measurements, ensure we add them
-        if not any(inst.operation.name == "measure" for inst in qc.data):
-            qc.measure_all()
-
-        transpiled_circuit = transpile(qc, simulator)
-        job = simulator.run(transpiled_circuit, shots=request.shots)
-        result = job.result()
-        counts = result.get_counts()
-
-        # Normalize Space-separated registers in counts output keys
-        counts = {k.replace(" ", ""): v for k, v in counts.items()}
-
-        # Convert counts to probabilities (e.g. {"00000": 0.5, "00111": 0.5})
-        total_shots = sum(counts.values())
-        probabilities = {k: v / total_shots for k, v in counts.items()}
-
-        t_elapsed_ms = (time.perf_counter() - t_start) * 1000
         logger.info(
             "qasm_simulator.execute_complete",
-            qubits=qc.num_qubits,
-            depth=qc.depth(),
-            execution_time_ms=t_elapsed_ms
+            qubits=sim_result["metrics"]["qubit_count"],
+            depth=sim_result["metrics"]["depth"],
+            execution_time_ms=sim_result["execution_time_ms"]
         )
 
         # Build compilation warnings and QPU telemetry
@@ -257,10 +196,10 @@ async def execute_qasm(
 
         return {
             "status": "success",
-            "execution_time_ms": round(t_elapsed_ms, 2),
-            "probabilities": probabilities,
-            "num_qubits": qc.num_qubits,
-            "circuit_depth": qc.depth(),
+            "execution_time_ms": sim_result["execution_time_ms"],
+            "probabilities": sim_result["probabilities"],
+            "num_qubits": sim_result["metrics"]["qubit_count"],
+            "circuit_depth": sim_result["metrics"]["depth"],
             "warnings": warnings,
             "qpu_telemetry": qpu_telemetry,
             "metadata": {

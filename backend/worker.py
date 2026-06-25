@@ -68,6 +68,8 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     # Prevent memory leaks: restart worker after N tasks
     worker_max_tasks_per_child=50,
+    # Restrict to ~4GB RAM per worker child
+    worker_max_memory_per_child=4000000,
 )
 
 # Synchronous Redis client for the worker (Celery workers are sync)
@@ -196,20 +198,32 @@ def _build_thermal_noise(num_qubits: int) -> Any:
     reject_on_worker_lost=True,
     max_retries=0,
 )
-def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
+def run_simulation(self, job_id: str) -> dict[str, Any]:
+    """Celery task wrapper."""
+    celery_task_id = self.request.id if hasattr(self, "request") else None
+    return run_simulation_logic(job_id, celery_task_id)
+
+
+def run_simulation_logic(job_id: str, celery_task_id: Optional[str] = None) -> dict[str, Any]:
     """
     Execute a quantum circuit simulation.
 
     Lifecycle:
       queued → running → complete | failed
     """
-    # Support direct calling where first argument is job_id instead of self task instance
-    if job_id is None:
-        job_id = self
-        self = None
-
-    celery_task_id = self.request.id if self and hasattr(self, "request") else None
     log.info("worker.task_started", job_id=job_id, celery_task_id=celery_task_id)
+    
+    # Remove job from concurrent tracking on finish (to avoid locking up limits)
+    def release_concurrency():
+        try:
+            r = _get_redis()
+            # The key logic depends on user_id, which we read from job
+            job = _read_job(job_id)
+            user_id = job.get("user_id")
+            if user_id:
+                r.srem(f"user:{user_id}:concurrent_jobs", job_id)
+        except Exception as e:
+            log.error("worker.release_concurrency_failed", job_id=job_id, error=str(e))
 
     # ---- 1. Read job payload from Redis -----------------------------------
     try:
@@ -269,7 +283,12 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
 
         # ---- 4. Configure and run simulator / QPU --------------------------------
         if backend_provider in ("ibm_quantum", "aws_braket"):
-            log.info("worker.qpu_execution.connecting", provider=backend_provider, job_id=job_id)
+            from core.config import settings
+            if not getattr(settings, "ENABLE_REAL_QPU", False):
+                log.info("worker.qpu_execution.mocked", provider=backend_provider, job_id=job_id, note="Real QPU execution is in development. Using AerSimulator locally.")
+            else:
+                log.info("worker.qpu_execution.connecting", provider=backend_provider, job_id=job_id)
+            
             # Simulate network/queue latency
             time.sleep(2.0)
 
@@ -332,10 +351,9 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
             try:
                 from qiskit.quantum_info import Statevector
 
-                try:
-                    sv_qc = qiskit.qasm3.loads(circuit_qasm)
-                except Exception as e:
-                    raise ValueError(f"QASM3 Parse Error: {str(e)}")
+                # Reuse already parsed circuit
+                sv_qc = qc.copy()
+                
                 # Remove measurement for statevector extraction
                 sv_qc.remove_final_measurements()
                 sv = Statevector.from_instruction(sv_qc)
@@ -367,11 +385,10 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
         log.info(
             "worker.job_finished",
             job_id=job_id,
-
             status="complete",
             total_ms=round(total_ms, 2),
         )
-
+        release_concurrency()
         return {"job_id": job_id, "status": "complete"}
 
     except SoftTimeLimitExceeded:
@@ -383,6 +400,7 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
             error="Simulation timed out after 30 seconds. "
                   "Try reducing the number of qubits or shots.",
         )
+        release_concurrency()
         return {"job_id": job_id, "status": "failed", "error": "timeout"}
 
     except (QiskitError, TranspilerError) as qe:
@@ -390,6 +408,7 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
         error_msg = f"{type(qe).__name__}: {qe}"
         log.error("worker.simulation_qiskit_error", job_id=job_id, error=error_msg, exc_info=True)
         _set_job_status(job_id, "failed", error=error_msg)
+        release_concurrency()
         return {"job_id": job_id, "status": "failed", "error": error_msg}
 
     except Exception as exc:
@@ -397,6 +416,7 @@ def run_simulation(self, job_id: Optional[str] = None) -> dict[str, Any]:
         error_msg = f"{type(exc).__name__}: {exc}"
         log.error("worker.simulation_failed", job_id=job_id, error=error_msg, exc_info=True)
         _set_job_status(job_id, "failed", error=error_msg)
+        release_concurrency()
         return {"job_id": job_id, "status": "failed", "error": error_msg}
 
 

@@ -25,7 +25,7 @@ api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 @tool
 def open_tool(tool_name: str):
-    """Opens a tool or page in the application. Allowed values for tool_name: 'quantum-states', 'circuit-builder'"""
+    """Opens a tool or page in the application. Allowed values for tool_name: 'quantum-states', 'circuit-builder', 'pqc-scanner'"""
     pass
 
 @tool
@@ -52,6 +52,11 @@ def apply_gate_to_visualizer(gate: str):
     """Applies a quantum gate to the single-qubit visualizer."""
     pass
 
+@tool
+def run_pqc_scan(target_url: str):
+    """Runs a Post-Quantum Cryptography vulnerability scan against a target domain URL."""
+    pass
+
 llm = None
 llm_with_tools = None
 
@@ -62,7 +67,7 @@ if api_key:
             google_api_key=api_key,
             temperature=0.2
         )
-        llm_with_tools = llm.bind_tools([open_tool, manage_circuit, navigate_to_learn, start_tutorial, apply_gate_to_visualizer])
+        llm_with_tools = llm.bind_tools([open_tool, manage_circuit, navigate_to_learn, start_tutorial, apply_gate_to_visualizer, run_pqc_scan])
     except Exception as e:
         logger.warning(f"Could not initialize QuantAI ChatGoogleGenerativeAI: {e}")
 else:
@@ -76,7 +81,8 @@ TUTOR_AGENT_PROMPT = (
     "If the user is on a quiz question, review their state and help guide them to the correct answer without just giving it away.\n"
     "Always end with a simple follow-up question checking understanding.\n"
     "You have access to tools to control the UI. Use them to open tools, build circuits, or navigate. "
-    "For example, to build a Bell State, use 'open_tool' to open 'circuit-builder', then use 'manage_circuit' multiple times to clear, add an 'h' gate, add a 'cx' gate, and run."
+    "For example, to build a Bell State, use 'open_tool' to open 'circuit-builder', then use 'manage_circuit' multiple times to clear, add an 'h' gate, add a 'cx' gate, and run. "
+    "To run a PQC scan on a domain, use 'open_tool' for 'pqc-scanner' and then 'run_pqc_scan'."
 )
 
 COMPILATION_AGENT_PROMPT = (
@@ -89,7 +95,8 @@ COMPILATION_AGENT_PROMPT = (
 COMPLIANCE_AGENT_PROMPT = (
     "You are the QuantCAI Offensive Crypto & Post-Quantum Compliance Agent.\n"
     "Focus purely on cryptography standards (FIPS 203/204, ML-KEM, ML-DSA, SLH-DSA), post-quantum migration timelines, risk auditing, and drafting mitigation policies.\n"
-    "Use the provided scanner report (vulnerabilities, leaf certificate signature algorithms, TLS version, etc.) to assess HNDL risks and recommend remediation steps."
+    "Use the provided scanner report (vulnerabilities, leaf certificate signature algorithms, TLS version, etc.) to assess HNDL risks and recommend remediation steps.\n"
+    "To proactively run a scan on a domain for the user, use 'open_tool' for 'pqc-scanner' and then 'run_pqc_scan'."
 )
 
 class QuantAIChatRequest(BaseModel):

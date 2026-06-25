@@ -15,8 +15,8 @@ const Privacy = () => {
                 Policy
               </span>
             </h1>
-            <p className="text-xl text-gray-300 leading-relaxed">
-              How we collect, use, and protect your personal information.
+            <p className="text-xl text-gray-300 leading-relaxed max-w-2xl mx-auto">
+              How we collect, use, and protect your personal information in compliance with global standards, including GDPR and CCPA.
             </p>
           </div>
 
@@ -135,14 +135,28 @@ const Privacy = () => {
               </ul>
               <p className="text-gray-300 leading-relaxed mt-3">
                 To exercise any of these rights, contact us at{' '}
-                <a href="mailto:support@quantcai.in" className="text-blue-400 hover:text-blue-300 underline">
-                  support@quantcai.in
-                </a>.
+                <a href="mailto:privacy@quantcai.in" className="text-blue-400 hover:text-blue-300 underline">
+                  privacy@quantcai.in
+                </a>. We respond to all verifiable data subject access requests within 30 days.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-white mb-4">8. Children's Privacy</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">8. U.S. State Privacy Rights (CCPA/CPRA)</h2>
+              <p className="text-gray-300 leading-relaxed">
+                If you are a resident of California or other US states with applicable privacy laws, you have specific rights regarding your personal information. We do not "sell" or "share" personal data for cross-context behavioral advertising as defined by the CCPA. You may request disclosure of data collected over the past 12 months, and request its deletion by emailing our Privacy Team.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-white mb-4">9. Data Sovereignty & Enterprise Compliance (SOC2)</h2>
+              <p className="text-gray-300 leading-relaxed">
+                For our Enterprise tier customers, QuantCAI enforces strict data sovereignty, ensuring cryptographic analyses and circuit simulations are processed in designated isolated regions. We operate our infrastructure following SOC2 Type II principles and employ continuous auditing to protect sensitive enterprise workloads from unauthorized exposure.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-white mb-4">10. Children's Privacy</h2>
               <p className="text-gray-300 leading-relaxed">
                 The QuantCAI platform is not directed at children under the age of 13. We do not knowingly collect
                 personal information from children. If we become aware that we have inadvertently collected such data,
@@ -151,7 +165,7 @@ const Privacy = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-white mb-4">9. Changes to This Policy</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">11. Changes to This Policy</h2>
               <p className="text-gray-300 leading-relaxed">
                 We may update this Privacy Policy from time to time. Any changes will be posted on this page with
                 an updated effective date. We encourage you to review this policy periodically. Your continued use
@@ -160,7 +174,7 @@ const Privacy = () => {
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-white mb-4">10. Contact Us</h2>
+              <h2 className="text-2xl font-bold text-white mb-4">12. Contact Us</h2>
               <p className="text-gray-300 leading-relaxed">
                 If you have any questions or concerns about this Privacy Policy, please contact us at{' '}
                 <a href="mailto:support@quantcai.in" className="text-blue-400 hover:text-blue-300 underline">

@@ -25,13 +25,23 @@ class RapidAPIValidationMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         path = request.url.path
         
-        # Exclude paths that do not require proxy validation (e.g. root, health, docs, and authentication routes)
+        # Exclude paths that do not require proxy validation:
+        # - Root/health/docs: public infrastructure endpoints
+        # - Auth routes: login/register must work without proxy header
+        # - Billing routes: WarriorPlus IPN and PayPal webhooks are server-to-server
+        # - Entitlements: queried by frontend with JWT, not proxy
         excluded_prefixes = [
             "/auth/",
             "/api/auth/",
+            "/api/billing/",
+            "/billing/",
+            "/api/payment/",
+            "/api/v1/entitlements",
             "/docs",
             "/openapi.json",
-            "/health"
+            "/health",
+            "/healthz",
+            "/ready",
         ]
         if path == "/" or any(path.startswith(prefix) for prefix in excluded_prefixes):
             return await call_next(request)
@@ -84,16 +94,27 @@ class RapidAPIValidationMiddleware(BaseHTTPMiddleware):
 # -----------------------------------------------------------------------------
 def custom_key_func(request: Request) -> str:
     """
-    Generate rate-limiting key:
-    - Uses api_key_id if request authenticated via X-API-Key
-    - Uses user_id if request authenticated via JWT
-    - Falls back to remote address (IP) if unauthenticated
+    Generate rate-limiting key scoped by identity AND endpoint.
+    This prevents a burst of requests on one endpoint from blocking
+    access to other endpoints.
+    
+    Key format: {identity}:{path_prefix}
+    - identity: api_key_id > user_id > IP address
+    - path_prefix: first 2 path segments (e.g., /api/v1)
     """
+    # Determine identity
     if hasattr(request.state, "api_key_id"):
-        return f"apikey:{request.state.api_key_id}"
-    if hasattr(request.state, "user_id"):
-        return f"user:{request.state.user_id}"
-    return get_remote_address(request)
+        identity = f"apikey:{request.state.api_key_id}"
+    elif hasattr(request.state, "user_id"):
+        identity = f"user:{request.state.user_id}"
+    else:
+        identity = get_remote_address(request)
+    
+    # Scope by endpoint path prefix (first 2 segments)
+    path_parts = request.url.path.strip("/").split("/")[:2]
+    path_prefix = "/".join(path_parts) if path_parts else "root"
+    
+    return f"{identity}:{path_prefix}"
 
 # Limiter object to attach to the FastAPI application
 limiter = Limiter(key_func=custom_key_func)

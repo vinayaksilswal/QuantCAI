@@ -1,6 +1,9 @@
 /**
  * API Client for QuantCAI Backend
  */
+declare global {
+  var refreshPromise: Promise<string | null> | null;
+}
 
 const isLocal = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 const API_URL = isLocal ? '' : (import.meta.env.VITE_API_URL || 'https://quantcai.onrender.com');
@@ -21,10 +24,9 @@ export const setToken = (token: string | null) => {
 
 export const getAuthToken = () => authToken;
 
-export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE;
+export async function fetchApi<T>(endpoint: string, options: RequestInit = {}, retries = 3): Promise<T> {
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${base}${path}`;
+  const url = `${API_BASE}${path}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -35,28 +37,64 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+  
   const config: RequestInit = {
     ...options,
     headers,
-    credentials: 'include', // Important for sending/receiving HTTP-Only cookies
+    credentials: 'include',
+    signal: controller.signal,
   };
 
-  const res = await fetch(url, config);
+  let res: Response;
+  try {
+    res = await fetch(url, config);
+    clearTimeout(timeoutId);
+  } catch (error) {
+    clearTimeout(timeoutId);
+    const isNetworkError = error instanceof Error && (error.name === 'TypeError' || error.name === 'AbortError');
+    if (isNetworkError && retries > 0) {
+      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, 3 - retries)));
+      return fetchApi(endpoint, options, retries - 1);
+    }
+    throw error;
+  }
+
+  // 5xx Retry Logic
+  if (res.status >= 500 && retries > 0) {
+    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, 3 - retries)));
+    return fetchApi(endpoint, options, retries - 1);
+  }
 
   if (res.status === 401 && endpoint !== '/api/auth/refresh' && endpoint !== '/api/auth/login') {
-    // Attempt to refresh token
+    // Refresh Mutex
+    if (!globalThis.refreshPromise) {
+      globalThis.refreshPromise = authApi.refresh().then(refreshRes => {
+        if (refreshRes.access_token) {
+          setToken(refreshRes.access_token);
+          return refreshRes.access_token;
+        }
+        throw new Error('No access token');
+      }).catch(err => {
+        console.error('Session expired, please login again.');
+        setToken(null);
+        throw err;
+      }).finally(() => {
+        globalThis.refreshPromise = null;
+      });
+    }
+
     try {
-      const refreshRes = await authApi.refresh();
-      if (refreshRes.access_token) {
-        setToken(refreshRes.access_token);
-        // Retry original request with new token
-        const retryHeaders = { ...headers, 'Authorization': `Bearer ${refreshRes.access_token}` };
+      const newToken = await globalThis.refreshPromise;
+      if (newToken) {
+        const retryHeaders = { ...headers, 'Authorization': `Bearer ${newToken}` };
         const retryRes = await fetch(url, { ...config, headers: retryHeaders });
         if (retryRes.ok) return retryRes.json();
+        // If the retry also fails with 401, bubble up
       }
-    } catch (refreshErr) {
-      console.error('Session expired, please login again.');
-      setToken(null);
+    } catch (err) {
+      // Refresh failed, let the original 401 fall through
     }
   }
 
@@ -233,6 +271,7 @@ export const adminApi = {
 export const healthApi = {
   check: () => fetchApi<{ status: string; timestamp: string; uptime_seconds: number; database: string; service: string }>('/health'),
   detailed: () => fetchApi('/health/detailed'),
+  reportClientError: (error: any) => fetchApi('/api/errors/report', { method: 'POST', body: JSON.stringify({ error }) }).catch(() => {}),
 };
 
 export const api = { ...authApi, ...communityApi, ...circuitApi, ...adminApi, ...healthApi, ...contentApi, setToken, getAuthToken };
