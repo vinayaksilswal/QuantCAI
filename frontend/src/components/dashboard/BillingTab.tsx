@@ -112,7 +112,7 @@ export function BillingTab() {
             <div className="space-y-4">
               <div>
                 <h4 className="font-syne font-bold text-sm text-qc-text">Free Plan</h4>
-                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">$0</p>
+                <p className="font-bold text-2xl text-qc-text mt-1">$0</p>
               </div>
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export function BillingTab() {
                     <span className="px-1.5 py-0.5 rounded bg-qc-accent text-qc-bg text-[8px] font-bold uppercase tracking-wider">Active</span>
                   )}
                 </h4>
-                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">$49 <span className="text-xs font-light text-qc-muted">/ month</span></p>
+                <p className="font-bold text-2xl text-qc-text mt-1">$49 <span className="text-xs font-light text-qc-muted">/ month</span></p>
               </div>
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export function BillingTab() {
                     <span className="px-1.5 py-0.5 rounded bg-qc-accent text-qc-bg text-[8px] font-bold uppercase tracking-wider">Active</span>
                   )}
                 </h4>
-                <p className="font-syne font-extrabold text-2xl text-qc-text mt-1">Contact Sales</p>
+                <p className="font-bold text-2xl text-qc-text mt-1">Contact Sales</p>
               </div>
               <ul className="space-y-2 text-[11px] text-qc-muted font-mono leading-relaxed">
                 <li className="flex items-center gap-2">

@@ -38,7 +38,7 @@ const Profile = () => {
       if (!user) return;
       try {
         const data = await api.getProgress();
-        setProgress(data ?? []);
+        setProgress(Array.isArray(data) ? data : []);
       } catch (err: any) {
         console.error('Error loading progress:', err);
       }
@@ -52,7 +52,7 @@ const Profile = () => {
       try {
         setLoadingNotifications(true);
         const data = await api.listNotifications();
-        setNotifications(data ?? []);
+        setNotifications(Array.isArray(data) ? data : []);
       } catch (err: any) {
         console.error('Error loading notifications:', err);
         setError('Failed to load administrative notifications.');

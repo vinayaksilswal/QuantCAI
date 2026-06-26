@@ -123,11 +123,22 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> list[str]:
+        origins = [
+            "https://quantcai.in",
+            "https://www.quantcai.in",
+            "http://localhost:5173",
+            "http://localhost:3000"
+        ]
+        if self.FRONTEND_URL and self.FRONTEND_URL not in origins:
+            origins.append(self.FRONTEND_URL)
+            
         if self.ALLOWED_ORIGINS:
-            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
-        if self.is_production:
-            return [self.FRONTEND_URL]
-        return ["http://localhost:5173", "http://localhost:3000"]
+            for origin in self.ALLOWED_ORIGINS.split(","):
+                clean_origin = origin.strip()
+                if clean_origin and clean_origin not in origins:
+                    origins.append(clean_origin)
+                    
+        return origins
 
     @property
     def wallet_topup_amounts(self) -> list[int]:

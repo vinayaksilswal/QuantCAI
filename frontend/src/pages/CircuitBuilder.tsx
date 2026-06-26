@@ -679,7 +679,7 @@ const CircuitBuilder = () => {
     const currentBackend = BACKENDS.find(b => b.value === backend) || BACKENDS[0];
 
     return (
-        <div className="min-h-screen relative overflow-hidden bg-slate-950 font-sans selection:bg-cyan-500/30">
+        <div className="min-h-screen relative overflow-hidden bg-transparent font-sans selection:bg-cyan-500/30">
             <Navbar />
             <SEO 
                 title="Quantum Circuit Simulator - QuantCAI" 

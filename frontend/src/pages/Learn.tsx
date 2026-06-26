@@ -69,7 +69,7 @@ const Learn = () => {
     setLoadingCohorts(true);
     try {
       const response = await axiosClient.get<Cohort[]>('/api/v1/cohorts');
-      if (response.data && response.data.length > 0) {
+      if (Array.isArray(response.data) && response.data.length > 0) {
         setCohorts(response.data);
       } else {
         setCohorts(DEFAULT_COHORTS);
@@ -171,7 +171,7 @@ const Learn = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden font-sans bg-slate-950 text-slate-100 selection:bg-purple-500/30">
+    <div className="min-h-screen relative overflow-hidden font-sans bg-transparent text-slate-100 selection:bg-purple-500/30">
       <SEO 
         title="Learn Quantum Computing - QuantCAI Tutorials" 
         description="Master quantum mechanics, quantum circuits, and post-quantum cryptography with our interactive learning platform." 
