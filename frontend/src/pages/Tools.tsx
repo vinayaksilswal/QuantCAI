@@ -68,7 +68,7 @@ const Tools = () => {
                             Quantum Tools
                         </h1>
                         <p className="text-xl text-blue-200 max-w-2xl mx-auto leading-relaxed">
-                            Interactive simulations and utilities to help you experiment with quantum mechanical concepts directly in your browser.
+                            Advanced simulators and enterprise utilities designed to accelerate quantum research and assess Post-Quantum Cryptography (PQC) readiness.
                         </p>
                     </div>
 

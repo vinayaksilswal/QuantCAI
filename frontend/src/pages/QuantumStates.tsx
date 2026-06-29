@@ -13,6 +13,8 @@ import { Atom, RotateCcw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAI } from '@/hooks/useAI';
 import { useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 export interface QubitState {
   alpha: number;
@@ -22,6 +24,8 @@ export interface QubitState {
 
 const QuantumStates = () => {
   usePageTracking('quantum-states');
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const { visualizerActions, ackVisualizerAction } = useAI();
   const [qubitState, setQubitState] = useState<QubitState>({
     alpha: 1,
@@ -38,6 +42,11 @@ const QuantumStates = () => {
   }, [visualizerActions]);
 
   const handleApplyGate = async (gateName: string) => {
+    if (!user) {
+      toast.error("Please log in to explore quantum states.");
+      navigate('/login', { state: { returnTo: '/quantum-states' } });
+      return;
+    }
     try {
       // Reconstruct fully complex state for backend
       // We assume alpha is real mag, beta is mag * e^iPhase

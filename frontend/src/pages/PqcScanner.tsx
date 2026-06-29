@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAI } from '@/hooks/useAI';
 import { axiosClient } from '@/lib/axiosClient';
@@ -71,7 +71,8 @@ interface ScanReport {
 
 export default function PqcScanner() {
   usePageTracking('pqc-scanner');
-  const { subscriptionPlan } = useAuth();
+  const { subscriptionPlan, user } = useAuth();
+  const navigate = useNavigate();
   const { updateClientContext } = useAI();
   const [searchParams] = useSearchParams();
   const [domain, setDomain] = useState('');
@@ -148,6 +149,11 @@ export default function PqcScanner() {
   }, [loading]);
 
   const runScan = async (targetDomain: string, targetPort: string) => {
+    if (!user) {
+      toast.error("Please log in to run PQC audits.");
+      navigate('/login', { state: { returnTo: '/pqc-scanner' } });
+      return;
+    }
     const target = targetDomain.trim();
     if (!target) return;
 
@@ -341,8 +347,9 @@ export default function PqcScanner() {
   return (
     <div className="min-h-screen relative overflow-hidden bg-transparent text-slate-100">
       <SEO 
-        title="Post-Quantum Cryptography (PQC) Vulnerability Scanner - QuantCAI" 
+        title="PQC Scanner - Post Quantum Cryptography Audit & Scanner | QuantCAI" 
         description="Audit your TLS infrastructure for quantum vulnerabilities. Verify FIPS 203, FIPS 204, and FIPS 205 post-quantum compliance in seconds." 
+        keywords="PQC Scanner, Post Quantum Cryptography, quantum vulnerabilities, audit"
       />
       <Navbar />
 
@@ -351,7 +358,7 @@ export default function PqcScanner() {
           {/* Breadcrumb / Back */}
           <div className="mb-8">
             <Link to="/tools" className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors">
-              <ArrowLeft className="h-4 w-4" /> Back to Tools
+              <ArrowLeft className="h-4 w-4" /> Return to Tools
             </Link>
           </div>
 
@@ -422,6 +429,17 @@ export default function PqcScanner() {
                 </button>
               </div>
             </form>
+          </div>
+
+          <div className="bg-slate-900/30 border border-slate-800 rounded-2xl p-6 mb-12 text-slate-300">
+            <h2 className="text-xl font-bold text-white mb-2">Why Conduct a Post-Quantum Cryptography (PQC) Audit?</h2>
+            <p className="text-sm leading-relaxed mb-4">
+              As quantum computing advances, classical cryptographic algorithms like RSA and ECC are becoming increasingly vulnerable to Shor's algorithm. Our <strong className="text-emerald-400">PQC Scanner</strong> helps organizations identify non-compliant TLS endpoints and digital certificates. Preparing your infrastructure now mitigates the Harvest Now, Decrypt Later (HNDL) risk.
+            </p>
+            <h3 className="text-lg font-bold text-white mb-2">How the PQC Scanner Works</h3>
+            <p className="text-sm leading-relaxed">
+              Simply enter a domain to initiate a comprehensive security handshake assessment. The scanner evaluates negotiated cipher suites, key exchange protocols, and the full certificate chain against NIST post-quantum standards (FIPS 203, 204). You will receive an actionable CBOM (Cryptography Bill of Materials) report highlighting vulnerable assets.
+            </p>
           </div>
 
           {/* Loading Animation / Skeleton */}

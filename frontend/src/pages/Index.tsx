@@ -117,10 +117,7 @@ const Index = () => {
                 <Atom className="h-16 w-16 text-blue-300 mb-6 drop-shadow-lg" />
                 <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-md">About QuantCAI</h2>
                 <p className="text-blue-100 text-lg leading-relaxed drop-shadow-sm">
-                  The idea is to make a website for quantum computer Learning, Simulation of qubits and qubits logic gates,
-                  Implementation, Algorithm, and Development. It's an initiative for Quantum Computer Adaptation and Acceptance.
-                  The main concern of Security and Encryption of data flow in the Quantum Computers era. To provide Security
-                  and Encryption solutions in the later phase.
+                  QuantCAI bridges the gap between quantum theory and practical application. We provide a unified ecosystem designed to empower learners with interactive education, equip researchers with advanced simulation tools, and secure enterprises through cutting-edge Post-Quantum Cryptography (PQC) implementations. Our initiative drives quantum adaptation, building trust and delivering professional solutions for the impending quantum computing era.
                 </p>
               </div>
             </div>
@@ -149,21 +146,19 @@ const Index = () => {
             <Card className="bg-white/10 backdrop-blur-xl border-blue-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-blue-500/30">
               <CardContent className="p-8">
                 <Zap className="h-12 w-12 text-blue-300 mb-6 drop-shadow-lg" />
-                <h3 className="text-2xl font-bold text-blue-200 mb-4 drop-shadow-md">Our Services</h3>
+                <h3 className="text-2xl font-bold text-blue-200 mb-4 drop-shadow-md">Learning & Research</h3>
                 <p className="text-blue-100 leading-relaxed drop-shadow-sm">
-                  Our services include quantum computer learning, simulation, implementation, algorithm development,
-                  and quantum consulting. We offer a range of solutions to help your business harness the power of quantum computing.
+                  Dive into the quantum realm with our interactive educational modules and advanced simulators. We equip researchers and students with the tools needed to understand qubits, logic gates, and complex quantum algorithms.
                 </p>
               </CardContent>
             </Card>
 
             <Card className="bg-white/10 backdrop-blur-xl border-purple-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-purple-500/30">
               <CardContent className="p-8">
-                <Cloud className="h-12 w-12 text-purple-300 mb-6 drop-shadow-lg" />
-                <h3 className="text-2xl font-bold text-purple-200 mb-4 drop-shadow-md">Cloud Computing</h3>
+                <Shield className="h-12 w-12 text-purple-300 mb-6 drop-shadow-lg" />
+                <h3 className="text-2xl font-bold text-purple-200 mb-4 drop-shadow-md">Enterprise PQC</h3>
                 <p className="text-blue-100 leading-relaxed drop-shadow-sm">
-                  Our cloud-based platform ensures scalability and flexibility, allowing you to access quantum computing
-                  power from anywhere. Experience the future of computing in the cloud.
+                  Future-proof your data flow against quantum threats. We offer comprehensive Post-Quantum Cryptography (PQC) implementations, security audits, and cryptographic agility solutions tailored for enterprise-scale systems.
                 </p>
               </CardContent>
             </Card>
@@ -171,10 +166,9 @@ const Index = () => {
             <Card className="bg-white/10 backdrop-blur-xl border-green-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-green-500/30">
               <CardContent className="p-8">
                 <Users className="h-12 w-12 text-green-300 mb-6 drop-shadow-lg" />
-                <h3 className="text-2xl font-bold text-green-200 mb-4 drop-shadow-md">Expertise</h3>
+                <h3 className="text-2xl font-bold text-green-200 mb-4 drop-shadow-md">Professional Consulting</h3>
                 <p className="text-blue-100 leading-relaxed drop-shadow-sm">
-                  Our team of experts is dedicated to providing unparalleled support and guidance throughout your
-                  quantum computing journey. Let us help you unlock the quantum advantage.
+                  Our dedicated team of quantum experts provides unparalleled support. From seamless integration of quantum algorithms to strategic advisory, we help your business build brand trust and harness the quantum advantage.
                 </p>
               </CardContent>
             </Card>

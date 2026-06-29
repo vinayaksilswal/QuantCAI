@@ -384,6 +384,7 @@ const CircuitBuilder = () => {
         try {
             if (!user) {
                 toast.error("Please log in to run simulations.");
+                navigate('/login', { state: { returnTo: '/circuit-builder' } });
                 setIsSimulating(false);
                 return;
             }
@@ -682,8 +683,9 @@ const CircuitBuilder = () => {
         <div className="min-h-screen relative overflow-hidden bg-transparent font-sans selection:bg-cyan-500/30">
             <Navbar />
             <SEO 
-                title="Quantum Circuit Simulator - QuantCAI" 
+                title="Quantum Circuit Builder & Simulator | QuantCAI" 
                 description="Build, optimize, and simulate complex quantum circuits using QuantCAI's interactive quantum circuit builder." 
+                keywords="quantum simulation, quantum circuit builder, quantum computing, PQC"
             />
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none"></div>
             <div className="pt-20 pb-4 px-3 md:px-4 max-w-[1800px] mx-auto flex flex-col" style={{ height: 'calc(100vh - 0px)' }}>
@@ -1028,6 +1030,18 @@ const CircuitBuilder = () => {
                         ) : null}
                     </DragOverlay>
                 </DndContext>
+
+                {/* SEO Text Section (Visually Hidden) */}
+                <div className="sr-only">
+                    <h2>What is Quantum Simulation?</h2>
+                    <p>
+                        Quantum simulation involves modeling the behavior of quantum systems using specialized hardware or software. Our <strong>Quantum Circuit Builder</strong> allows you to design, test, and run quantum algorithms directly in your browser. Whether you are exploring basic superposition or advanced entanglement protocols, this interactive simulator provides real-time feedback and state vector analysis.
+                    </p>
+                    <h3>How to use this Quantum Circuit Builder</h3>
+                    <p>
+                        Simply drag and drop quantum gates from the palette onto the qubits in the circuit canvas. Adjust parameters, add measurement operations, and choose a backend execution environment to run your simulation. You can analyze the results using the telemetry bar and state vector visualization tools provided in the right pane.
+                    </p>
+                </div>
 
                 <TutorialOverlay placedGates={placedGates} setPlacedGates={setPlacedGates} />
 

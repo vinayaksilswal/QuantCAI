@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAI } from '@/hooks/useAI';
 import { axiosClient } from '@/lib/axiosClient';
@@ -52,7 +53,8 @@ cx q[1], q[2];
 c = measure q;`;
 
 export function QuantumSimulatorTab() {
-  const { subscriptionPlan } = useAuth();
+  const { subscriptionPlan, user } = useAuth();
+  const navigate = useNavigate();
   const { updateClientContext } = useAI();
   
   // IDE State
@@ -130,6 +132,11 @@ export function QuantumSimulatorTab() {
 
   const executeSimulation = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      toast.error("Please log in to run simulations.");
+      navigate('/login', { state: { returnTo: '/sandbox' } });
+      return;
+    }
     setErrorMsg(null);
     setResult(null);
     setRawResponse(null);

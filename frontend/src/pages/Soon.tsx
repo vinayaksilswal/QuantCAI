@@ -58,10 +58,10 @@ const Soon = () => {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
-              Coming <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Soon</span>
+              Future <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Innovations</span>
             </h1>
             <p className="text-xl text-gray-300 leading-relaxed">
-              Here's a preview of the features we're actively building.
+              Explore the next generation of quantum learning and enterprise PQC tools currently in development.
             </p>
           </div>
 
@@ -100,13 +100,13 @@ const Soon = () => {
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3 mb-3">
                     <Workflow className="h-5 w-5 text-green-400" />
-                    <h3 className="text-xl font-bold text-white">Roadmap</h3>
+                    <h3 className="text-xl font-bold text-white">Strategic Roadmap</h3>
                   </div>
                   <ol className="text-gray-300 list-decimal pl-5 space-y-1">
-                    <li>Auth + progress tracking improvements</li>
-                    <li>Community interactions and moderation</li>
-                    <li>Voice Bot beta</li>
-                    <li>Multi-Qubit Circuit alpha</li>
+                    <li>Enterprise SSO & Advanced Access Control</li>
+                    <li>Collaborative Quantum Research Hub</li>
+                    <li>AI-Powered Quantum Assistant Beta</li>
+                    <li>Advanced Multi-Qubit Enterprise Simulator</li>
                   </ol>
                 </CardContent>
               </Card>
@@ -115,9 +115,9 @@ const Soon = () => {
             {/* Contact */}
             <Card className="bg-slate-800/50 border-slate-700/50 backdrop-blur-sm h-min">
               <CardContent className="p-6">
-                <h3 className="text-xl font-bold text-white mb-4">Stay in the loop</h3>
+                <h3 className="text-xl font-bold text-white mb-4">Partner With Us</h3>
                 <p className="text-gray-300 leading-relaxed mb-4">
-                  Want early access or to collaborate? Drop your message and we'll keep you posted.
+                  Interested in early access, research collaboration, or enterprise pilot programs? Reach out to our team.
                 </p>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} className="bg-slate-800/50 border-slate-600 text-white" placeholder="your@email.com" required />

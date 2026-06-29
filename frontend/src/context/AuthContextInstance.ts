@@ -20,6 +20,7 @@ export type AuthContextType = {
     register: (email: string, password: string, name: string) => Promise<void>;
     loginWithGoogle: (idToken: string) => Promise<void>;
     loginWithToken: (token: string) => Promise<void>;
+    refreshSession: () => Promise<boolean>;
 };
 
 export const AuthContext = createContext<AuthContextType>({
@@ -33,4 +34,5 @@ export const AuthContext = createContext<AuthContextType>({
     register: async () => { },
     loginWithGoogle: async () => { },
     loginWithToken: async () => { },
+    refreshSession: async () => false,
 });

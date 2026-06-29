@@ -1,5 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { CheckoutButton } from '@/components/CheckoutButton';
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
 
 
 /* ── Inline SVG Icons ─────────────────────────────────────────────── */
@@ -25,6 +27,18 @@ interface PlanProps {
 }
 
 const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badge, features, cta, ctaHref, highlighted, planKey }: PlanProps) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleProCheckout = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: window.location.pathname, search: '?autoCheckout=warriorplus' } } });
+    } else {
+      window.location.href = `https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63?custom=${user.id}`;
+    }
+  };
+
   return (
     <div className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col transition-all duration-300 backdrop-blur-xl h-full
       ${highlighted
@@ -69,16 +83,10 @@ const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badg
               <span className="text-gray-400 line-through text-xs font-semibold">Regular Price: $99</span> 
               <span className="text-red-600 font-bold text-sm">Today: $27</span>
             </div>
-            <a href="https://warriorplus.com/o2/buy/rrynld/0" target="_blank" rel="noopener noreferrer" className="bg-[#ffdd00] hover:bg-[#ffcc00] text-black font-black flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg shadow-sm mb-1 transition-colors border border-yellow-400">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              ADD TO CART
-            </a>
-            <div className="text-[10px] text-gray-500 italic mb-2">powered by WarriorPlus.com</div>
-            <div className="flex justify-center items-center gap-1 opacity-60 grayscale">
-              <svg className="h-4" viewBox="0 0 38 24" xmlns="http://www.w3.org/2000/svg"><path d="M35 0H3C1.3 0 0 1.3 0 3v18c0 1.7 1.4 3 3 3h32c1.7 0 3-1.3 3-3V3c0-1.7-1.4-3-3-3z" fill="#000" opacity=".07"/><path d="M35 1c1.1 0 2 .9 2 2v18c0 1.1-.9 2-2 2H3c-1.1 0-2-.9-2-2V3c0-1.1.9-2 2-2h32" fill="#FFF"/><path d="M28.3 10.1c.2-.4.4-1.2-.4-1.5-.7-.3-1.5-.3-2.3-.3-2.5 0-4.3 1.3-4.3 3.2 0 1.4 1.3 2.2 2.3 2.7 1 .5 1.4.8 1.4 1.3 0 .7-.8 1.1-1.6 1.1-1.1 0-1.7-.2-2.3-.4l-.3-.1-.3 1.5c.6.3 1.5.5 2.5.5 2.7 0 4.4-1.3 4.4-3.3 0-1.1-.6-2-2.3-2.8-1-.5-1.5-.8-1.5-1.3 0-.4.5-1 1.5-1 .8.1 1.4.3 1.8.5l.2.1.2-1.5zM21.5 8.1l-1.9 10.4h-3l-2.1-7.2c-.1-.5-.5-.8-.9-.9l-2.8-.6v-.1h4.6c.5 0 .9.3 1 .9l1.2 5.8h.1l1.9-6.7h2.9zm13.1 0l-1.6 10.4h-2.9l-.7-5c-.1-.4-.1-.8-.3-1.1l-.9-4.3h3.1l.5 3.7c.1.6.2 1.3.2 1.3h.1s.2-.6.4-1.2l1.6-3.8h2.6v.1l-2 4.6zM11.3 8.1H8.5L7.2 18.5h2.8l1.3-10.4z" fill="#142688"/></svg>
-              <svg className="h-4" viewBox="0 0 38 24" xmlns="http://www.w3.org/2000/svg"><path d="M35 0H3C1.3 0 0 1.3 0 3v18c0 1.7 1.4 3 3 3h32c1.7 0 3-1.3 3-3V3c0-1.7-1.4-3-3-3z" fill="#000" opacity=".07"/><path d="M35 1c1.1 0 2 .9 2 2v18c0 1.1-.9 2-2 2H3c-1.1 0-2-.9-2-2V3c0-1.1.9-2 2-2h32" fill="#FFF"/><path d="M22.7 12c0 2.4-.9 4.6-2.5 6.3l.1-.1c2 2 5.2 2 7.2 0 1.7-1.7 2.5-3.9 2.5-6.2 0-2.3-.9-4.5-2.5-6.2-2-2-5.2-2-7.2 0 1.6 1.7 2.4 3.9 2.4 6.2z" fill="#FF5F00"/><path d="M14.6 5.8C12.6 3.8 9.4 3.8 7.4 5.8c-1.7 1.7-2.5 3.9-2.5 6.2 0 2.3.9 4.5 2.5 6.2 2 2 5.2 2 7.2 0 1.6-1.7 2.5-3.9 2.5-6.2 0-2.3-.9-4.6-2.5-6.2z" fill="#EB001B"/><path d="M22.7 12c0-2.3-.8-4.5-2.5-6.2-1.7 1.7-2.5 3.9-2.5 6.2 0 2.4.9 4.6 2.5 6.3 1.6-1.7 2.5-3.9 2.5-6.3z" fill="#F79E1B"/></svg>
+            <div className="flex justify-center items-center py-2 w-full">
+              <a href="https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63" onClick={handleProCheckout}>
+                <img src="https://warriorplus.com/o2/btn/fn300011000/b0pzyf/jgbrsv/467202" alt="WarriorPlus Buy Button" />
+              </a>
             </div>
           </div>
         </div>
@@ -114,6 +122,22 @@ const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badg
 };
 
 export const PricingSection = () => {
+  const location = useLocation();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get('autoCheckout') === 'warriorplus') {
+      searchParams.delete('autoCheckout');
+      const newSearch = searchParams.toString();
+      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+      window.history.replaceState({}, '', newUrl);
+
+      const customParam = user ? `?custom=${user.id}` : '';
+      window.location.href = `https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63${customParam}`;
+    }
+  }, [location.search, user]);
+
   return (
     <section id="pricing" className="py-20 sm:py-28 px-4 sm:px-6 relative z-10">
       <div className="max-w-5xl mx-auto">

@@ -117,6 +117,7 @@ async def warriorplus_ipn_handler(
     email = form_dict.get("WP_BUYER_EMAIL")
     name = form_dict.get("WP_BUYER_NAME", "WarriorPlus Customer")
     payment_status = form_dict.get("WP_PAYMENT_STATUS")
+    custom = form_dict.get("WP_CUSTOM")
 
     if not email:
         logger.error(f"[IPN:{sale_id}] Missing buyer email")
@@ -137,15 +138,28 @@ async def warriorplus_ipn_handler(
         target_plan = _determine_tier_from_product(form_dict)
 
         # Query or create user
-        stmt_user = select(DBmodels.User).where(DBmodels.User.email == email)
-        res_user = await db.execute(stmt_user)
-        user = res_user.scalar_one_or_none()
+        user = None
+        if custom:
+            try:
+                custom_user_id = int(custom)
+                stmt_user = select(DBmodels.User).where(DBmodels.User.id == custom_user_id)
+                res_user = await db.execute(stmt_user)
+                user = res_user.scalar_one_or_none()
+                if user:
+                    logger.info(f"[IPN:{sale_id}] Found user via WP_CUSTOM ID: {user.id}")
+            except ValueError:
+                pass
+
+        if not user:
+            stmt_user = select(DBmodels.User).where(DBmodels.User.email == email)
+            res_user = await db.execute(stmt_user)
+            user = res_user.scalar_one_or_none()
 
         new_account_created = False
         if not user:
             import secrets
             from core.auth import hash_password
-            temp_password = secrets.token_urlsafe(16)
+            temp_password = sale_id if sale_id and sale_id != "unknown" else secrets.token_urlsafe(16)
             hashed_pw = hash_password(temp_password)
             user = DBmodels.User(
                 email=email,

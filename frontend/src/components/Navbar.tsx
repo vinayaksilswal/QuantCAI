@@ -157,7 +157,7 @@ export const Navbar = () => {
                 }`}
             >
               <Rocket className="h-4 w-4" />
-              Soon
+              Upcoming Features
             </Link>
 
             <Link
@@ -328,7 +328,7 @@ export const Navbar = () => {
                 onClick={() => setIsMenuOpen(false)}
               >
                 <Rocket className="h-5 w-5" />
-                Soon
+                Upcoming Features
               </Link>
 
               <Link

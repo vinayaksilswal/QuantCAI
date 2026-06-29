@@ -233,8 +233,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const refreshSession = async () => {
+    try {
+      const tokenData = await api.refresh();
+      if (tokenData.access_token) {
+        api.setToken(tokenData.access_token);
+        const currentUser = await api.getMe();
+        if (currentUser) {
+          setSession(currentUser);
+          setUser({
+            id: currentUser.id?.toString() ?? '',
+            email: currentUser.email,
+            name: currentUser.name,
+          });
+          setRole(mapRole(currentUser.role));
+          
+          const decoded = decodeJwt(tokenData.access_token);
+          const plan = decoded?.subscription_plan || 'free';
+          setSubscriptionPlan(plan);
+          
+          localStorage.setItem('auth_user', JSON.stringify(currentUser));
+          localStorage.setItem('subscription_plan', plan);
+          return true;
+        }
+      }
+    } catch (error) {
+      console.log('Manual refresh failed.', error);
+    }
+    return false;
+  };
+
+  // Check if we just returned from a WarriorPlus payment
+  useEffect(() => {
+    if (!user) return;
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('sale_id')) {
+      // Delay slightly to give backend IPN time to process
+      setTimeout(() => {
+        refreshSession();
+      }, 2000);
+    }
+  }, [user]);
+
   const value = useMemo(
-    () => ({ user, session, role, loading, subscriptionPlan, signOut, login, register, loginWithGoogle, loginWithToken }),
+    () => ({ user, session, role, loading, subscriptionPlan, signOut, login, register, loginWithGoogle, loginWithToken, refreshSession }),
     [user, session, role, loading, subscriptionPlan]
   );
 

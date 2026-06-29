@@ -25,10 +25,10 @@ const GetStarted = () => {
           <Card className="bg-gradient-to-br from-slate-800/80 to-purple-800/80 border-blue-500/30 backdrop-blur-sm mb-12">
             <CardContent className="p-8 text-center">
               <Rocket className="h-16 w-16 text-blue-400 mx-auto mb-6" />
-              <h2 className="text-3xl font-bold text-white mb-4">Ready to Explore Quantum Computing?</h2>
+              <h2 className="text-3xl font-bold text-white mb-4">Ready to Accelerate Your Quantum Journey?</h2>
               <p className="text-lg text-gray-300 leading-relaxed mb-8">
-                Join QuantCAI to explore quantum computing and start your journey today. Unlock the power of quantum 
-                mechanics and discover how it can revolutionize technology, cryptography, and computational science.
+                Join QuantCAI to explore quantum computing, pioneer advanced research, and secure your enterprise infrastructure. Unlock the power of quantum 
+                mechanics and prepare for the impending shift to Post-Quantum Cryptography (PQC).
               </p>
               <div className="grid md:grid-cols-3 gap-6 mb-8">
                 <div className="text-center">
@@ -38,8 +38,8 @@ const GetStarted = () => {
                 </div>
                 <div className="text-center">
                   <Zap className="h-12 w-12 text-yellow-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-semibold text-white mb-2">Practice</h3>
-                  <p className="text-gray-400 text-sm">Hands-on quantum simulations</p>
+                  <h3 className="text-lg font-semibold text-white mb-2">Simulate</h3>
+                  <p className="text-gray-400 text-sm">Advanced research environments</p>
                 </div>
                 <div className="text-center">
                   <Users className="h-12 w-12 text-purple-400 mx-auto mb-3" />
@@ -76,19 +76,19 @@ const GetStarted = () => {
                   </li>
                   <li className="flex items-start">
                     <span className="text-blue-400 mr-2">•</span>
-                    Quantum states, qubits, and superposition
+                    Quantum states, qubits, and advanced circuit design
                   </li>
                   <li className="flex items-start">
                     <span className="text-blue-400 mr-2">•</span>
-                    Quantum gates and circuit design
+                    Post-Quantum Cryptography (PQC) integration
                   </li>
                   <li className="flex items-start">
                     <span className="text-blue-400 mr-2">•</span>
-                    Real-world quantum algorithms
+                    Real-world enterprise quantum algorithms
                   </li>
                   <li className="flex items-start">
                     <span className="text-blue-400 mr-2">•</span>
-                    Quantum computing applications
+                    Cryptographic risk assessment strategies
                   </li>
                 </ul>
               </CardContent>
@@ -100,23 +100,23 @@ const GetStarted = () => {
                 <ul className="space-y-3 text-gray-300">
                   <li className="flex items-start">
                     <span className="text-purple-400 mr-2">•</span>
-                    Expert-curated educational content
+                    Enterprise-grade educational cohorts
                   </li>
                   <li className="flex items-start">
                     <span className="text-purple-400 mr-2">•</span>
-                    Interactive quantum simulations
+                    High-fidelity quantum simulators
                   </li>
                   <li className="flex items-start">
                     <span className="text-purple-400 mr-2">•</span>
-                    Practical Qiskit programming examples
+                    CBOM & PQC compliance auditing
                   </li>
                   <li className="flex items-start">
                     <span className="text-purple-400 mr-2">•</span>
-                    Community support and guidance
+                    Dedicated engineering consulting
                   </li>
                   <li className="flex items-start">
                     <span className="text-purple-400 mr-2">•</span>
-                    Future-ready quantum skills
+                    Future-ready quantum resilience
                   </li>
                 </ul>
               </CardContent>

@@ -86,15 +86,15 @@ const App = () => (
                     <Routes>
                       <Route path="/" element={<RootRedirect><Index /></RootRedirect>} />
                       <Route path="/dashboard" element={<Navigate to="/profile" replace />} />
-                      <Route path="/quantum-simulator" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />
+                      <Route path="/quantum-simulator" element={<QuantumSimulator />} />
                       <Route path="/learn" element={<Learn />} />
                       <Route path="/quantum-computing" element={<QuantumComputing />} />
                       <Route path="/learn/qubits" element={<LearnQubits />} />
                       <Route path="/learn/gates" element={<LearnGates />} />
                       <Route path="/learn/pqc" element={<LearnPQC />} />
-                      <Route path="/quantum-states" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumStates /></ProtectedRoute>} />
+                      <Route path="/quantum-states" element={<QuantumStates />} />
                       <Route path="/tools" element={<Tools />} />
-                      <Route path="/circuit-builder" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><CircuitBuilder /></ProtectedRoute>} />
+                      <Route path="/circuit-builder" element={<CircuitBuilder />} />
                       <Route path="/shared/:slug" element={<SharedCircuit />} />
                       <Route path="/get-started" element={<GetStarted />} />
                       <Route path="/soon" element={<Soon />} />
@@ -106,10 +106,10 @@ const App = () => (
                       <Route path="/register" element={<Login />} />
                       <Route path="/auth/callback" element={<AuthCallback />} />
                       <Route path="/profile" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><Profile /></ProtectedRoute>} />
-                      <Route path="/pqc-scanner" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
+                      <Route path="/pqc-scanner" element={<PqcScanner />} />
                       <Route path="/enterprise/pqc-scanner" element={<ProtectedRoute roles={["root", "enterprise_user"]}><PqcScanner /></ProtectedRoute>} />
                       <Route path="/repo-scanner" element={<ProtectedRoute roles={["root", "developer", "enterprise_user"]}><RepoScanner /></ProtectedRoute>} />
-                      <Route path="/sandbox" element={<ProtectedRoute roles={["root", "developer", "user", "learner", "enterprise_user"]}><QuantumSimulator /></ProtectedRoute>} />
+                      <Route path="/sandbox" element={<QuantumSimulator />} />
                       <Route path="/enterprise" element={<Enterprise />} />
                       <Route path="/terms" element={<Terms />} />
                       <Route path="/privacy" element={<Privacy />} />

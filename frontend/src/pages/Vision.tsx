@@ -30,11 +30,7 @@ const Vision = () => {
                   <h2 className="text-3xl font-bold text-white">Our Core Mission</h2>
                 </div>
                 <p className="text-lg text-gray-300 leading-relaxed">
-                  QuantCAI is committed to bringing quantum computing to the masses. Our website provides an all-encompassing 
-                  platform for learning and exploring the world of qubits and quantum logic gates. Our mission is to make 
-                  quantum computing accessible to everyone and to promote the understanding and acceptance of this exciting 
-                  technology. At QuantCAI, we prioritize the security and encryption of data flow in the quantum era, so you 
-                  can trust us with your valuable information.
+                  QuantCAI's mission is to democratize quantum computing education and safeguard global digital infrastructure. We provide an all-encompassing platform designed for learners and researchers to explore quantum mechanics and algorithms, while simultaneously delivering state-of-the-art Post-Quantum Cryptography (PQC) solutions to secure enterprise data against tomorrow's quantum threats. You can trust us as your professional partner in navigating the quantum era.
                 </p>
               </CardContent>
             </Card>
@@ -46,11 +42,7 @@ const Vision = () => {
                   <h2 className="text-3xl font-bold text-white">Our Expert Team</h2>
                 </div>
                 <p className="text-lg text-gray-300 leading-relaxed">
-                  Our team at QuantCAI is comprised of seasoned professionals with years of experience in the field of quantum 
-                  computing. From physicists to software engineers, we have the expertise to tackle any quantum computing challenge. 
-                  We are dedicated to staying at the cutting edge of this exciting field and to sharing our knowledge and expertise 
-                  with our clients. At QuantCAI, we believe that strong leadership is key to success, which is why we prioritize 
-                  the development of our team members' leadership skills. Let us help you bring your quantum computing goals to life.
+                  Our team at QuantCAI is comprised of seasoned professionals with deep expertise spanning quantum physics, software engineering, and cryptographic security. We are dedicated to staying at the cutting edge of this rapidly evolving field to provide our clients—from academic researchers to enterprise leaders—with unparalleled guidance. At QuantCAI, we believe that strong, forward-thinking leadership is the key to successfully adopting quantum technologies and PQC integration. Let us help you bring your quantum computing goals to life.
                 </p>
               </CardContent>
             </Card>
@@ -62,12 +54,7 @@ const Vision = () => {
                   <h2 className="text-3xl font-bold text-white">Our Foundation & Vision</h2>
                 </div>
                 <p className="text-lg text-gray-300 leading-relaxed">
-                  QuantCAI was founded with a passion for quantum computing and a desire to share this enthusiasm with the world. 
-                  Our team of experts has a deep understanding of the intricacies of quantum physics and the potential of quantum 
-                  computing. We believe that quantum computing will revolutionize many industries, from healthcare to finance, and 
-                  we want to be at the forefront of this technological shift. At QuantCAI, we provide comprehensive training and 
-                  simulation tools for qubits and quantum logic gates, as well as implementation and algorithm development services. 
-                  Let us help you unlock the power of quantum computing and take your business to the next level.
+                  QuantCAI was founded with a profound understanding of the intricacies of quantum physics and the transformative potential of quantum computing. We are at the forefront of this technological shift, recognizing that quantum computing will revolutionize industries ranging from healthcare to finance. At QuantCAI, we provide a continuous pipeline of value: comprehensive training and simulation tools for learners and researchers, alongside advanced PQC implementation and algorithm development services for enterprises. Let us help you unlock the power of quantum computing and secure your business for the future.
                 </p>
               </CardContent>
             </Card>
@@ -103,19 +90,19 @@ const Vision = () => {
                   <ul className="space-y-3 text-gray-300">
                     <li className="flex items-start">
                       <span className="text-purple-400 mr-2">•</span>
-                      Quantum algorithm development
+                      Interactive Quantum Education
                     </li>
                     <li className="flex items-start">
                       <span className="text-purple-400 mr-2">•</span>
-                      Security and cryptography
+                      Advanced Circuit Simulation for Researchers
                     </li>
                     <li className="flex items-start">
                       <span className="text-purple-400 mr-2">•</span>
-                      Educational platform development
+                      Enterprise Post-Quantum Cryptography (PQC)
                     </li>
                     <li className="flex items-start">
                       <span className="text-purple-400 mr-2">•</span>
-                      Industry adaptation consulting
+                      Quantum Algorithm Development & Consulting
                     </li>
                   </ul>
                 </CardContent>

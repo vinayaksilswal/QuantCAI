@@ -22,7 +22,7 @@ export function ApiDocsTab() {
   };
 
   const getBaseUrl = () => {
-    return window.location.origin;
+    return "https://quantcai.onrender.com";
   };
 
   const endpoints = [

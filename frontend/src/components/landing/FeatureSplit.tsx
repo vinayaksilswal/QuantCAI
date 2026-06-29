@@ -15,7 +15,7 @@ const CodeIcon = () => (
 );
 
 /* ── Code snippets ────────────────────────────────────────────────── */
-const curlSnippet = `curl -X POST https://api.quantcai.in/v1/simulate \\
+const curlSnippet = `curl -X POST https://quantcai.onrender.com/api/v1/circuit/simulate \\
   -H "X-API-Key: qcai_your_key" \\
   -d '{
     "circuit_qasm": "OPENQASM 2.0; qreg q[2]; h q[0]; cx q[0],q[1]; measure q -> c;",
