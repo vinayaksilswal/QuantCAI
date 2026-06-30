@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     # External APIs
     GEMINI_API_KEY: str = ""
     RAPIDAPI_PROXY_SECRET: str = ""
+    META_ACCESS_TOKEN: str = ""
+    META_PIXEL_ID: str = ""
     
     # Environment Configurations
     ALLOWED_ORIGINS: str = ""

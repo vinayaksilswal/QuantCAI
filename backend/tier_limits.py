@@ -35,7 +35,7 @@ end
 return count + 1
 """
 
-def is_internal_domain(domain: str) -> bool:
+async def is_internal_domain(domain: str) -> bool:
     """
     Checks if a domain resolves to a private IP, loopback, or internal hostname.
     """
@@ -276,7 +276,7 @@ def enforce_limits(required_feature: str):
                 domain = body.get("domain")
 
             if domain:
-                if is_internal_domain(domain) and tier != "ENTERPRISE":
+                if await is_internal_domain(domain) and tier != "ENTERPRISE":
                     raise HTTPException(
                         status_code=status.HTTP_402_PAYMENT_REQUIRED,
                         detail={"error": "ENTERPRISE_REQUIRED", "message": "Internal subnet scanning requires an Enterprise tier subscription."}

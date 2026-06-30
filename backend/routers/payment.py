@@ -15,7 +15,7 @@ Security features:
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -25,6 +25,7 @@ from core.database import get_db
 from core.config import settings
 from billing import clear_feature_access_cache
 from security import redis_client
+from services.meta_capi import send_purchase_event_to_meta
 
 router = APIRouter(tags=["Payments"])
 logger = logging.getLogger("quantcai.payments")
@@ -57,6 +58,7 @@ def _determine_tier_from_product(form_data: dict) -> DBmodels.SubscriptionPlan:
 @router.post("/api/payment/warriorplus/ipn")
 async def warriorplus_ipn_handler(
     request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -217,6 +219,27 @@ async def warriorplus_ipn_handler(
                 f"[IPN:{sale_id}] New account created for {email}. "
                 f"User should reset password at {settings.FRONTEND_URL}/login"
             )
+
+        # Trigger Meta CAPI in background
+        client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else None)
+        if client_ip and "," in client_ip:
+            client_ip = client_ip.split(",")[0].strip()
+        user_agent = request.headers.get("User-Agent")
+        
+        try:
+            amount = float(form_dict.get("WP_ITEM_PRICE") or form_dict.get("WP_AMOUNT") or 0.0)
+        except ValueError:
+            amount = 0.0
+
+        background_tasks.add_task(
+            send_purchase_event_to_meta,
+            email=email,
+            amount=amount,
+            currency="USD",
+            sale_id=sale_id,
+            client_ip=client_ip,
+            user_agent=user_agent
+        )
 
         tier_name = target_plan.value if hasattr(target_plan, "value") else str(target_plan)
         logger.info(
