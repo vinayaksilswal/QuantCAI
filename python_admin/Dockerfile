@@ -27,7 +27,7 @@ RUN uv pip install --system -r requirements.txt
 COPY . .
 
 # Generate Prisma client from the Python-specific schema
-RUN python generate_prisma.py && prisma generate --schema=schema_py.prisma
+RUN prisma generate --schema=schema_py.prisma
 
 # Expose the application port
 EXPOSE 8000
