@@ -43,10 +43,6 @@ class Settings(BaseSettings):
     jwt_secret: str | None = None
     jwt_algorithm: str = "HS256"
 
-    # =========================================================================
-    # CJ Dropshipping API v2
-    # =========================================================================
-    cj_api_key: str | None = None
 
     # =========================================================================
     # OpenRouter API (LLM — AI copy generation & chatbot)

@@ -43,7 +43,7 @@ from tenacity import (
 
 from config import settings
 from services.ai_service import generate_promotional_email, generate_social_caption
-from services.cj_service import bulk_import_from_text, create_cj_order
+
 from services.email_service import send_email_blast
 from services.social_service import post_to_facebook, post_to_instagram
 
@@ -70,8 +70,7 @@ Your capabilities:
 1. **Product Management**: Search and query the product catalog
 2. **Social Media Marketing**: Generate AI captions and post to Facebook/Instagram
 3. **Email Marketing**: Generate promotional emails and send to the audience list
-4. **Supply Chain**: Bulk import products from CJ Dropshipping using SPU codes
-5. **Order Fulfillment**: Trigger CJ order fulfillment and check status
+
 6. **Analytics**: Provide marketing and sales statistics
 
 Rules:
@@ -148,64 +147,6 @@ TOOLS: list[dict[str, Any]] = [
                     }
                 },
                 "required": ["product_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "bulk_import_products",
-            "description": (
-                "Import multiple products from CJ Dropshipping by extracting SPU codes "
-                "from raw text. The text can contain SPU codes in any format — the system "
-                "uses regex to find them."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "raw_text": {
-                        "type": "string",
-                        "description": "Raw text containing CJ SPU codes to extract and import",
-                    }
-                },
-                "required": ["raw_text"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "trigger_fulfillment",
-            "description": (
-                "Trigger CJ Dropshipping order fulfillment for a pending order. "
-                "This will create the order on CJ with automatic wallet payment (payType=2)."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "order_id": {
-                        "type": "string",
-                        "description": "The internal order ID to fulfill via CJ",
-                    }
-                },
-                "required": ["order_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_order_status",
-            "description": "Check the current status of an order (both internal and CJ fulfillment status).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "order_id": {
-                        "type": "string",
-                        "description": "The internal order ID to check",
-                    }
-                },
-                "required": ["order_id"],
             },
         },
     },
@@ -414,117 +355,6 @@ async def execute_tool(
                 )
             return f"✗ Email campaign failed: {error_log}"
 
-        # --- bulk_import_products ---
-        elif name == "bulk_import_products":
-            raw_text = args.get("raw_text", "")
-            results = await bulk_import_from_text(raw_text)
-
-            if not results:
-                return "No SPU codes found in the provided text."
-
-            # Save imported products to database
-            saved_count = 0
-            for item in results:
-                if item["success"]:
-                    prod_data = item["product"]
-                    try:
-                        existing = await prisma.product.find_first(
-                            where={"pid": prod_data["pid"]}
-                        )
-                        if existing:
-                            await prisma.product.update(
-                                where={"pid": prod_data["pid"]},
-                                data=prod_data,
-                            )
-                        else:
-                            await prisma.product.create(data=prod_data)
-                        saved_count += 1
-                    except Exception as e:
-                        logger.error(f"Failed to save imported product: {e}")
-
-            success_count = sum(1 for r in results if r["success"])
-            fail_count = sum(1 for r in results if not r["success"])
-
-            return (
-                f"Bulk import complete:\n"
-                f"  Total SPU codes found: {len(results)}\n"
-                f"  Successfully fetched: {success_count}\n"
-                f"  Saved to database: {saved_count}\n"
-                f"  Failed: {fail_count}"
-            )
-
-        # --- trigger_fulfillment ---
-        elif name == "trigger_fulfillment":
-            order_id = args.get("order_id", "")
-            order = await prisma.order.find_unique(
-                where={"id": order_id},
-                include={"items": True},
-            )
-            if not order:
-                return f"Error: Order '{order_id}' not found."
-
-            if order.cjOrderId:
-                return f"Order already fulfilled. CJ Order ID: {order.cjOrderId}"
-
-            # Build shipping info and line items for CJ
-            shipping_info = {
-                "firstName": order.customerName.split()[0] if order.customerName else "",
-                "lastName": " ".join(order.customerName.split()[1:]) if order.customerName else "",
-                "phone": order.shippingPhone or "",
-                "address": order.shippingAddress,
-                "city": order.shippingCity,
-                "province": order.shippingState,
-                "zip": order.shippingZip,
-                "country": order.shippingCountry,
-            }
-
-            line_items = [
-                {"vid": item.vid, "quantity": item.quantity}
-                for item in order.items
-                if item.vid
-            ]
-
-            if not line_items:
-                return "Error: No items with CJ variant IDs (vid) found on this order."
-
-            result_data = await create_cj_order(
-                order_id=order.orderNumber,
-                shipping_info=shipping_info,
-                line_items=line_items,
-            )
-
-            if result_data["success"]:
-                await prisma.order.update(
-                    where={"id": order_id},
-                    data={
-                        "cjOrderId": result_data["cj_order_id"],
-                        "status": "Fulfilled",
-                    },
-                )
-                return (
-                    f"✓ Order fulfilled via CJ Dropshipping\n"
-                    f"CJ Order ID: {result_data['cj_order_id']}\n"
-                    f"Payment: Wallet auto-deduction (payType=2)"
-                )
-            return f"✗ CJ fulfillment failed: {result_data['error']}"
-
-        # --- get_order_status ---
-        elif name == "get_order_status":
-            order_id = args.get("order_id", "")
-            order = await prisma.order.find_unique(where={"id": order_id})
-            if not order:
-                return f"Error: Order '{order_id}' not found."
-
-            status_lines = [
-                f"Order: {order.orderNumber}",
-                f"Customer: {order.customerName}",
-                f"Amount: ${order.totalAmount}",
-                f"Status: {order.status}",
-                f"CJ Order ID: {order.cjOrderId or 'Not fulfilled yet'}",
-                f"PayPal: {order.paypalOrderId or 'N/A'}",
-                f"Created: {order.createdAt.isoformat()}",
-            ]
-            return "\n".join(status_lines)
 
         # --- get_marketing_stats ---
         elif name == "get_marketing_stats":
