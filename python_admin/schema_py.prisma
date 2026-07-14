@@ -5,83 +5,6 @@ datasource db {
 
 
 
-model Product {
-  id              String      @id @default(cuid())
-  pid             String      @unique // CJ PID
-  productName     String
-  productSku      String
-  sellPrice       Float
-  originalPrice   Float
-  costPrice       Float
-  inventory       Int
-  categoryName    String
-  productImage    String
-  productImages   String[]
-  productVideo    String?
-  uploadedVideo   String?
-  description     String
-  highlights      String[]
-  tagline         String?
-  listCount       Int         @default(0)
-  manualSortOrder Int?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  orderItems      OrderItem[]
-  socialPosts     SocialPost[]
-  emailCampaigns  EmailCampaign[]
-}
-
-model Order {
-  id              String      @id @default(cuid())
-  orderNumber     String      @unique // TP-Date.now()
-  customerName    String
-  customerEmail   String?
-  shippingAddress String
-  shippingCity    String
-  shippingState   String
-  shippingZip     String
-  shippingCountry String
-  shippingPhone   String?
-  totalAmount     Float
-  status          String      @default("Pending Dispatch")
-  cjOrderId       String?
-  paypalOrderId   String?
-  auditMargin     Float?
-  auditCost       Float?
-  auditRevenue    Float?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  userId          String?
-  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  items           OrderItem[]
-}
-
-model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String? // Changed to optional in case product is deleted
-  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  name      String  // Store name historically
-  quantity  Int
-  price     Float
-  costPrice Float
-  vid       String? // Variant ID used in CJ
-}
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  phone     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
-}
-
 model Audience {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -102,8 +25,8 @@ model MarketingState {
 
 model SocialPost {
   id           String   @id @default(cuid())
-  productId    String?
-  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  campaignId   String?
+  campaign     SocialCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   platform     String   // FACEBOOK, INSTAGRAM, BOTH
   type         String   @default("AUTO") // AUTO or MANUAL
   caption      String   @db.Text
@@ -120,8 +43,8 @@ model SocialPost {
 
 model EmailCampaign {
   id           String   @id @default(cuid())
-  productId    String?
-  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  campaignId   String?
+  campaign     SocialCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   type         String   @default("AUTO") // AUTO or MANUAL
   subject      String
   bodyText     String   @db.Text
@@ -140,6 +63,19 @@ model Media {
   mimeType  String
   data      Bytes
   createdAt DateTime @default(now())
+}
+
+model SocialCampaign {
+  id           String   @id @default(cuid())
+  baseCaption  String   @db.Text
+  mediaUrl     String   
+  mediaType    String   
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  socialPosts     SocialPost[]
+  emailCampaigns  EmailCampaign[]
 }
 
 generator py {

@@ -34,9 +34,8 @@ from loguru import logger
 from prisma import Prisma
 
 from services.ai_service import (
-    generate_marketing_assets,
-    generate_promotional_email,
-    generate_social_caption,
+    generate_campaign_variation,
+    generate_campaign_email,
 )
 from services.email_service import send_email_blast
 from services.social_service import post_to_facebook, post_to_instagram
@@ -50,60 +49,42 @@ _prisma: Prisma | None = None
 
 
 # =============================================================================
-# Product Rotation — Sequential Round-Robin
+# Campaign Rotation — Sequential Round-Robin
 # =============================================================================
-async def _get_next_product(
+async def _get_next_campaign(
     prisma: Prisma, marketing_type: str
 ) -> Any | None:
     """
-    Get the next product in the sequential rotation for marketing.
-
-    Uses the MarketingState singleton to track which product index was
-    last used for each channel (social vs email). Wraps around to the
-    beginning when the end of the catalog is reached.
-
-    Args:
-        prisma: Prisma client instance
-        marketing_type: Either 'social' or 'email'
-
-    Returns:
-        The next Product model instance, or None if no products exist
+    Get the next active campaign in the sequential rotation.
     """
-    products = await prisma.product.find_many(order={"createdAt": "asc"})
-    if not products:
-        logger.info("No products in database for marketing rotation")
+    campaigns = await prisma.socialcampaign.find_many(where={"isActive": True}, order={"createdAt": "asc"})
+    if not campaigns:
+        logger.info("No active campaigns in database for marketing rotation")
         return None
 
-    # Get or create the singleton state tracker
     state = await prisma.marketingstate.find_unique(where={"id": "singleton"})
     if not state:
         state = await prisma.marketingstate.create(data={"id": "singleton"})
 
-    # Determine which index to use based on channel
     idx_field = "lastSocialIdx" if marketing_type == "social" else "lastEmailIdx"
     current_idx: int = getattr(state, idx_field)
 
-    # Calculate the next index (wrap around at end of catalog)
     next_idx = current_idx + 1
-    if next_idx >= len(products):
-        next_idx = 0  # Wrap around to the first product
-        logger.info(
-            f"Marketing rotation ({marketing_type}): wrapped around to product 0"
-        )
+    if next_idx >= len(campaigns):
+        next_idx = 0
+        logger.info(f"Marketing rotation ({marketing_type}): wrapped around to campaign 0")
 
-    # Update the state with the new index
     await prisma.marketingstate.update(
         where={"id": "singleton"},
         data={idx_field: next_idx},
     )
 
-    selected = products[next_idx]
+    selected = campaigns[next_idx]
     logger.info(
-        f"Marketing rotation ({marketing_type}): selected product "
-        f"[{next_idx}/{len(products)}] → {selected.productName}"
+        f"Marketing rotation ({marketing_type}): selected campaign "
+        f"[{next_idx}/{len(campaigns)}] → {selected.id}"
     )
     return selected
-
 
 # =============================================================================
 # The Autonomous Marketing Loop — Runs Every 2 Hours
@@ -148,13 +129,10 @@ async def execute_marketing_loop() -> None:
     logger.info("[MARKETING LOOP] Starting bi-hourly autonomous marketing cycle")
     logger.info("=" * 60)
 
-    # --- Step 1: Select the next product ---
-    product = await _get_next_product(prisma, "social")
-    if not product:
-        logger.info("[MARKETING LOOP] No products available — skipping cycle")
+    campaign = await _get_next_campaign(prisma, "social")
+    if not campaign:
+        logger.info("[MARKETING LOOP] No active campaigns available — skipping cycle")
         return
-
-    logger.info(f"[MARKETING LOOP] Product: {product.productName} (${product.sellPrice})")
 
     state = await prisma.marketingstate.find_unique(where={"id": "singleton"})
     auto_approve = state.autoApprove if state else False
@@ -169,61 +147,38 @@ async def execute_marketing_loop() -> None:
     ig_post_id: str | None = None
     social_errors: list[str] = []
     email_errors: list[str] = []
+    media_urls: list[str] = []
+    
+    social_success = False
+    email_success = False
+    email_count = 0
 
-    # --- Step 2: Generate AI marketing copy ---
     try:
-        caption = await generate_social_caption(product)
-        email_content = await generate_promotional_email(product)
-        
-        email_subject = email_content.get("subject", f"Featured: {product.productName}")
+        caption = await generate_campaign_variation(campaign.baseCaption)
+        email_content = await generate_campaign_email(campaign)
+        email_subject = email_content.get("subject", "QuantCAI Update")
         email_text = email_content.get("bodyText", "")
         email_html = email_content.get("bodyHtml", "")
-
-        logger.info("[MARKETING LOOP] ✓ AI copy generated")
-
+        logger.info("[MARKETING LOOP] ✓ AI campaign content generated")
     except Exception as e:
-        logger.error(f"[MARKETING LOOP] AI copy generation failed: {e}")
-        # Use fallback copy
-        caption = (
-            f"✨ Discover {product.productName} — "
-            f"Only ${product.sellPrice}! Shop now at quantcai.in"
-        )
-        email_subject = f"Featured: {product.productName}"
-        email_text = f"Check out {product.productName} for ${product.sellPrice}. Shop now at quantcai.in"
-        product_url = f"https://quantcai.in/product/{product.id}"
-        email_html = f"""
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-    <h2 style="text-align: center; color: #1a1a1a;">{product.productName}</h2>
-    <img src="{product.productImage or ''}" alt="{product.productName}" style="max-width: 100%; border-radius: 8px;" />
-    <p>{(product.description or '')[:300]}</p>
-    <p style="font-size: 1.2em; font-weight: bold;">
-        Now <span style="color: #e74c3c;">${product.sellPrice}</span>
-    </p>
-    <a href="{product_url}" style="display: inline-block; padding: 14px 28px; background-color: #000; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">Order Now →</a>
-    <p style="font-size: 0.8em; color: #999; margin-top: 24px;">You're receiving this because you're part of the QuantCAI community. <a href="#">Unsubscribe</a></p>
-</div>"""
+        logger.error(f"[MARKETING LOOP] AI generation failed: {e}")
+        caption = campaign.baseCaption
+        email_subject = "QuantCAI Update"
+        email_text = campaign.baseCaption
+        email_html = f"<p>{campaign.baseCaption}</p>"
 
-    # --- Step 3: Gather media (video-first priority) ---
-    media_urls: list[str] = []
-    if getattr(product, "uploadedVideo", None):
-        # Ensure it's an absolute URL
-        vid_url = product.uploadedVideo
-        if vid_url.startswith("/"):
-            vid_url = f"https://quantcai.in{vid_url}"
-        media_urls.append(vid_url)
-    if product.productVideo:
-        media_urls.append(product.productVideo)
-    if product.productImages:
-        media_urls.extend(product.productImages)
-    elif product.productImage:
-        media_urls.append(product.productImage)
+    # Ensure media URL is absolute
+    vid_url = campaign.mediaUrl
+    if vid_url.startswith("/"):
+        vid_url = f"https://quantcai.in{vid_url}"
+    media_urls = [vid_url]
 
     # --- Step 4: Post to social media (error-isolated) ---
     # Create the social post record first
     try:
         social_post = await prisma.socialpost.create(
             data={
-                "productId": product.id,
+                "campaignId": campaign.id,
                 "platform": "BOTH",
                 "type": "AUTO",
                 "caption": caption,
@@ -272,25 +227,22 @@ async def execute_marketing_loop() -> None:
             logger.info(f"[MARKETING LOOP] ✓ Social post drafted (Requires manual approval)")
 
     # --- Step 5: Send email blast (error-isolated) ---
-    email_success = False
-    email_count = 0
-
-    # Create email campaign record
+    email_campaign = None
     try:
         email_campaign = await prisma.emailcampaign.create(
             data={
-                "productId": product.id,
-                "type": "AUTO",
-                "subject": email_subject,
-                "bodyText": email_text,
-                "bodyHtml": email_html,
-                "scheduledAt": datetime.now(),
-                "status": "DRAFT",
-            }
-        )
-    except Exception as e:
-        logger.error(f"[MARKETING LOOP] Failed to create email campaign record: {e}")
-        email_campaign = None
+                "campaignId": campaign.id,
+                    "type": "AUTO",
+                    "subject": email_subject,
+                    "bodyText": email_text,
+                    "bodyHtml": email_html,
+                    "scheduledAt": datetime.now(),
+                    "status": "DRAFT",
+                }
+            )
+        except Exception as e:
+            logger.error(f"[MARKETING LOOP] Failed to create email campaign record: {e}")
+            email_campaign = None
 
     if email_campaign:
         if auto_approve:
@@ -343,7 +295,7 @@ async def execute_marketing_loop() -> None:
     logger.info("=" * 60)
     logger.info(
         f"[MARKETING LOOP] Cycle complete | "
-        f"Product: {product.productName} | "
+        f"Campaign: {campaign.id} | "
         f"Social: {'✓' if social_success else '✗'} | "
         f"Email: {'✓' if email_success else '✗'} ({email_count} sent) | "
         f"Status: {overall_status}"

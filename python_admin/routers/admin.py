@@ -32,50 +32,35 @@ async def admin_dashboard(request: Request) -> Any:
     Main admin dashboard page.
 
     Renders the dashboard template with:
-    - Order count and total revenue
-    - Product count
-    - Recent orders (last 10)
-    - Full product catalog (for the catalog tab)
+    - Campaign statistics
+    - Social and Email automation statistics
+    - Full campaign catalog
     """
     prisma = request.app.state.prisma
 
     # Aggregate statistics
-    orders_count = await prisma.order.count()
-    products_count = await prisma.product.count()
+    campaigns_count = await prisma.socialcampaign.count()
+    social_posts_count = await prisma.socialpost.count()
+    email_campaigns_count = await prisma.emailcampaign.count()
 
-    # Total revenue via raw SQL (Prisma Python doesn't support aggregate yet)
-    revenue_result = await prisma.query_raw(
-        'SELECT COALESCE(SUM("totalAmount"), 0) as total FROM "Order"'
-    )
-    total_revenue = revenue_result[0]["total"] if revenue_result else 0
-
-    # Recent orders for the dashboard table
-    recent_orders = await prisma.order.find_many(
-        order={"createdAt": "desc"},
-        take=10,
-    )
-
-    # All products for the catalog management tab
-    products_db = await prisma.product.find_many(
+    # All campaigns for the management tab
+    campaigns_db = await prisma.socialcampaign.find_many(
         order=[
-            {"manualSortOrder": "asc"},
-            {"listCount": "desc"},
+            {"createdAt": "desc"},
         ]
     )
 
     # Convert to dicts for Jinja2 template rendering
-    products = [p.model_dump() for p in products_db]
-    orders = [order.model_dump() for order in recent_orders]
+    campaigns = [c.model_dump() for c in campaigns_db]
 
     return templates.TemplateResponse(
         request=request,
         name="dashboard.html",
         context={
             "title": "Admin Dashboard",
-            "orders_count": orders_count,
-            "products_count": products_count,
-            "total_revenue": total_revenue,
-            "orders": orders,
-            "products": products,
+            "campaigns_count": campaigns_count,
+            "social_posts_count": social_posts_count,
+            "email_campaigns_count": email_campaigns_count,
+            "campaigns": campaigns,
         },
     )

@@ -18,150 +18,111 @@
             }
         }
     </script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans">
     <nav class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
         <h1 class="text-xl font-black text-led-purple tracking-tight flex items-center gap-2">
             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            QuantCAI Admin
+            QuantCAI Marketing Admin
         </h1>
         <div class="flex gap-6">
-            <a href="/admin" class="text-led-red font-bold">Dashboard</a>
-            <a href="/marketing" class="text-gray-600 hover:text-led-red font-bold transition-colors">Marketing</a>
-            <a href="/docs" class="text-gray-600 hover:text-led-red font-bold transition-colors">API Docs</a>
+            <a href="/admin" class="text-led-purple font-bold">Campaigns</a>
+            <a href="/marketing" class="text-gray-600 hover:text-led-purple font-bold transition-colors">Marketing Loop</a>
+            <a href="/docs" class="text-gray-600 hover:text-led-purple font-bold transition-colors">API Docs</a>
         </div>
     </nav>
     
-    <div class="max-w-7xl mx-auto p-6 mt-8" id="app">
+    <div class="max-w-7xl mx-auto p-6 mt-8">
         <!-- Stats -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Orders</h3>
-                <p class="text-4xl font-black mt-2 text-obsidian">{{ orders_count }}</p>
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Campaigns</h3>
+                <p class="text-4xl font-black mt-2 text-obsidian">{{ campaigns_count }}</p>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Revenue</h3>
-                <p class="text-4xl font-black mt-2 text-obsidian">${{ "%.2f"|format(total_revenue) }}</p>
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Social Posts</h3>
+                <p class="text-4xl font-black mt-2 text-obsidian">{{ social_posts_count }}</p>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-1 h-full bg-led-purple"></div>
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Products</h3>
-                <p class="text-4xl font-black mt-2 text-obsidian">{{ products_count }}</p>
+                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Email Campaigns</h3>
+                <p class="text-4xl font-black mt-2 text-obsidian">{{ email_campaigns_count }}</p>
             </div>
         </div>
 
-        <!-- Tabs -->
         <div class="border-b border-gray-200 mb-6 flex gap-6">
-            <button onclick="switchTab('sales')" id="tab-sales" class="pb-3 text-sm font-bold uppercase tracking-wider border-b-2 border-led-red text-obsidian">Sales</button>
-            <button onclick="switchTab('catalog')" id="tab-catalog" class="pb-3 text-sm font-bold uppercase tracking-wider border-b-2 border-transparent text-gray-400 hover:text-obsidian">Catalog & Import</button>
+            <button class="pb-3 text-sm font-bold uppercase tracking-wider border-b-2 border-led-purple text-obsidian">Campaign Management</button>
         </div>
 
-        <!-- Sales Tab -->
-        <div id="content-sales" class="block">
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Order #</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Customer</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Total</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        {% for order in orders %}
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="px-6 py-4 font-mono font-bold text-gray-700">{{ order.orderNumber }}</td>
-                            <td class="px-6 py-4">
-                                <div class="font-bold text-obsidian">{{ order.customerName }}</div>
-                                <div class="text-xs text-gray-500">{{ order.customerEmail }}</div>
-                            </td>
-                            <td class="px-6 py-4 font-bold text-emerald-600">${{ "%.2f"|format(order.totalAmount) }}</td>
-                            <td class="px-6 py-4">
-                                <span class="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-blue-50 text-blue-600 border border-blue-100">{{ order.status }}</span>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="4" class="px-6 py-8 text-center text-gray-500 font-medium">No sales recorded yet.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Catalog Tab -->
-        <div id="content-catalog" class="hidden space-y-6">
-            <!-- CJ Import Section -->
+        <div class="space-y-6">
+            <!-- Social Campaign Upload Section -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-6 items-end">
                 <div class="flex-1">
-                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">CJ Dropshipping SPU / PID</label>
-                    <input type="text" id="cj-spu-input" placeholder="e.g. CJ-12345678" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple transition-all">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Upload Image/Video for AI Campaign</label>
+                    <input type="file" id="campaign-media-input" accept="image/*,video/*" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-led-purple transition-all">
                 </div>
-                <button onclick="importCJProduct()" id="import-btn" class="px-6 py-3 bg-led-purple text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-purple-700 transition-colors shadow-lg hover:shadow-xl flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    One-Click Import
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Base Caption</label>
+                    <input type="text" id="campaign-caption-input" placeholder="Enter base caption for AI to rewrite..." class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-led-purple transition-all">
+                </div>
+                <button onclick="createSocialCampaign()" id="create-campaign-btn" class="px-6 py-3 bg-led-purple text-white rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-purple-700 transition-colors shadow-lg hover:shadow-xl flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    Upload & Create
                 </button>
             </div>
 
-            <!-- Products Table -->
+            <!-- Campaigns Table -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider w-16 text-center">Order</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Product</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">SKU</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Price</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Cost</th>
-                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Inventory</th>
+                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Media</th>
+                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Base Caption</th>
+                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Status</th>
+                            <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider">Created</th>
                             <th class="px-6 py-4 font-bold text-gray-500 uppercase text-xs tracking-wider text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100" id="products-tbody">
-                        {% for product in products %}
-                        <tr class="hover:bg-slate-50 transition-colors" id="row-{{ product.pid }}">
-                            <td class="px-6 py-4">
-                                <div class="flex flex-col items-center gap-1">
-                                    <button onclick="reorderProduct('{{ product.pid }}', 'up')" class="p-1 text-gray-400 hover:text-led-purple transition-colors rounded hover:bg-purple-50">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>
-                                    </button>
-                                    <button onclick="reorderProduct('{{ product.pid }}', 'down')" class="p-1 text-gray-400 hover:text-led-purple transition-colors rounded hover:bg-purple-50">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                                    </button>
-                                </div>
-                            </td>
+                    <tbody class="divide-y divide-gray-100" id="campaigns-tbody">
+                        {% for campaign in campaigns %}
+                        <tr class="hover:bg-slate-50 transition-colors" id="row-{{ campaign.id }}">
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
-                                    <img src="{{ product.productImage }}" alt="" class="w-10 h-10 rounded-lg object-cover border border-gray-200">
-                                    <div class="font-bold text-obsidian max-w-xs truncate">{{ product.productName }}</div>
+                                    {% if campaign.mediaType == 'video' %}
+                                    <video src="{{ campaign.mediaUrl }}" class="w-12 h-12 rounded-lg object-cover border border-gray-200" muted></video>
+                                    {% else %}
+                                    <img src="{{ campaign.mediaUrl }}" alt="Campaign Media" class="w-12 h-12 rounded-lg object-cover border border-gray-200">
+                                    {% endif %}
                                 </div>
                             </td>
-                            <td class="px-6 py-4 font-mono text-xs text-gray-500">{{ product.productSku }}</td>
-                            <td class="px-6 py-4 font-bold text-emerald-600">${{ "%.2f"|format(product.sellPrice) }}</td>
-                            <td class="px-6 py-4 font-mono text-gray-500">${{ "%.2f"|format(product.costPrice) }}</td>
-                            <td class="px-6 py-4 font-mono text-obsidian">{{ product.inventory }}</td>
+                            <td class="px-6 py-4">
+                                <div class="font-medium text-obsidian line-clamp-2 max-w-md">{{ campaign.baseCaption }}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                {% if campaign.isActive %}
+                                <span class="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">Active</span>
+                                {% else %}
+                                <span class="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-gray-50 text-gray-600 border border-gray-200">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 text-xs text-gray-500">
+                                {{ campaign.createdAt.strftime('%Y-%m-%d') }}
+                            </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
-                                    <a href="https://quantcai.in/product/{{ product.pid }}" target="_blank" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">View</a>
-                                    <button onclick="editProduct('{{ product.pid }}')" class="px-3 py-1.5 bg-obsidian text-white rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-800 transition-colors flex items-center gap-1">
-                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                        Edit
+                                    <button onclick="toggleCampaignStatus('{{ campaign.id }}', {{ 'false' if campaign.isActive else 'true' }})" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
+                                        {{ 'Deactivate' if campaign.isActive else 'Activate' }}
                                     </button>
-                                    <button onclick="deleteProduct('{{ product.pid }}')" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="Delete">
+                                    <button onclick="deleteCampaign('{{ campaign.id }}')" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" title="Delete">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
-                                    <button onclick="openLinkModal('{{ product.pid }}')" class="px-3 py-1.5 bg-led-purple text-white rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-sm">
-                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                                        Link
                                     </button>
                                 </div>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="px-6 py-8 text-center text-gray-500 font-medium">No products in catalog. Import one above.</td></tr>
+                        <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 font-medium">No campaigns available. Create one above.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -170,503 +131,92 @@
     </div>
 
     <script>
-        function switchTab(tabId) {
-            document.getElementById('content-sales').classList.add('hidden');
-            document.getElementById('content-catalog').classList.add('hidden');
+        async function createSocialCampaign() {
+            const mediaInput = document.getElementById('campaign-media-input');
+            const captionInput = document.getElementById('campaign-caption-input');
+            const btn = document.getElementById('create-campaign-btn');
             
-            document.getElementById('tab-sales').className = 'pb-3 text-sm font-bold uppercase tracking-wider border-b-2 border-transparent text-gray-400 hover:text-obsidian';
-            document.getElementById('tab-catalog').className = 'pb-3 text-sm font-bold uppercase tracking-wider border-b-2 border-transparent text-gray-400 hover:text-obsidian';
-
-            document.getElementById(`content-${tabId}`).classList.remove('hidden');
-            document.getElementById(`tab-${tabId}`).className = 'pb-3 text-sm font-bold uppercase tracking-wider border-b-2 border-led-red text-obsidian';
-        }
-
-        async function importCJProduct() {
-            const input = document.getElementById('cj-spu-input');
-            const btn = document.getElementById('import-btn');
-            const spu = input.value.trim();
+            const file = mediaInput.files[0];
+            const baseCaption = captionInput.value.trim();
             
-            if (!spu) return alert('Enter a valid SPU');
+            if (!file) return alert('Please select an image or video');
+            if (!baseCaption) return alert('Please enter a base caption');
             
             btn.disabled = true;
-            btn.innerHTML = 'Importing...';
+            btn.innerHTML = 'Uploading Media...';
             
             try {
-                const res = await fetch('/api/v1/cj/import', {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                let uploadRes = await fetch('/api/v1/upload-media', {
+                    method: 'POST',
+                    body: formData
+                });
+                let uploadData = await uploadRes.json();
+                
+                if (!uploadData.success) {
+                    throw new Error(uploadData.message || 'Media upload failed');
+                }
+                
+                const mediaUrl = uploadData.data.url;
+                const mediaType = file.type.startsWith('video') ? 'video' : 'image';
+                
+                btn.innerHTML = 'Creating Campaign...';
+                
+                const res = await fetch('/api/v1/campaigns', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ spu })
+                    body: JSON.stringify({ baseCaption, mediaUrl, mediaType })
                 });
                 const data = await res.json();
                 
                 if (data.success) {
-                    alert('Successfully imported and AI optimized!');
+                    alert('Social Campaign created successfully! The AI will now generate unique variations in the marketing loop.');
                     window.location.reload();
                 } else {
                     alert('Error: ' + data.detail);
                 }
             } catch(e) {
-                alert('Error: ' + e);
+                alert('Error: ' + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> One-Click Import`;
+                btn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg> Upload & Create`;
             }
         }
         
-        async function deleteProduct(pid) {
-            if (!confirm('Delete this product?')) return;
+        async function deleteCampaign(id) {
+            if (!confirm('Delete this campaign?')) return;
             try {
-                const res = await fetch(`/api/v1/products/${pid}`, {
+                const res = await fetch(`/api/v1/campaigns/${id}`, {
                     method: 'DELETE'
                 });
-                const data = await res.json();
-                if(data.success) {
-                    document.getElementById(`row-${pid}`).remove();
+                if(res.ok) {
+                    document.getElementById(`row-${id}`).remove();
+                } else {
+                    alert('Failed to delete campaign');
                 }
             } catch(e) {
-                alert('Error deleting product');
+                alert('Error deleting campaign');
             }
         }
-
-        async function reorderProduct(pid, direction) {
+        
+        async function toggleCampaignStatus(id, isActive) {
             try {
-                const res = await fetch(`/api/v1/products/${pid}/reorder`, {
-                    method: 'POST',
+                const res = await fetch(`/api/v1/campaigns/${id}`, {
+                    method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ direction })
+                    body: JSON.stringify({ isActive })
                 });
-                const data = await res.json();
-                if(data.success) {
+                if(res.ok) {
                     window.location.reload();
                 } else {
-                    alert('Error reordering product: ' + data.message);
+                    alert('Failed to update campaign status');
                 }
             } catch(e) {
-                alert('Error reordering product');
+                alert('Error updating campaign');
             }
         }
-    </script>
-
-    <div id="vue-modal-root">
-        <div v-if="showModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-8 relative">
-                <button @click="closeModal" class="absolute top-6 right-6 text-gray-400 hover:text-obsidian">
-                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-                <h2 class="text-2xl font-black text-obsidian mb-6">Edit Catalog Product</h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Details -->
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Product Title</label>
-                            <input v-model="product.productName" class="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Category</label>
-                            <input v-model="product.categoryName" class="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Retail Price</label>
-                                <input type="number" step="0.01" v-model="product.sellPrice" class="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2 text-sm font-mono focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Strikethrough Price</label>
-                                <input type="number" step="0.01" v-model="product.originalPrice" class="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2 text-sm font-mono focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Wholesale Cost</label>
-                                <input type="number" step="0.01" v-model="product.costPrice" class="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2 text-sm font-mono focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Inventory</label>
-                                <input type="number" v-model="product.inventory" class="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2 text-sm font-mono focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Product Description</label>
-                                <button @click="aiRewrite" class="text-xs font-bold text-led-purple hover:text-purple-700 flex items-center gap-1 bg-purple-50 px-2 py-1 rounded">
-                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                    AI Rewrite Copy
-                                </button>
-                            </div>
-                            <textarea v-model="product.description" rows="5" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple"></textarea>
-                        </div>
-                    </div>
-
-                    <!-- Media -->
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Upload Reels/Video for Meta</label>
-                            <div class="flex items-center gap-2 mt-1">
-                                <input type="file" @change="uploadMedia" accept="video/*" class="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple bg-white">
-                                <span v-if="uploadingMedia" class="text-xs font-bold text-led-purple animate-pulse shrink-0">Uploading...</span>
-                            </div>
-                            <div v-if="product.uploadedVideo" class="mt-2 space-y-2">
-                                <div class="text-xs text-emerald-600 font-bold break-all">
-                                    ✓ Uploaded: {% raw %}{{ product.uploadedVideo }}{% endraw %}
-                                </div>
-                                <video :src="product.uploadedVideo" controls class="w-full max-h-48 rounded-lg bg-black"></video>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider">Product Video URL (Link)</label>
-                            <input v-model="product.productVideo" placeholder="https://" class="w-full mt-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Image Gallery (URLs)</label>
-                            <div v-for="(img, idx) in product.productImages" :key="idx" class="flex gap-2 mb-2 items-center group">
-                                <img v-if="img" :src="img" class="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 bg-gray-50">
-                                <div v-else class="w-10 h-10 rounded-lg border border-dashed border-gray-300 shrink-0 bg-gray-50 flex items-center justify-center text-gray-400 text-xs">No img</div>
-                                <input v-model="product.productImages[idx]" placeholder="Image URL" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                                <button @click="setMainImage(img)" :class="{'bg-led-purple text-white': product.productImage === img && img, 'bg-gray-100 text-gray-500 hover:bg-gray-200': product.productImage !== img || !img}" class="px-3 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors" title="Set as main image">Main</button>
-                                <button @click="removeImage(idx)" class="text-gray-400 hover:text-red-500 font-bold p-2 transition-colors">✕</button>
-                            </div>
-                            <button @click="addImage" class="mt-2 text-xs font-bold text-led-purple hover:text-purple-700 uppercase tracking-wider flex items-center gap-1">
-                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                                Add Image
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-8 pt-6 border-t border-gray-100 flex justify-end gap-4">
-                    <button @click="closeModal" class="px-6 py-2 text-sm font-bold text-gray-500 hover:text-obsidian uppercase tracking-wider transition-colors">Cancel</button>
-                    <button @click="saveProduct" :disabled="saving" class="px-8 py-2 bg-obsidian text-white rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center gap-2">
-                        <span v-if="saving">Saving...</span>
-                        <span v-else>Save Changes</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Generate Link Modal -->
-        <div v-if="showLinkModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden relative">
-                <button @click="closeLinkModal" class="absolute top-6 right-6 text-gray-400 hover:text-obsidian z-10">
-                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-                <div class="p-8">
-                    <div class="flex items-center gap-3 mb-6">
-                        <div class="w-10 h-10 rounded-full bg-purple-50 text-led-purple flex items-center justify-center">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                        </div>
-                        <div>
-                            <h2 class="text-xl font-black text-obsidian">Generate Sale Confirmation Link</h2>
-                            <p class="text-xs text-gray-500 mt-1">Generate a live dropship invoice and fulfillment confirmation URL for the selected item.</p>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 rounded-2xl p-4 flex items-center gap-4 mb-6 border border-gray-200">
-                        <img :src="product.productImage" class="w-16 h-16 rounded-xl object-cover shadow-sm bg-white border border-gray-100">
-                        <div>
-                            <div class="font-bold text-sm text-obsidian">{% raw %}{{ product.productName }}{% endraw %}</div>
-                            <div class="text-xs text-gray-500 font-mono mt-0.5">PID: {% raw %}{{ product.pid }}{% endraw %}</div>
-                            <div class="text-xs font-bold text-led-purple mt-1">Retail Price: ${% raw %}{{ Number(product.sellPrice).toFixed(2) }}{% endraw %}</div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-6">
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">1. Ad Landing Page URL (Product Detail Page)</label>
-                                <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Use as campaign website URL</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <input readonly :value="productLandingUrl" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-xs font-mono text-gray-600 focus:outline-none">
-                                <button @click="copyToClipboard(productLandingUrl)" class="shrink-0 w-12 h-[42px] mt-0.5 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-obsidian transition-colors">
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="text-xs font-bold text-gray-600 uppercase tracking-wider">2. Sales Confirmation URL (Thank You Page)</label>
-                                <span class="text-[10px] font-bold text-purple-600 uppercase tracking-widest text-right w-40">Use to confirm conversions & verify events</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <input readonly :value="checkoutSuccessUrl" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-xs font-mono text-gray-600 focus:outline-none">
-                                <button @click="copyToClipboard(checkoutSuccessUrl)" class="shrink-0 w-12 h-[42px] mt-0.5 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-obsidian transition-colors">
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-6 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-                        <div class="flex items-center gap-2 mb-1 text-emerald-800 font-bold text-xs uppercase tracking-wider">
-                            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                            Ad Tracking Event Pipeline Active
-                        </div>
-                        <p class="text-xs text-emerald-700 leading-relaxed mt-2">
-                            When a client finishes paying via PayPal or Card, the store triggers a redirect to the <span class="font-bold">Sales Confirmation URL</span>, immediately pinging the active Meta Pixel and Google Ads conversion events.
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="p-6 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <a :href="productLandingUrl" target="_blank" class="px-8 py-3.5 bg-led-purple text-white rounded-xl font-black uppercase tracking-widest text-sm hover:bg-purple-700 transition-all shadow-md hover:shadow-lg w-3/5 text-center flex items-center justify-center gap-2">
-                        Open Product Page
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                    </a>
-                    <button @click="closeLinkModal" class="px-6 py-3.5 bg-white border border-gray-200 text-obsidian rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-gray-100 transition-all shadow-sm w-1/3">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const { createApp, ref } = Vue;
-
-        const modalApp = createApp({
-            setup() {
-                const showModal = ref(false);
-                const saving = ref(false);
-                const uploadingMedia = ref(false);
-                const product = ref({});
-
-                const openModal = async (pid) => {
-                    try {
-                        const res = await fetch(`/api/v1/products/${pid}`);
-                        const data = await res.json();
-                        if(data.success) {
-                            if (!data.data.productImages) data.data.productImages = [];
-                            if (data.data.productImages.length === 0 && data.data.productImage) {
-                                data.data.productImages.push(data.data.productImage);
-                            }
-                            product.value = data.data;
-                            showModal.value = true;
-                        }
-                    } catch(e) {
-                        alert('Error loading product');
-                    }
-                };
-
-                const closeModal = () => {
-                    showModal.value = false;
-                };
-
-                const addImage = () => {
-                    if (!product.value.productImages) product.value.productImages = [];
-                    product.value.productImages.push('');
-                };
-
-                const removeImage = (idx) => {
-                    product.value.productImages.splice(idx, 1);
-                };
-
-                const setMainImage = (url) => {
-                    if (url) product.value.productImage = url;
-                };
-
-                const aiRewrite = async () => {
-                    try {
-                        const res = await fetch('/api/v1/gemini/rewrite', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                title: product.value.productName,
-                                description: product.value.description
-                            })
-                        });
-                        const data = await res.json();
-                        if(data.success) {
-                            product.value.productName = data.data.title || product.value.productName;
-                            product.value.description = data.data.description || product.value.description;
-                            if (data.data.tagline) product.value.tagline = data.data.tagline;
-                        }
-                    } catch(e) {
-                        alert('Error rewriting copy');
-                    }
-                };
-
-                const saveProduct = async () => {
-                    saving.value = true;
-                    try {
-                        // Clean up empty images
-                        product.value.productImages = product.value.productImages.filter(img => img.trim() !== '');
-                        
-                        const res = await fetch(`/api/v1/products/${product.value.pid}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(product.value)
-                        });
-                        const data = await res.json();
-                        if(data.success) {
-                            window.location.reload();
-                        } else {
-                            alert('Error updating product: ' + (data.message || ''));
-                        }
-                    } catch(e) {
-                        alert('Error saving product');
-                    } finally {
-                        saving.value = false;
-                    }
-                };
-
-                // Link Modal Logic
-                const showLinkModal = ref(false);
-                const productLandingUrl = ref('');
-                const checkoutSuccessUrl = ref('');
-
-                const openLink = async (pid) => {
-                    try {
-                        const res = await fetch(`/api/v1/products/${pid}`);
-                        const data = await res.json();
-                        if(data.success) {
-                            product.value = data.data;
-                            productLandingUrl.value = `${window.location.origin}/product/${product.value.pid}`;
-                            const orderId = `LV-${Math.floor(Math.random() * 900000) + 100000}`;
-                            checkoutSuccessUrl.value = `${window.location.origin}/checkout/success?value=${product.value.sellPrice}&currency=USD&order_id=${orderId}`;
-                            showLinkModal.value = true;
-                        }
-                    } catch(e) {
-                        alert('Error loading product link details');
-                    }
-                };
-
-                const closeLinkModal = () => {
-                    showLinkModal.value = false;
-                };
-
-                const copyToClipboard = async (text) => {
-                    try {
-                        await navigator.clipboard.writeText(text);
-                    } catch(e) {
-                        console.error('Failed to copy', e);
-                    }
-                };
-
-                const uploadMedia = async (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    
-                    uploadingMedia.value = true;
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    try {
-                        const res = await fetch('/api/v1/upload-media', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        const data = await res.json();
-                        if (data.success) {
-                            product.value.uploadedVideo = data.data.url;
-                        } else {
-                            alert('Upload failed: ' + (data.message || ''));
-                        }
-                    } catch (err) {
-                        alert('Upload failed');
-                    } finally {
-                        uploadingMedia.value = false;
-                        e.target.value = ''; // Reset file input
-                    }
-                };
-
-                window.editProduct = openModal;
-                window.openLinkModal = openLink;
-
-                return {
-                    showModal, saving, uploadingMedia, product, closeModal, addImage, removeImage, setMainImage, aiRewrite, saveProduct,
-                    showLinkModal, openLink, closeLinkModal, productLandingUrl, checkoutSuccessUrl, copyToClipboard, uploadMedia
-                };
-            }
-        });
-
-        modalApp.mount('#vue-modal-root');
-    </script>
-    <!-- AI Chat Widget -->
-    <div id="ai-chat-root">
-        <!-- Floating Chat Button -->
-        <button v-if="!isOpen" @click="isOpen = true" class="fixed bottom-6 right-6 w-14 h-14 bg-led-purple text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-purple-700 transition-all z-50">
-            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-        </button>
-
-        <!-- Chat Window -->
-        <div v-if="isOpen" class="fixed bottom-6 right-6 w-96 h-[500px] bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 flex flex-col overflow-hidden">
-            <!-- Header -->
-            <div class="bg-led-purple p-4 flex justify-between items-center text-white">
-                <div class="font-bold flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    QuantCAI AI Assistant
-                </div>
-                <button @click="isOpen = false" class="text-white hover:text-gray-200"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
-            </div>
-            
-            <!-- Messages -->
-            <div class="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col gap-3" id="chat-messages">
-                <div v-for="(msg, idx) in messages" :key="idx" :class="msg.role === 'user' ? 'self-end bg-led-purple text-white' : 'self-start bg-white border border-gray-200 text-obsidian'" class="px-4 py-2 rounded-xl max-w-[85%] text-sm whitespace-pre-wrap">
-                    {% raw %}{{ msg.content }}{% endraw %}
-                </div>
-                <div v-if="loading" class="self-start bg-white border border-gray-200 text-obsidian px-4 py-2 rounded-xl text-sm italic">
-                    AI is thinking...
-                </div>
-            </div>
-
-            <!-- Input -->
-            <div class="p-4 border-t border-gray-200 bg-white">
-                <form @submit.prevent="sendMessage" class="flex gap-2">
-                    <input v-model="inputMsg" :disabled="loading" placeholder="Ask AI to post an ad..." class="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-led-purple focus:ring-1 focus:ring-led-purple">
-                    <button type="submit" :disabled="loading || !inputMsg.trim()" class="bg-led-purple text-white px-4 py-2 rounded-xl font-bold disabled:opacity-50">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const chatApp = createApp({
-            setup() {
-                const isOpen = ref(false);
-                const loading = ref(false);
-                const inputMsg = ref('');
-                const messages = ref([
-                    { role: 'assistant', content: 'Hi! I am the QuantCAI AI Assistant. I can help you manage products, write ads, and run marketing campaigns. What can I do for you today?' }
-                ]);
-
-                const sendMessage = async () => {
-                    const msg = inputMsg.value.trim();
-                    if (!msg) return;
-                    
-                    messages.value.push({ role: 'user', content: msg });
-                    inputMsg.value = '';
-                    loading.value = true;
-                    
-                    try {
-                        const payload = { messages: messages.value.filter(m => m.role === 'user' || m.role === 'assistant') };
-                        const res = await fetch('/ai_chat/chat', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        const data = await res.json();
-                        messages.value.push(data);
-                        
-                        // Scroll to bottom
-                        setTimeout(() => {
-                            const container = document.getElementById('chat-messages');
-                            if (container) container.scrollTop = container.scrollHeight;
-                        }, 50);
-                    } catch(e) {
-                        messages.value.push({ role: 'assistant', content: 'Sorry, an error occurred.' });
-                    } finally {
-                        loading.value = false;
-                    }
-                };
-
-                return { isOpen, loading, inputMsg, messages, sendMessage };
-            }
-        });
-        chatApp.mount('#ai-chat-root');
     </script>
 </body>
 </html>

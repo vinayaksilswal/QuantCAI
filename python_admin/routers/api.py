@@ -26,7 +26,6 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from auth import verify_credentials
-from services.ai_service import generate_product_copy
 from services.chat_agent import chat_with_agent
 
 
@@ -47,34 +46,7 @@ class StandardResponse(BaseModel):
     data: Optional[Any] = None
 
 
-class ProductUpdate(BaseModel):
-    """Request model for updating a product."""
-    productName: Optional[str] = None
-    sellPrice: Optional[float] = None
-    originalPrice: Optional[float] = None
-    costPrice: Optional[float] = None
-    inventory: Optional[int] = None
-    categoryName: Optional[str] = None
-    description: Optional[str] = None
-    highlights: Optional[List[str]] = None
-    productImage: Optional[str] = None
-    productImages: Optional[List[str]] = None
-    productVideo: Optional[str] = None
-    uploadedVideo: Optional[str] = None
-    tagline: Optional[str] = None
 
-
-class ReorderRequest(BaseModel):
-    """Request model for moving a product up or down."""
-    direction: str = Field(..., description="'up' or 'down'")
-
-
-
-
-class RewriteRequest(BaseModel):
-    """Request model for AI product copy rewrite."""
-    title: str
-    description: str
 
 
 class ChatRequest(BaseModel):
@@ -82,6 +54,14 @@ class ChatRequest(BaseModel):
     messages: List[Dict[str, Any]] = Field(
         ..., description="Conversation messages array"
     )
+
+class CampaignCreate(BaseModel):
+    baseCaption: str
+    mediaUrl: str
+    mediaType: str
+
+class CampaignUpdate(BaseModel):
+    isActive: bool
 
 
 # =============================================================================
@@ -209,116 +189,62 @@ async def get_media(media_id: str, request: Request):
     return StreamingResponse(iter_bytes(), headers=headers, media_type=media_record.mimeType)
 
 # =============================================================================
-# Product Endpoints
+# Social Campaign Endpoints
 # =============================================================================
-@router.get("/products/{pid}", response_model=StandardResponse)
-async def get_product(pid: str, request: Request) -> StandardResponse:
-    """Get a single product by its PID (CJ product identifier)."""
+@router.post("/campaigns", response_model=StandardResponse)
+async def create_campaign(data: CampaignCreate, request: Request) -> StandardResponse:
+    """Create a new social media campaign."""
     prisma = request.app.state.prisma
-    product = await prisma.product.find_unique(where={"pid": pid})
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return StandardResponse(success=True, data=product.model_dump())
-
-
-@router.put("/products/{pid}", response_model=StandardResponse)
-async def update_product(
-    pid: str, data: ProductUpdate, request: Request
-) -> StandardResponse:
-    """Update a product by its PID."""
-    prisma = request.app.state.prisma
-    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-
     try:
-        updated = await prisma.product.update(
-            where={"pid": pid},
-            data=update_data,
+        campaign = await prisma.socialcampaign.create(
+            data={
+                "baseCaption": data.baseCaption,
+                "mediaUrl": data.mediaUrl,
+                "mediaType": data.mediaType,
+            }
+        )
+        return StandardResponse(success=True, data=campaign.model_dump())
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/campaigns", response_model=StandardResponse)
+async def get_campaigns(request: Request) -> StandardResponse:
+    """Get all social media campaigns."""
+    prisma = request.app.state.prisma
+    try:
+        campaigns = await prisma.socialcampaign.find_many(
+            order={"createdAt": "desc"}
+        )
+        data = [c.model_dump() for c in campaigns]
+        return StandardResponse(success=True, data=data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/campaigns/{cid}", response_model=StandardResponse)
+async def update_campaign(cid: str, data: CampaignUpdate, request: Request) -> StandardResponse:
+    """Update a social media campaign's active status."""
+    prisma = request.app.state.prisma
+    try:
+        updated = await prisma.socialcampaign.update(
+            where={"id": cid},
+            data={"isActive": data.isActive},
         )
         return StandardResponse(success=True, data=updated.model_dump())
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-@router.delete("/products/{pid}", response_model=StandardResponse)
-async def delete_product(pid: str, request: Request) -> StandardResponse:
-    """Delete a product by its PID."""
+@router.delete("/campaigns/{cid}", response_model=StandardResponse)
+async def delete_campaign(cid: str, request: Request) -> StandardResponse:
+    """Delete a social media campaign."""
     prisma = request.app.state.prisma
     try:
-        await prisma.product.delete(where={"pid": pid})
-        return StandardResponse(success=True, message="Product deleted")
+        await prisma.socialcampaign.delete(where={"id": cid})
+        return StandardResponse(success=True, message="Campaign deleted")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/products/{pid}/reorder", response_model=StandardResponse)
-async def reorder_product(
-    pid: str, req: ReorderRequest, request: Request
-) -> StandardResponse:
-    """Move a product up or down the catalog."""
-    prisma = request.app.state.prisma
-    
-    # Fetch all products sorted
-    all_products = await prisma.product.find_many(
-        order=[
-            {"manualSortOrder": "asc"},
-            {"listCount": "desc"}
-        ]
-    )
-    
-    if not all_products:
-        return StandardResponse(success=False, message="No products found")
 
-    # Initialize manualSortOrder for products that don't have it
-    needs_update = False
-    for idx, p in enumerate(all_products):
-        if p.manualSortOrder is None or p.manualSortOrder != idx:
-            p.manualSortOrder = idx
-            needs_update = True
-            
-    if needs_update:
-        for p in all_products:
-            await prisma.product.update(
-                where={"id": p.id},
-                data={"manualSortOrder": p.manualSortOrder}
-            )
-
-    curr_idx = next((i for i, p in enumerate(all_products) if p.pid == pid), -1)
-    if curr_idx == -1:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    swap_idx = curr_idx - 1 if req.direction == "up" else curr_idx + 1
-    
-    if 0 <= swap_idx < len(all_products):
-        curr_p = all_products[curr_idx]
-        swap_p = all_products[swap_idx]
-        
-        await prisma.product.update(
-            where={"id": curr_p.id},
-            data={"manualSortOrder": swap_p.manualSortOrder}
-        )
-        await prisma.product.update(
-            where={"id": swap_p.id},
-            data={"manualSortOrder": curr_p.manualSortOrder}
-        )
-        
-        return StandardResponse(success=True, message="Reordered successfully")
-    else:
-        return StandardResponse(success=False, message="Cannot move further")
-
-
-
-
-# =============================================================================
-# AI Endpoints
-# =============================================================================
-@router.post("/gemini/rewrite", response_model=StandardResponse)
-async def rewrite_product_api(req: RewriteRequest) -> StandardResponse:
-    """
-    Run AI rewrite on raw product title and description.
-    Returns premium e-commerce copy with title, description, highlights, tagline.
-    """
-    ai_copy = await generate_product_copy(req.title, req.description)
-    return StandardResponse(success=True, data=ai_copy)
 
 
 # =============================================================================
@@ -372,12 +298,12 @@ async def get_recent_social_posts(request: Request) -> StandardResponse:
         posts = await prisma.socialpost.find_many(
             order={"createdAt": "desc"},
             take=10,
-            include={"product": True},
+            include={"campaign": True},
         )
         data = [
             {
                 "id": p.id,
-                "productName": p.product.productName if p.product else None,
+                "campaignId": p.campaignId,
                 "platform": p.platform,
                 "type": p.type,
                 "status": p.status,
