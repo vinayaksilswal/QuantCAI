@@ -1,8 +1,21 @@
 import os
 import re
+import sys
+
+source_path = "../prisma/schema.prisma"
+target_path = "schema_py.prisma"
+
+if not os.path.exists(source_path):
+    print(f"Warning: {source_path} not found.")
+    if os.path.exists(target_path):
+        print(f"{target_path} already exists, skipping generation.")
+        sys.exit(0)
+    else:
+        print(f"Error: {source_path} is missing and {target_path} is not found. Cannot proceed.")
+        sys.exit(1)
 
 # 1. Read the original schema
-with open("../prisma/schema.prisma", "r") as f:
+with open(source_path, "r") as f:
     content = f.read()
 
 # 2. Inject url into datasource if not present
