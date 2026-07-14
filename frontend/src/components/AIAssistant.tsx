@@ -6,16 +6,17 @@ import { useSubscription } from "@/context/SubscriptionContext";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
-import { MessageCircle, X, Send, Bot, User, Shield } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Shield, ArrowRight, Mail, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "./ui/card";
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import type { ActionButton } from "@/context/AIContextInstance";
 
 export const AIAssistant = () => {
-    const { isOpen, toggleChat, messages, sendMessage, isLoading, activeTool, closeTool } = useAI();
+    const { isOpen, toggleChat, messages, sendMessage, isLoading, activeTool, closeTool, dynamicSuggestions, welcomeMessage } = useAI();
     const { subscriptionPlan } = useAuth();
     const { tier, usage, refreshEntitlements } = useSubscription();
     const [input, setInput] = useState("");
@@ -39,6 +40,9 @@ export const AIAssistant = () => {
         } else if (activeTool === "circuit-builder") {
             navigate("/circuit-builder");
             closeTool();
+        } else if (activeTool === "pqc-scanner") {
+            navigate("/pqc-scanner");
+            closeTool();
         }
     }, [activeTool, navigate, closeTool]);
 
@@ -47,27 +51,27 @@ export const AIAssistant = () => {
         const handleNavigate = (e: any) => {
             const { path, section } = e.detail;
             navigate(path + (section ? `#${section}` : ""));
-            // Maybe close chat or show a message
         };
 
         const handleStartTutorial = (e: any) => {
             const { tutorialId } = e.detail;
-            // This event should be picked up by TutorialOverlay if it's listening,
-            // or we can handle it by navigating to circuit builder first.
             navigate("/circuit-builder");
-            // We need a way to tell TutorialOverlay to start.
-            // Let's use localStorage or a shared state if needed, 
-            // but for now, the user's request "integrate it with the tutorial" 
-            // suggests the AI should be able to trigger it.
             localStorage.setItem("pending_tutorial", tutorialId);
+        };
+
+        const handleLoadTemplate = (e: any) => {
+            const { templateName } = e.detail;
+            localStorage.setItem("pending_template", templateName);
         };
 
         window.addEventListener("ai-navigate", handleNavigate);
         window.addEventListener("ai-start-tutorial", handleStartTutorial);
+        window.addEventListener("ai-load-template", handleLoadTemplate);
 
         return () => {
             window.removeEventListener("ai-navigate", handleNavigate);
             window.removeEventListener("ai-start-tutorial", handleStartTutorial);
+            window.removeEventListener("ai-load-template", handleLoadTemplate);
         };
     }, [navigate]);
 
@@ -77,16 +81,14 @@ export const AIAssistant = () => {
         }
     }, [messages, isOpen]);
 
-
     const handleSend = async () => {
         if (!input.trim()) return;
-        
+
         if (isFreeUser && usage.daily_ai_chats >= 10) {
             window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'chats' } }));
-            toast.error("Daily AI message limit reached. Upgrade to Pro!");
             return;
         }
-        
+
         const msg = input;
         setInput("");
         try {
@@ -104,6 +106,57 @@ export const AIAssistant = () => {
         }
     };
 
+    const handleActionButton = (action: ActionButton) => {
+        if (action.type === "navigate" && action.path) {
+            navigate(action.path);
+        } else if (action.type === "email" && action.email) {
+            const subject = encodeURIComponent(action.subject || "QuantCAI Inquiry");
+            window.open(`mailto:${action.email}?subject=${subject}`, '_blank');
+        } else if (action.type === "tool" && action.toolName) {
+            if (action.toolName === "circuit-builder" || action.toolName === "quantum-states" || action.toolName === "pqc-scanner") {
+                navigate(`/${action.toolName}`);
+            }
+        } else if (action.type === "upgrade") {
+            window.dispatchEvent(new CustomEvent('show-upgrade-modal', { detail: { reason: 'feature' } }));
+        }
+    };
+
+    // Get context-aware suggestions (prefer dynamic from backend, fallback to static)
+    const suggestions = dynamicSuggestions.length > 0
+        ? dynamicSuggestions
+        : (isEnterprise
+            ? ["Compute PQC Readiness Score", "Scan for RSA-2048/ECC-256", "Draft remediation roadmap"]
+            : (() => {
+                const path = location.pathname;
+                if (path.startsWith("/circuit-builder")) return ["Explain my circuit", "Build a Bell State", "Optimize gate count"];
+                if (path.startsWith("/pqc-scanner")) return ["What is PQC?", "Explain FIPS 203", "How to migrate from RSA?"];
+                if (path.startsWith("/learn/qubits")) return ["Explain superposition", "What is the Bloch sphere?", "Quiz me!"];
+                if (path.startsWith("/learn/gates")) return ["What does Hadamard do?", "Build a Bell State", "Show me CNOT"];
+                if (path.startsWith("/learn/pqc")) return ["What is ML-KEM?", "How does Shor's algorithm work?", "Scan a domain"];
+                if (path.startsWith("/learn")) return ["What is a qubit?", "Start learning path", "Show circuit builder"];
+                if (path.startsWith("/quantum-states")) return ["Apply Hadamard gate", "What is superposition?", "Explain Bloch sphere"];
+                if (path.startsWith("/enterprise")) return ["CLI scanner details", "On-prem deployment", "Contact the team"];
+                return ["Explain Bell States", "Open Circuit Builder", "How do qubits work?"];
+            })()
+        );
+
+    // Smart welcome message
+    const welcome = welcomeMessage || (isEnterprise
+        ? "I am the Large Quantitative Model. Ask me to compute PQC Readiness Scores, map cryptographic dependencies, or draft remediation plans."
+        : (() => {
+            const path = location.pathname;
+            if (path.startsWith("/circuit-builder")) return "Ready to build quantum circuits! I can design, explain, and optimize. Try asking me to build a Bell State.";
+            if (path.startsWith("/pqc-scanner")) return "I can assess domains for quantum-vulnerable cryptography. Enter a domain or ask about PQC standards.";
+            if (path.startsWith("/learn/qubits")) return "I see you're studying **Qubits**! Ask me anything about superposition, measurement, or the Bloch sphere.";
+            if (path.startsWith("/learn/gates")) return "Exploring **Quantum Gates**! I can explain any gate, demonstrate on the visualizer, or help you build circuits.";
+            if (path.startsWith("/learn/pqc")) return "Learning about **Post-Quantum Cryptography**! I can explain NIST standards, scan domains, or discuss migration strategies.";
+            if (path.startsWith("/learn")) return "Welcome to the quantum learning journey! I'm your personal tutor — ask me anything or let me guide you step by step.";
+            if (path.startsWith("/quantum-states")) return "I can demonstrate gate effects on the Bloch Sphere. Try asking me to apply a Hadamard gate!";
+            if (path.startsWith("/enterprise")) return "I can walk you through our enterprise offerings — CLI scanner, on-prem deployment, compliance suite, and custom SLAs.";
+            return "I'm your quantum assistant. Ask me to explain concepts, build circuits, or guide you through tutorials.";
+        })()
+    );
+
     return (
         <>
             {/* Floating Button */}
@@ -114,8 +167,8 @@ export const AIAssistant = () => {
                     className={cn(
                         "rounded-full h-14 w-14 shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all duration-500 hover:scale-110 active:scale-95",
                         isOpen ? "scale-0 opacity-0 rotate-90" : "scale-100 opacity-100 rotate-0",
-                        isEnterprise 
-                            ? "bg-gradient-to-tr from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 border-0" 
+                        isEnterprise
+                            ? "bg-gradient-to-tr from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 border-0"
                             : "bg-gradient-to-tr from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white border-0"
                     )}
                 >
@@ -168,32 +221,32 @@ export const AIAssistant = () => {
                                     <div className="text-center my-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
                                         <div className="relative inline-block mb-6">
                                             <div className="absolute inset-0 bg-blue-500/20 blur-2xl rounded-full" />
-                                            <div className={cn("relative h-20 w-20 mx-auto rounded-3xl flex items-center justify-center shadow-xl rotate-3", 
+                                            <div className={cn("relative h-20 w-20 mx-auto rounded-3xl flex items-center justify-center shadow-xl rotate-3",
                                                 isEnterprise ? "bg-gradient-to-tr from-emerald-600 to-teal-600" : "bg-gradient-to-tr from-blue-600 to-purple-600"
                                             )}>
                                                 {isEnterprise ? <Shield className="h-10 w-10 text-slate-950" /> : <Bot className="h-10 w-10 text-white" />}
                                             </div>
                                         </div>
                                         <h3 className="text-xl font-bold mb-2">
-                                            {isEnterprise ? "LQM Compliance Suite" : "Welcome to QuantCAI"}
+                                            {isEnterprise ? "LQM Compliance Suite" : "QuantAI"}
                                         </h3>
                                         <p className="text-sm text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
-                                            {isEnterprise 
-                                                ? "I am the Large Quantitative Model. Ask me to compute PQC Readiness Scores, map cryptographic dependencies, or draft remediation plans."
-                                                : "I'm your quantum assistant. Ask me to explain concepts, build circuits, or guide you through tutorials."
-                                            }
+                                            {welcome}
                                         </p>
 
                                         <div className="grid grid-cols-1 gap-2 mt-8 max-w-[280px] mx-auto">
-                                            {(isEnterprise 
-                                                ? ["Compute PQC Readiness Score", "Scan for RSA-2048/ECC-256", "Draft remediation roadmap"]
-                                                : ["Explain Bell States", "Open Circuit Builder", "How do qubits work?"]
-                                            ).map((suggestion) => (
+                                            {suggestions.map((suggestion) => (
                                                 <button
                                                     key={suggestion}
-                                                    onClick={() => setInput(suggestion)}
-                                                    className={cn("text-xs text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors font-medium",
-                                                        isEnterprise ? "text-emerald-300" : "text-blue-300"
+                                                    onClick={() => {
+                                                        setInput(suggestion);
+                                                        // Auto-send on suggestion click
+                                                        setTimeout(() => {
+                                                            sendMessage(suggestion);
+                                                        }, 100);
+                                                    }}
+                                                    className={cn("text-xs text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-200 font-medium hover:scale-[1.02] active:scale-[0.98]",
+                                                        isEnterprise ? "text-emerald-300 hover:border-emerald-500/30" : "text-blue-300 hover:border-blue-500/30"
                                                     )}
                                                 >
                                                     {suggestion}
@@ -227,36 +280,65 @@ export const AIAssistant = () => {
                                             >
                                                 {msg.role === "user" ? <User className="h-3.5 w-3.5" /> : (isEnterprise ? <Shield className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />)}
                                             </div>
-                                            <div
-                                                className={cn(
-                                                    "px-4 py-3 rounded-2xl text-[13.5px] leading-relaxed relative",
-                                                    msg.role === "user"
-                                                        ? (isEnterprise ? "bg-emerald-600 text-slate-950 rounded-tr-none shadow-emerald-900/20" : "bg-blue-600 text-white rounded-tr-none shadow-blue-900/20") + " shadow-lg"
-                                                        : "bg-white/5 text-slate-200 rounded-tl-none border border-white/5 shadow-sm"
-                                                )}
-                                            >
-                                                {msg.content ? (
-                                                    <div className="prose prose-invert prose-sm max-w-none">
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkMath]}
-                                                            rehypePlugins={[rehypeKatex]}
-                                                            components={{
-                                                                p: ({ children }) => <p className="m-0 last:mb-0 mb-3">{children}</p>,
-                                                                code: ({ children }) => <code className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs", isEnterprise ? "bg-white/10 text-emerald-300" : "bg-white/10 text-blue-300")}>{children}</code>,
-                                                                strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
-                                                            }}
-                                                        >
-                                                            {msg.content}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                ) : (
-                                                    isLoading && i === messages.length - 1 ? (
-                                                        <div className="flex gap-1.5 h-6 items-center px-1">
-                                                            <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.3s]", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
-                                                            <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.15s]", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
-                                                            <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
+                                            <div className="flex flex-col gap-2">
+                                                <div
+                                                    className={cn(
+                                                        "px-4 py-3 rounded-2xl text-[13.5px] leading-relaxed relative",
+                                                        msg.role === "user"
+                                                            ? (isEnterprise ? "bg-emerald-600 text-slate-950 rounded-tr-none shadow-emerald-900/20" : "bg-blue-600 text-white rounded-tr-none shadow-blue-900/20") + " shadow-lg"
+                                                            : "bg-white/5 text-slate-200 rounded-tl-none border border-white/5 shadow-sm"
+                                                    )}
+                                                >
+                                                    {msg.content ? (
+                                                        <div className="prose prose-invert prose-sm max-w-none">
+                                                            <ReactMarkdown
+                                                                remarkPlugins={[remarkMath]}
+                                                                rehypePlugins={[rehypeKatex]}
+                                                                components={{
+                                                                    p: ({ children }) => <p className="m-0 last:mb-0 mb-3">{children}</p>,
+                                                                    code: ({ children }) => <code className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs", isEnterprise ? "bg-white/10 text-emerald-300" : "bg-white/10 text-blue-300")}>{children}</code>,
+                                                                    strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
+                                                                }}
+                                                            >
+                                                                {msg.content}
+                                                            </ReactMarkdown>
                                                         </div>
-                                                    ) : null
+                                                    ) : (
+                                                        isLoading && i === messages.length - 1 ? (
+                                                            <div className="flex gap-1.5 h-6 items-center px-1">
+                                                                <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.3s]", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
+                                                                <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.15s]", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
+                                                                <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", isEnterprise ? "bg-emerald-400" : "bg-blue-400")}></span>
+                                                            </div>
+                                                        ) : null
+                                                    )}
+                                                </div>
+
+                                                {/* Inline Action Buttons */}
+                                                {msg.role === "assistant" && msg.actions && msg.actions.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                                        {msg.actions.map((action, actionIdx) => (
+                                                            <button
+                                                                key={actionIdx}
+                                                                onClick={() => handleActionButton(action)}
+                                                                className={cn(
+                                                                    "inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]",
+                                                                    action.type === "email"
+                                                                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30"
+                                                                        : action.type === "navigate"
+                                                                            ? "bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30"
+                                                                            : action.type === "upgrade"
+                                                                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30"
+                                                                                : "bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30"
+                                                                )}
+                                                            >
+                                                                {action.type === "email" ? <Mail className="h-3 w-3" /> :
+                                                                 action.type === "navigate" ? <ArrowRight className="h-3 w-3" /> :
+                                                                 <ExternalLink className="h-3 w-3" />}
+                                                                {action.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -269,7 +351,7 @@ export const AIAssistant = () => {
                                 <div ref={scrollRef} />
                             </div>
                         </ScrollArea>
-                        
+
                         {chatLimitReached && (
                             <div className="mx-4 mb-2 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 font-mono text-center flex flex-col gap-1.5 animate-in fade-in slide-in-from-bottom-2">
                                 <span className="font-bold uppercase tracking-wider">🔒 Daily Limit Reached</span>

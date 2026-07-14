@@ -1,26 +1,27 @@
 import { useState, useEffect, useCallback, ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { api, API_BASE } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { AIContext, Message } from './AIContextInstance';
+import { AIContext, Message, ActionButton } from './AIContextInstance';
 
 const parseQasm = (qasm: string) => {
     const lines = qasm.split('\n');
     const actions: { action: string; params: any }[] = [];
-    
+
     // Always clear first
     actions.push({ action: 'clear', params: {} });
-    
+
     for (let line of lines) {
         line = line.trim().replace(/;$/, '');
         if (!line || line.startsWith('OPENQASM') || line.startsWith('include') || line.startsWith('qreg') || line.startsWith('creg') || line.startsWith('//') || line.startsWith('barrier')) {
             continue;
         }
-        
+
         // Skip measure gates as they are simulated automatically
         if (line.startsWith('measure')) {
             continue;
         }
-        
+
         // Match 1-qubit gates, e.g. "h q[0]" or "x q[1]"
         const oneQubitMatch = line.match(/^([a-z0-9]+)\s+q\[(\d+)\]$/i);
         if (oneQubitMatch) {
@@ -32,7 +33,7 @@ const parseQasm = (qasm: string) => {
             });
             continue;
         }
-        
+
         // Match 2-qubit gates, e.g. "cx q[0],q[1]"
         const twoQubitMatch = line.match(/^([a-z0-9]+)\s+q\[(\d+)\]\s*,\s*q\[(\d+)\]$/i);
         if (twoQubitMatch) {
@@ -46,7 +47,7 @@ const parseQasm = (qasm: string) => {
             continue;
         }
     }
-    
+
     // Always run at the end
     actions.push({ action: 'run', params: {} });
     return actions;
@@ -54,6 +55,7 @@ const parseQasm = (qasm: string) => {
 
 export const AIProvider = ({ children }: { children: ReactNode }) => {
     const { user } = useAuth();
+    const location = useLocation();
     const [isOpen, setIsOpen] = useState<boolean>(() => {
         if (typeof window !== "undefined") {
             return localStorage.getItem("quantai_chat_open") === "true";
@@ -75,6 +77,8 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         contextName: null,
         metadata: {}
     });
+    const [dynamicSuggestions, setDynamicSuggestions] = useState<string[]>([]);
+    const [welcomeMessage, setWelcomeMessage] = useState<string>("");
 
     useEffect(() => {
         localStorage.setItem("quantai_chat_open", String(isOpen));
@@ -83,6 +87,33 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         localStorage.setItem("quantai_chat_messages", JSON.stringify(messages));
     }, [messages]);
+
+    // Auto-detect context from route changes
+    useEffect(() => {
+        const path = location.pathname;
+        let contextName: string | null = null;
+
+        if (path.startsWith("/learn") || path.startsWith("/quantum-computing")) {
+            contextName = "learn";
+        } else if (path.startsWith("/circuit-builder")) {
+            contextName = "circuit-builder";
+        } else if (path.startsWith("/quantum-simulator") || path.startsWith("/sandbox")) {
+            contextName = "qasm-ide";
+        } else if (path.startsWith("/quantum-states")) {
+            contextName = "quantum-states";
+        } else if (path.startsWith("/pqc-scanner") || path.startsWith("/repo-scanner")) {
+            contextName = "pqc-scanner";
+        } else if (path.startsWith("/enterprise")) {
+            contextName = "enterprise";
+        } else if (path.startsWith("/tools")) {
+            contextName = "tools";
+        }
+
+        setClientContext(prev => {
+            const newMeta = { ...prev.metadata, current_route: path };
+            return { contextName, metadata: newMeta };
+        });
+    }, [location.pathname]);
 
     const toggleChat = () => setIsOpen(!isOpen);
 
@@ -113,9 +144,9 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                 }
                 if (isMetadataEqual) return prev;
             }
-            return { contextName, metadata };
+            return { contextName, metadata: { ...metadata, current_route: location.pathname } };
         });
-    }, []);
+    }, [location.pathname]);
 
     const sendMessage = async (content: string) => {
         // Optimistic update
@@ -147,7 +178,8 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                     message: content,
                     conversation_id: conversationId,
                     context: clientContext.contextName,
-                    client_context: clientContext.metadata
+                    client_context: clientContext.metadata,
+                    current_route: location.pathname,
                 }),
             });
 
@@ -214,6 +246,17 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
                                     });
                                 } else if (data.type === "tool_call") {
                                     handleToolCall(data.name, data.args);
+                                } else if (data.type === "meta") {
+                                    if (data.conversation_id) {
+                                        localStorage.setItem('tutor_conversation_id', data.conversation_id);
+                                    }
+                                    // Update dynamic suggestions from backend
+                                    if (data.suggestions) {
+                                        setDynamicSuggestions(data.suggestions);
+                                    }
+                                    if (data.welcome_message) {
+                                        setWelcomeMessage(data.welcome_message);
+                                    }
                                 } else if (data.conversation_id) {
                                     localStorage.setItem('tutor_conversation_id', data.conversation_id);
                                 }
@@ -240,6 +283,7 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
 
     const handleToolCall = (name: string, args: any) => {
         console.log("AI Tool Call:", name, args);
+
         if (name === "open_tool") {
             const tool = args.tool_name;
             if (tool === "quantum-states" || tool === "circuit-builder" || tool === "pqc-scanner") {
@@ -248,8 +292,26 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
         } else if (name === "manage_circuit") {
             const id = Math.random().toString(36).substring(7);
             setCircuitActions(prev => [...prev, { id, action: args.action, params: args.params }]);
+        } else if (name === "navigate_to_page") {
+            const path = args.path || "/";
+            const section = args.section || "";
+            window.dispatchEvent(new CustomEvent("ai-navigate", { detail: { path, section } }));
         } else if (name === "navigate_to_learn") {
+            // Legacy support
             window.dispatchEvent(new CustomEvent("ai-navigate", { detail: { path: "/learn", section: args.section } }));
+        } else if (name === "suggest_learning_path") {
+            // Show as a contextual message with navigation action
+            const topic = args.current_topic || "";
+            window.dispatchEvent(new CustomEvent("ai-learning-path", { detail: { currentTopic: topic } }));
+        } else if (name === "explain_quiz_hint") {
+            // The AI response already contains the hint — this is for tracking
+            console.log("Quiz hint requested for:", args.page, "q:", args.question_index);
+        } else if (name === "show_circuit_template") {
+            window.dispatchEvent(new CustomEvent("ai-load-template", { detail: { templateName: args.template_name } }));
+            // Also navigate to circuit builder if not already there
+            if (!location.pathname.startsWith("/circuit-builder")) {
+                window.dispatchEvent(new CustomEvent("ai-navigate", { detail: { path: "/circuit-builder" } }));
+            }
         } else if (name === "start_tutorial") {
             window.dispatchEvent(new CustomEvent("ai-start-tutorial", { detail: { tutorialId: args.tutorial_id } }));
         } else if (name === "apply_gate_to_visualizer") {
@@ -257,6 +319,85 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
             setVisualizerActions(prev => [...prev, { id, gate: args.gate }]);
         } else if (name === "run_pqc_scan") {
             window.dispatchEvent(new CustomEvent("ai-run-pqc", { detail: { target: args.target_url } }));
+            // Navigate to scanner if not there
+            if (!location.pathname.startsWith("/pqc-scanner")) {
+                window.dispatchEvent(new CustomEvent("ai-navigate", { detail: { path: "/pqc-scanner" } }));
+            }
+        } else if (name === "recommend_enterprise_action") {
+            const actionType = args.action_type;
+            if (actionType === "email") {
+                // Append an action button to the last assistant message
+                setMessages(prev => {
+                    const next = [...prev];
+                    const lastMsg = next[next.length - 1];
+                    if (lastMsg && lastMsg.role === "assistant") {
+                        lastMsg.actions = [
+                            ...(lastMsg.actions || []),
+                            {
+                                label: "📧 Email Enterprise Team",
+                                type: "email",
+                                email: "quantc.info@gmail.com",
+                                subject: "QuantCAI Enterprise Inquiry",
+                            }
+                        ];
+                    }
+                    return next;
+                });
+            } else if (actionType === "demo") {
+                setMessages(prev => {
+                    const next = [...prev];
+                    const lastMsg = next[next.length - 1];
+                    if (lastMsg && lastMsg.role === "assistant") {
+                        lastMsg.actions = [
+                            ...(lastMsg.actions || []),
+                            {
+                                label: "🎯 Request Custom Demo",
+                                type: "navigate",
+                                path: "/enterprise",
+                            }
+                        ];
+                    }
+                    return next;
+                });
+            } else if (actionType === "register_org") {
+                setMessages(prev => {
+                    const next = [...prev];
+                    const lastMsg = next[next.length - 1];
+                    if (lastMsg && lastMsg.role === "assistant") {
+                        lastMsg.actions = [
+                            ...(lastMsg.actions || []),
+                            {
+                                label: "🏢 Register Organization",
+                                type: "navigate",
+                                path: "/signup?plan=enterprise",
+                            }
+                        ];
+                    }
+                    return next;
+                });
+            } else if (actionType === "cli_info") {
+                setMessages(prev => {
+                    const next = [...prev];
+                    const lastMsg = next[next.length - 1];
+                    if (lastMsg && lastMsg.role === "assistant") {
+                        lastMsg.actions = [
+                            ...(lastMsg.actions || []),
+                            {
+                                label: "📧 Get CLI Scanner License",
+                                type: "email",
+                                email: "quantc.info@gmail.com",
+                                subject: "QuantCAI CLI Scanner License Request",
+                            },
+                            {
+                                label: "🏢 Enterprise Details",
+                                type: "navigate",
+                                path: "/enterprise",
+                            }
+                        ];
+                    }
+                    return next;
+                });
+            }
         }
     };
 
@@ -274,7 +415,9 @@ export const AIProvider = ({ children }: { children: ReactNode }) => {
             visualizerActions,
             ackVisualizerAction,
             clientContext,
-            updateClientContext
+            updateClientContext,
+            dynamicSuggestions,
+            welcomeMessage,
         }}>
             {children}
         </AIContext.Provider>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -6,12 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTracking } from '@/hooks/usePageTracking';
+import { useAI } from '@/hooks/useAI';
 import { Lock, BookOpen, Atom, Zap, CheckCircle2, AlertTriangle, ArrowRight, Code } from 'lucide-react';
 
 const LearnQubits = () => {
   usePageTracking('learn-qubits');
   const navigate = useNavigate();
   const { subscriptionPlan } = useAuth();
+  const { updateClientContext } = useAI();
 
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -29,6 +31,17 @@ const LearnQubits = () => {
     ],
     correctIndex: 1
   };
+
+  // Report page context to AI assistant
+  useEffect(() => {
+    const quizState = quizSubmitted ? (quizCorrect ? 'correct' : 'incorrect') : (selectedOption !== null ? 'in_progress' : 'unanswered');
+    updateClientContext('learn', {
+      page: 'learn/qubits',
+      page_title: 'Understanding Qubits',
+      quiz_state: quizState,
+      selected_option: selectedOption,
+    });
+  }, [quizSubmitted, quizCorrect, selectedOption, updateClientContext]);
 
   const handleSelectOption = (index: number) => {
     if (quizSubmitted) return;

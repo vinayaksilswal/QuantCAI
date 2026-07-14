@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTracking } from '@/hooks/usePageTracking';
+import { useAI } from '@/hooks/useAI';
 import { Lock, AlertTriangle, ShieldCheck, FileCheck, CheckCircle2, Award, Code } from 'lucide-react';
 
 const LearnPQC = () => {
@@ -18,6 +19,7 @@ const LearnPQC = () => {
   const [quizCorrect, setQuizCorrect] = useState<boolean | null>(null);
 
   const isPro = subscriptionPlan === 'pro' || subscriptionPlan === 'enterprise';
+  const { updateClientContext } = useAI();
 
   const quiz = {
     question: "Which cryptographic standard specifies ML-KEM for quantum-safe key exchange?",
@@ -29,6 +31,17 @@ const LearnPQC = () => {
     ],
     correctIndex: 1
   };
+
+  // Report page context to AI assistant
+  useEffect(() => {
+    const quizState = quizSubmitted ? (quizCorrect ? 'correct' : 'incorrect') : (selectedOption !== null ? 'in_progress' : 'unanswered');
+    updateClientContext('learn', {
+      page: 'learn/pqc',
+      page_title: 'Post-Quantum Cryptography',
+      quiz_state: quizState,
+      selected_option: selectedOption,
+    });
+  }, [quizSubmitted, quizCorrect, selectedOption, updateClientContext]);
 
   const handleSelectOption = (index: number) => {
     if (quizSubmitted) return;

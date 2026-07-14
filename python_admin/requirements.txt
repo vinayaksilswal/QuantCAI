@@ -1,0 +1,42 @@
+# =============================================================================
+# QuantCAI — Python Backend Dependencies
+# =============================================================================
+
+# --- Web Framework ---
+fastapi
+uvicorn[standard]
+gunicorn
+
+# --- Templating & Static Files ---
+jinja2
+python-multipart
+
+# --- Database ORM ---
+prisma
+asyncpg
+
+# --- Configuration ---
+pydantic
+pydantic-settings
+python-dotenv
+
+# --- HTTP Client (async) ---
+httpx
+
+# --- Retry & Resilience ---
+tenacity
+
+# --- Task Scheduling ---
+apscheduler
+
+# --- Email (Resend SDK) ---
+resend
+
+# --- Authentication ---
+pyjwt
+
+# --- Logging ---
+loguru
+
+# --- Monitoring ---
+prometheus-fastapi-instrumentator

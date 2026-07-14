@@ -108,17 +108,33 @@ export default function PqcScanner() {
   // Sync scanner details to AI Context
   useEffect(() => {
     updateClientContext('pqc-scanner', {
-      target_domain: domain,
-      tls_version: report?.tls_details?.version || null,
-      signature_algorithms: report?.certificates?.map(c => c.signature_algorithm) || [],
-      vulnerability_flags: report?.findings?.map(f => ({
+      page: 'pqc-scanner',
+      scan_target: domain || null,
+      scan_status: loading ? 'scanning' : (report ? 'complete' : 'idle'),
+      scan_results: report ? {
+        domain: report.domain,
+        overall_risk_score: report.overall_risk_score,
+        risk_level: report.risk_level,
+        hndl_risk_level: report.hndl_risk_level,
+        quantum_risk_grade: report.quantum_risk_grade,
+        tls_version: report.tls_details?.version,
+        tls_quantum_safe: report.tls_details?.quantum_safe,
+        key_exchange: report.tls_details?.key_exchange,
+        vulnerability_count: report.findings?.length || 0,
+        critical_findings: report.findings?.filter(f => f.severity === 'CRITICAL').length || 0,
+        high_findings: report.findings?.filter(f => f.severity === 'HIGH').length || 0,
+        certificate_algorithms: report.certificates?.map(c => c.signature_algorithm) || [],
+        cbom_quantum_vulnerable: report.cbom_summary?.quantum_vulnerable_count || 0,
+        cbom_total_assets: report.cbom_summary?.total_crypto_assets || 0,
+      } : null,
+      vulnerability_details: report?.findings?.map(f => ({
         severity: f.severity,
         title: f.title,
         description: f.description,
         remediation: f.remediation
-      })) || []
+      })) || [],
     });
-  }, [domain, report, updateClientContext]);
+  }, [domain, report, loading, updateClientContext]);
 
   // Visual text loading steps for realistic security scanner feel
   const loadingSteps = [

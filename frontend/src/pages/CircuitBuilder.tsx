@@ -273,10 +273,13 @@ const CircuitBuilder = () => {
         }));
 
         updateClientContext('circuit-builder', {
+            page: 'circuit-builder',
+            page_title: 'Multi-Qubit Circuit Builder',
             circuit_graph: circuitGraph,
-            total_qubits: numWires,
-            placed_gates_count: placedGates.length,
-            circuit_depth: calculateDepth(placedGates)
+            qubit_count: numWires,
+            gate_count: placedGates.length,
+            circuit_depth: calculateDepth(placedGates),
+            active_qasm: generateQASM2(placedGates, numWires)
         });
     }, [placedGates, numWires, updateClientContext]);
     const [results, setResults] = useState<any>(null);

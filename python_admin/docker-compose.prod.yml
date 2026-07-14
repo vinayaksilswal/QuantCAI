@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  admin-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: therapulse-admin-api:latest
+    container_name: therapulse_admin
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      - ENVIRONMENT=production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

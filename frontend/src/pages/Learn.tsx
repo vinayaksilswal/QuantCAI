@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAI } from '@/hooks/useAI';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -14,6 +15,7 @@ import { Footer } from '@/components/Footer';
 const Learn = () => {
   usePageTracking('learn');
   const navigate = useNavigate();
+  const { updateClientContext } = useAI();
 
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -24,6 +26,17 @@ const Learn = () => {
     options: ["Classical Bit", "Qubit", "Quantum Byte", "Trit"],
     correctIndex: 1
   };
+
+  // Report page context to AI assistant
+  useEffect(() => {
+    const quizState = quizSubmitted ? (quizCorrect ? 'correct' : 'incorrect') : (selectedOption !== null ? 'in_progress' : 'unanswered');
+    updateClientContext('learn', {
+      page: 'learn',
+      page_title: 'Introduction to Quantum Computing',
+      quiz_state: quizState,
+      selected_option: selectedOption,
+    });
+  }, [quizSubmitted, quizCorrect, selectedOption, updateClientContext]);
 
   const handleSelectOption = (index: number) => {
     if (quizSubmitted) return;

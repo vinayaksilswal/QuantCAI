@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; color: #333333;">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; overflow: hidden; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                    <!-- Header Bar -->
+                    <tr>
+                        <td align="center" style="background-color: #000000; padding: 20px;">
+                            <img src="https://quantcai.in/logo.png" alt="QuantCAI" style="height: 30px; display: block; margin: 0 auto;" onerror="this.style.display='none'">
+                        </td>
+                    </tr>
+                    
+                    <!-- Hero Banner -->
+                    <tr>
+                        <td align="center" style="background-color: #2D88FF; padding: 40px 20px; position: relative;">
+                            <h2 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">{{ headline }}</h2>
+                            <p style="color: #ffffff; margin: 10px 0 0 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">{{ subheadline }}</p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                                <tr>
+                                    <!-- Product Image (Left on Desktop) -->
+                                    <td width="50%" valign="top" style="padding-right: 20px;">
+                                        <img src="{{ product_image }}" alt="{{ product_name }}" style="width: 100%; max-width: 250px; border-radius: 8px; display: block;">
+                                    </td>
+                                    <!-- Product Details (Right on Desktop) -->
+                                    <td width="50%" valign="top">
+                                        <h3 style="margin: 0 0 10px 0; font-size: 20px; color: #1a1a1a;">The Product You Love:</h3>
+                                        <p style="margin: 0 0 5px 0; font-size: 16px; font-weight: bold; color: #4a4a4a;">{{ product_name }}</p>
+                                        <p style="margin: 0 0 20px 0; font-size: 18px; font-weight: 800; color: #2D88FF;">${{ "%.2f"|format(product_price) }}</p>
+                                        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #666666;">
+                                            {{ body_copy }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- CTA Section -->
+                    <tr>
+                        <td align="center" style="padding: 0 40px 40px 40px;">
+                            <a href="{{ product_url }}" style="display: inline-block; background-color: #2D88FF; color: #ffffff; font-size: 14px; font-weight: bold; text-decoration: none; padding: 15px 30px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px;">{{ cta_text }}</a>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="background-color: #f9f9f9; padding: 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0 0 10px 0; font-size: 12px; color: #999999;">
+                                © 2026 QuantCAI. All rights reserved.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #999999;">
+                                <a href="#" style="color: #2D88FF; text-decoration: none;">Privacy</a> | <a href="#" style="color: #2D88FF; text-decoration: none;">Unsubscribe</a>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

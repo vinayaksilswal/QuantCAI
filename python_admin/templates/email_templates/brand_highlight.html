@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Georgia', serif; background-color: #f0f0f0; color: #333333;">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f0f0f0; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding: 20px; border-bottom: 1px solid #eeeeee;">
+                            <img src="https://quantcai.in/logo.png" alt="QuantCAI" style="height: 30px; display: block;" onerror="this.style.display='none'">
+                            <h1 style="margin: 10px 0 0 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;">QuantCAI</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Hero Section with Overlapping Card illusion -->
+                    <tr>
+                        <td align="center" style="background-color: #2c3e50; padding: 60px 20px 80px 20px; text-align: center;">
+                            <p style="color: #ffffff; font-style: italic; font-size: 18px; margin: 0 0 10px 0;">{{ subheadline }}</p>
+                            <h2 style="color: #ffffff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 46px; font-weight: 800; text-transform: uppercase; letter-spacing: 4px; margin: 0;">{{ headline }}</h2>
+                        </td>
+                    </tr>
+                    
+                    <!-- Floating White Card -->
+                    <tr>
+                        <td align="center" style="padding: 0 20px; margin-top: -40px;">
+                            <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; margin-top: -50px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); border: 1px solid #eeeeee;">
+                                <tr>
+                                    <td align="center" style="padding: 40px;">
+                                        <img src="{{ product_image }}" alt="{{ product_name }}" style="width: 100%; max-width: 250px; display: block; margin-bottom: 20px;">
+                                        
+                                        <h3 style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 20px; color: #000000; text-transform: uppercase; margin: 0 0 10px 0;">{{ product_name }}</h3>
+                                        
+                                        <p style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; color: #666666; margin: 0 0 20px 0; line-height: 1.6;">
+                                            {{ body_copy }}
+                                        </p>
+                                        
+                                        <div style="border-top: 1px solid #eeeeee; padding-top: 20px; margin-bottom: 20px;">
+                                            <p style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: bold; color: #000000; margin: 0; text-align: right;">
+                                                PRICE: <span style="font-size: 18px;">${{ "%.2f"|format(product_price) }}</span>
+                                            </p>
+                                        </div>
+                                        
+                                        <a href="{{ product_url }}" style="display: block; background-color: #000000; color: #ffffff; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; font-weight: bold; text-decoration: none; padding: 18px; text-transform: uppercase; letter-spacing: 2px;">{{ cta_text }}</a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px;">
+                            <a href="#" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 12px; color: #999999; text-decoration: underline;">View in Browser</a>
+                            <br><br>
+                            <p style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10px; color: #cccccc; margin: 0;">
+                                © 2026 QuantCAI. This email was sent to you because you are subscribed to our newsletter.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { usePageTracking } from '@/hooks/usePageTracking';
+import { useAI } from '@/hooks/useAI';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { Button } from "@/components/ui/button";
@@ -9,6 +11,14 @@ import { SEO } from '@/components/SEO';
 
 export default function Enterprise() {
   usePageTracking('enterprise');
+  const { updateClientContext } = useAI();
+
+  useEffect(() => {
+    updateClientContext('enterprise', {
+      page: 'enterprise',
+      page_title: 'Enterprise Quantum Solutions',
+    });
+  }, [updateClientContext]);
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-transparent text-white">

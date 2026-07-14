@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans">
+    <nav class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm">
+        <h1 class="text-xl font-bold text-red-600">QuantCAI Admin</h1>
+        <div class="flex gap-6">
+            <a href="/admin" class="text-gray-600 hover:text-red-600 font-medium transition-colors">Dashboard</a>
+            <a href="/marketing/dashboard" class="text-red-600 font-bold border-b-2 border-red-600 pb-1">Marketing</a>
+        </div>
+    </nav>
+    
+    <div id="app" class="max-w-7xl mx-auto p-6 mt-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div>
+                <h2 class="text-3xl font-black text-gray-900 tracking-tight">Marketing Automation</h2>
+                <p class="text-gray-500 mt-2">Manage scheduled social posts, email campaigns, and manual blasts.</p>
+                
+                <div class="mt-4 flex flex-wrap items-center gap-4">
+                    <div class="flex items-center gap-2 text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                        <span class="relative flex h-2 w-2">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        Auto-Scheduler Active
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <label class="flex items-center cursor-pointer">
+                            <div class="relative">
+                                <input type="checkbox" id="autoApproveToggle" class="sr-only" v-model="isAutoApprove" @change="toggleAutoApprove">
+                                <div class="block w-10 h-6 rounded-full transition-colors" :class="isAutoApprove ? 'bg-emerald-500' : 'bg-gray-300'"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform" :class="{'translate-x-4': isAutoApprove}"></div>
+                            </div>
+                            <div class="ml-3 text-sm font-bold text-gray-700">
+                                Auto-Approve Automation
+                            </div>
+                        </label>
+                    </div>
+
+                    <button @click="runAutomationManually" :disabled="isManuallyRunning" class="bg-gray-800 text-white px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-gray-900 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50">
+                        <i v-if="isManuallyRunning" class="fa-solid fa-spinner fa-spin"></i>
+                        <i v-else class="fa-solid fa-bolt text-yellow-400"></i>
+                        Run AI Automation Now
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex gap-4">
+                <button @click="createNewPost" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-camera"></i> New Social Post
+                </button>
+                <button @click="showManualEmailModal = true" class="bg-purple-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-envelope"></i> New Email Blast
+                </button>
+            </div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="flex gap-8 border-b border-gray-200 mb-8">
+            <button @click="activeTab = 'social'" :class="activeTab === 'social' ? 'border-b-2 border-red-600 text-red-600 font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'" class="pb-3 px-2 text-lg transition-colors">
+                Social Media Posts
+            </button>
+            <button @click="activeTab = 'email'" :class="activeTab === 'email' ? 'border-b-2 border-red-600 text-red-600 font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'" class="pb-3 px-2 text-lg transition-colors">
+                Email Campaigns
+            </button>
+            <button @click="activeTab = 'audience'" :class="activeTab === 'audience' ? 'border-b-2 border-red-600 text-red-600 font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'" class="pb-3 px-2 text-lg transition-colors">
+                Audience ({{ audiences|length }})
+            </button>
+        </div>
+        
+        <!-- Social Tab -->
+        <div v-show="activeTab === 'social'">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Platform</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Product</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Scheduled</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <tr v-if="socialPosts.length === 0">
+                            <td colspan="5" class="px-6 py-8 text-center text-gray-500">No social posts found.</td>
+                        </tr>
+                        <tr v-for="post in socialPosts" :key="post.id" class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <span :class="{
+                                    'bg-yellow-100 text-yellow-800 border-yellow-200': post.status === 'DRAFT',
+                                    'bg-green-100 text-green-800 border-green-200': post.status === 'POSTED',
+                                    'bg-red-100 text-red-800 border-red-200': post.status === 'FAILED'
+                                }" class="px-3 py-1 text-xs font-bold uppercase rounded-lg border">
+                                    ${ post.status }
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 font-bold text-gray-700">${ post.platform }</td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-3" v-if="post.product">
+                                    <img :src="post.product.productImage" class="w-10 h-10 rounded-lg object-cover" />
+                                    <span class="font-medium text-sm">${ post.product.productName }</span>
+                                </div>
+                                <span v-else class="text-gray-400 italic">Manual Media</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600">
+                                ${ new Date(post.scheduledAt).toLocaleString() }
+                            </td>
+                            <td class="px-6 py-4">
+                                <button @click="editPost(post)" class="text-blue-600 hover:text-blue-800 font-medium text-sm mr-3">Edit Draft</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Email Tab -->
+        <div v-show="activeTab === 'email'">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Subject</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Scheduled</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <tr v-if="emailCampaigns.length === 0">
+                            <td colspan="4" class="px-6 py-8 text-center text-gray-500">No email campaigns found.</td>
+                        </tr>
+                        <tr v-for="campaign in emailCampaigns" :key="campaign.id" class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4">
+                                <span :class="{
+                                    'bg-yellow-100 text-yellow-800 border-yellow-200': campaign.status === 'DRAFT',
+                                    'bg-green-100 text-green-800 border-green-200': campaign.status === 'SENT',
+                                    'bg-red-100 text-red-800 border-red-200': campaign.status === 'FAILED'
+                                }" class="px-3 py-1 text-xs font-bold uppercase rounded-lg border">
+                                    ${ campaign.status }
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 font-bold text-gray-800">${ campaign.subject }</td>
+                            <td class="px-6 py-4 text-sm text-gray-600">
+                                ${ new Date(campaign.scheduledAt).toLocaleString() }
+                            </td>
+                            <td class="px-6 py-4">
+                                <button @click="editEmail(campaign)" class="text-blue-600 hover:text-blue-800 font-medium text-sm mr-3">Edit Draft</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Audience Tab -->
+        <div v-show="activeTab === 'audience'">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Email</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Phone</th>
+                            <th class="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Source</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for audience in audiences %}
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 font-bold text-gray-800">{{ audience.email }}</td>
+                            <td class="px-6 py-4 text-gray-600">{{ audience.name or 'N/A' }}</td>
+                            <td class="px-6 py-4 text-gray-600">{{ audience.phone or 'N/A' }}</td>
+                            <td class="px-6 py-4">
+                                <span class="px-2.5 py-1 text-xs font-bold uppercase rounded-lg bg-purple-50 text-purple-700 border border-purple-200">{{ audience.source }}</span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">No audience members found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+
+
+        <!-- Manual Email Modal -->
+        <div v-if="showManualEmailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h3 class="text-2xl font-black mb-6">Send Email Blast</h3>
+                <form @submit.prevent="submitManualEmail" class="space-y-6">
+                    <div class="flex items-center gap-3 bg-red-50 p-4 rounded-xl border border-red-100">
+                        <input type="checkbox" v-model="emailForm.generateAiEmail" id="aiEmail" class="w-5 h-5 text-red-600 rounded">
+                        <label for="aiEmail" class="font-bold text-red-900">Use AI to generate promotional email</label>
+                    </div>
+
+                    <div v-if="emailForm.generateAiEmail">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Product ID for AI Generation</label>
+                        <input type="text" v-model="emailForm.productId" class="w-full border-gray-300 rounded-xl shadow-sm border p-3 focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="UUID of the product">
+                    </div>
+                    
+                    <div v-if="!emailForm.generateAiEmail" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Subject</label>
+                            <input type="text" v-model="emailForm.manualSubject" class="w-full border-gray-300 rounded-xl shadow-sm border p-3 focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Special Offer Inside!">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Body (HTML)</label>
+                            <textarea v-model="emailForm.manualBodyHtml" rows="6" class="w-full border-gray-300 rounded-xl shadow-sm border p-3 focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono text-sm" placeholder="<h1>Hello!</h1>"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                        <button type="button" @click="showManualEmailModal = false" class="px-6 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors">Cancel</button>
+                        <button type="submit" class="bg-purple-600 text-white px-8 py-2.5 rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-md" :disabled="isSubmitting">
+                            ${ isSubmitting ? 'Sending...' : 'Send Blast Now' }
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <!-- Unified Edit/Create Post Modal (Facebook Style) -->
+        <div v-if="showSocialModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans">
+            <div class="bg-[#242526] text-[#E4E6EB] rounded-lg shadow-2xl flex max-w-5xl w-full h-[85vh] overflow-hidden border border-[#3E4042]">
+                
+                <!-- Left Side: Editor (60%) -->
+                <div class="w-3/5 flex flex-col border-r border-[#3E4042]">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between p-4 border-b border-[#3E4042]">
+                        <div class="flex items-center gap-3">
+                            <button @click="showSocialModal = false" class="w-9 h-9 rounded-full bg-[#3A3B3C] hover:bg-[#4E4F50] flex items-center justify-center transition-colors">
+                                <i class="fa-solid fa-xmark text-[#E4E6EB]"></i>
+                            </button>
+                            <div class="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center">
+                                <i class="fa-brands fa-facebook-f text-white"></i>
+                            </div>
+                            <h3 class="font-bold text-lg">${ editingPost.id ? 'Edit Draft / Post' : 'Create new post' }</h3>
+                        </div>
+                    </div>
+                    
+                    <!-- Editor Content -->
+                    <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                        <div v-if="!editingPost.id">
+                            <label class="block text-xs font-bold text-[#B0B3B8] mb-1">Platform</label>
+                            <select v-model="editingPost.platform" class="w-full bg-[#3A3B3C] border border-[#3E4042] text-[#E4E6EB] rounded-lg p-2 text-sm focus:outline-none focus:border-[#2D88FF]">
+                                <option value="BOTH">Facebook & Instagram</option>
+                                <option value="FACEBOOK">Facebook Only</option>
+                                <option value="INSTAGRAM">Instagram Only</option>
+                            </select>
+                        </div>
+                        
+                        <div class="bg-[#18191A] rounded-xl border border-[#3E4042] p-1" :class="editingPost.id ? 'h-64' : 'h-32'">
+                            <textarea v-model="editingPost.caption" class="w-full h-full bg-transparent resize-none p-3 outline-none text-[#E4E6EB] placeholder-[#B0B3B8]" placeholder="Write a caption..."></textarea>
+                        </div>
+
+                        <!-- AI Caption Generator -->
+                        <div v-if="!editingPost.id" class="flex flex-col gap-2">
+                            <label class="text-sm font-semibold text-[#E4E6EB]">Generate AI Caption (Optional)</label>
+                            <div class="flex gap-2">
+                                <input type="text" v-model="editingPost.productId" class="flex-1 bg-[#3A3B3C] border border-[#3E4042] text-[#E4E6EB] rounded-lg p-2 text-sm focus:outline-none focus:border-[#2D88FF]" placeholder="Enter Product ID...">
+                                <button @click="generateAiCaption" type="button" :disabled="isGeneratingCaption || !editingPost.productId" class="bg-[#0866FF] hover:bg-[#1877F2] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50">
+                                    <i v-if="isGeneratingCaption" class="fa-solid fa-spinner fa-spin mr-1"></i>
+                                    Generate
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Media Sections -->
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="font-semibold text-sm mb-2 text-[#E4E6EB]">Media (Image/Video)</h4>
+                                <div class="mb-3">
+                                    <input type="file" ref="socialMediaFile" @change="previewMedia" class="w-full bg-[#3A3B3C] border border-[#3E4042] text-[#E4E6EB] rounded-lg p-2 text-sm" accept="image/*,video/*" multiple>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <div v-for="(mediaItem, idx) in allMedia" :key="idx" class="relative w-24 h-24 shrink-0 rounded-lg overflow-hidden border border-[#3E4042] group">
+                                        <template v-if="mediaItem.isVideo">
+                                            <video :src="mediaItem.displayUrl" class="w-full h-full object-cover" preload="metadata" muted playsinline></video>
+                                        </template>
+                                        <template v-else>
+                                            <img :src="mediaItem.displayUrl" class="w-full h-full object-cover" />
+                                        </template>
+                                        <div v-if="mediaItem.source !== 'fallback'" @click="removeMedia(idx)" class="absolute top-1 right-1 bg-black/70 hover:bg-red-600 rounded-full w-6 h-6 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <i class="fa-solid fa-xmark text-white text-xs"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer / Save Button -->
+                    <div class="p-4 border-t border-[#3E4042] flex gap-3">
+                        <button @click="saveSocialPost('DRAFT')" :disabled="isSavingSocial" class="w-1/3 bg-[#3A3B3C] hover:bg-[#4E4F50] text-[#E4E6EB] font-bold py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50">
+                            Save Draft
+                        </button>
+                        <button @click="saveSocialPost('POSTED')" :disabled="isSavingSocial" class="w-2/3 bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold py-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex justify-center items-center gap-2">
+                            <i v-if="isSavingSocial" class="fa-solid fa-spinner fa-spin"></i>
+                            ${ editingPost.status === 'POSTED' ? 'Update Live Post' : 'Publish Now' }
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Right Side: Preview (40%) -->
+                <div class="w-2/5 bg-[#18191A] flex flex-col border-l border-black">
+                    <div class="flex items-center justify-center gap-4 p-4 border-b border-[#3E4042]">
+                        <button @click="previewMode = 'Reels'" :class="previewMode === 'Reels' ? 'bg-[#23395F] text-[#2D88FF]' : 'bg-[#3A3B3C] text-[#E4E6EB] hover:bg-[#4E4F50]'" class="px-4 py-1.5 rounded-full text-sm font-semibold transition-colors">Reels</button>
+                        <button @click="previewMode = 'Feed'" :class="previewMode === 'Feed' ? 'bg-[#23395F] text-[#2D88FF]' : 'bg-[#3A3B3C] text-[#E4E6EB] hover:bg-[#4E4F50]'" class="px-4 py-1.5 rounded-full text-sm font-semibold transition-colors">Feed</button>
+                        <button @click="previewMode = 'Profile'" :class="previewMode === 'Profile' ? 'bg-[#23395F] text-[#2D88FF]' : 'bg-[#3A3B3C] text-[#E4E6EB] hover:bg-[#4E4F50]'" class="px-4 py-1.5 rounded-full text-sm font-semibold transition-colors">Profile</button>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto p-6 flex justify-center custom-scrollbar">
+                        <!-- Feed View (Instagram Mobile Style) -->
+                        <div v-if="previewMode === 'Feed'" class="bg-[#242526] rounded-xl border border-[#3E4042] shadow-sm self-start flex flex-col overflow-hidden text-[#E4E6EB]" style="width: 100%; max-width: 400px;">
+                            <!-- Header -->
+                            <div class="p-3 flex items-center justify-between shrink-0">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-white overflow-hidden p-0.5"><img src="/logo.png" class="w-full h-full object-contain"/></div>
+                                    <h4 class="font-bold text-[#E4E6EB] text-sm leading-tight">QuantCAI</h4>
+                                </div>
+                                <i class="fa-solid fa-ellipsis text-[#E4E6EB]"></i>
+                            </div>
+                            
+                            <!-- Post Image / Video -->
+                            <div class="w-full aspect-square bg-black flex flex-col items-center justify-center relative shrink-0 overflow-hidden">
+                                <template v-for="(mediaItem, idx) in allMedia" :key="idx">
+                                    <div v-show="idx === currentSlideIndex" class="absolute inset-0 w-full h-full">
+                                        <template v-if="mediaItem.isVideo">
+                                            <video :src="mediaItem.url" controls class="w-full h-full object-contain bg-black"></video>
+                                        </template>
+                                        <template v-else>
+                                            <img :src="mediaItem.url" class="w-full h-full object-cover bg-black" />
+                                        </template>
+                                    </div>
+                                </template>
+                                
+                                <!-- Carousel Navigation Arrows -->
+                                <button v-if="currentSlideIndex > 0" @click="prevSlide" class="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/80 rounded-full flex items-center justify-center text-black shadow-md hover:bg-white transition-colors z-10">
+                                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                                </button>
+                                <button v-if="currentSlideIndex < allMedia.length - 1" @click="nextSlide" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/80 rounded-full flex items-center justify-center text-black shadow-md hover:bg-white transition-colors z-10">
+                                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                                </button>
+                                
+                                <!-- Carousel Dots -->
+                                <div v-if="allMedia.length > 1" class="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-10">
+                                    <div v-for="(_, idx) in allMedia" :key="idx" :class="idx === currentSlideIndex ? 'bg-[#2D88FF] w-1.5 h-1.5' : 'bg-white/70 w-1.5 h-1.5'" class="rounded-full transition-colors"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Actions -->
+                            <div class="p-3 pb-1 shrink-0">
+                                <div class="flex gap-4 text-[#E4E6EB] text-xl mb-1">
+                                    <i class="fa-regular fa-heart hover:text-gray-400 cursor-pointer transition-colors"></i>
+                                    <i class="fa-regular fa-comment hover:text-gray-400 cursor-pointer transition-colors"></i>
+                                    <i class="fa-regular fa-paper-plane hover:text-gray-400 cursor-pointer transition-colors"></i>
+                                </div>
+                            </div>
+                            
+                            <!-- Caption -->
+                            <div class="px-3 pb-4 text-sm text-[#E4E6EB] font-sans">
+                                <div class="whitespace-pre-wrap break-words"><span class="font-bold mr-1">QuantCAI</span> <span v-html="formattedCaption"></span></div>
+                                <div class="text-[10px] text-[#B0B3B8] uppercase tracking-wider font-semibold mt-2">Just now</div>
+                            </div>
+                        </div>
+
+                        <!-- Reels View -->
+                        <div v-else-if="previewMode === 'Reels'" class="bg-black rounded-xl border border-[#3E4042] shadow-sm self-start overflow-hidden relative" style="width: 250px; height: 444px;">
+                            <!-- Background Video/Image -->
+                            <template v-for="(mediaItem, idx) in allMedia" :key="idx">
+                                <template v-if="idx === 0">
+                                    <video v-if="mediaItem.isVideo" :src="mediaItem.url" class="w-full h-full object-cover absolute inset-0" autoplay loop muted playsinline></video>
+                                    <img v-else :src="mediaItem.url" class="w-full h-full object-cover absolute inset-0" />
+                                </template>
+                            </template>
+                            <!-- Overlay -->
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-3 text-white z-10">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="w-6 h-6 rounded-full bg-white p-0.5"><img src="/logo.png" class="w-full h-full object-contain"/></div>
+                                    <span class="font-bold text-[13px] text-shadow">QuantCAI</span>
+                                    <button class="border border-white/50 px-2 py-0.5 rounded text-[10px] font-bold backdrop-blur-sm">Follow</button>
+                                </div>
+                                <div class="text-[11px] line-clamp-2 text-shadow" v-html="formattedCaption"></div>
+                            </div>
+                            <!-- Right Actions -->
+                            <div class="absolute bottom-4 right-2 flex flex-col gap-3 text-white z-20 items-center">
+                                <div class="flex flex-col items-center gap-0.5"><i class="fa-solid fa-heart text-xl drop-shadow"></i><span class="text-[10px] font-bold">12k</span></div>
+                                <div class="flex flex-col items-center gap-0.5"><i class="fa-solid fa-comment text-xl drop-shadow"></i><span class="text-[10px] font-bold">342</span></div>
+                                <div class="flex flex-col items-center gap-0.5"><i class="fa-solid fa-paper-plane text-xl drop-shadow"></i></div>
+                                <div class="flex flex-col items-center gap-0.5 mt-2"><i class="fa-solid fa-ellipsis-vertical text-lg drop-shadow"></i></div>
+                            </div>
+                        </div>
+
+                        <!-- Profile Grid View -->
+                        <div v-else-if="previewMode === 'Profile'" class="bg-[#18191A] self-start w-full max-w-sm rounded-xl border border-[#3E4042] overflow-hidden p-4">
+                            <div class="flex items-center gap-5 mb-5">
+                                <div class="w-16 h-16 rounded-full bg-white p-1 shrink-0"><img src="/logo.png" class="w-full h-full object-contain rounded-full"/></div>
+                                <div class="text-[#E4E6EB]">
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <h2 class="text-lg font-bold">quantcai</h2>
+                                        <button class="bg-[#E4E6EB] text-black px-3 py-1 rounded-lg text-xs font-bold">Edit Profile</button>
+                                    </div>
+                                    <div class="flex gap-4 text-xs">
+                                        <div><span class="font-bold">12</span> posts</div>
+                                        <div><span class="font-bold">1.2M</span> followers</div>
+                                    </div>
+                                    <div class="mt-2 text-xs">
+                                        <span class="font-bold">QuantCAI</span><br/>
+                                        <span class="text-[#B0B3B8]">Health/beauty</span><br/>
+                                        Premium clinical wellness ☁️<br/>
+                                        <a href="https://quantcai.in" class="text-[#E0F2FE] font-bold">quantcai.in</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1">
+                                <!-- First grid item is the preview -->
+                                <div class="aspect-square bg-black relative group cursor-pointer overflow-hidden border border-[#3E4042]">
+                                    <template v-for="(mediaItem, idx) in allMedia" :key="idx">
+                                        <template v-if="idx === 0">
+                                            <video v-if="mediaItem.isVideo" :src="mediaItem.displayUrl" class="w-full h-full object-cover absolute inset-0"></video>
+                                            <img v-else :src="mediaItem.displayUrl" class="w-full h-full object-cover absolute inset-0" />
+                                        </template>
+                                    </template>
+                                    <div v-if="allMedia.length > 1" class="absolute top-1 right-1 text-white z-10"><i class="fa-solid fa-clone text-[10px]"></i></div>
+                                    <div v-if="allMedia.length && allMedia[0].isVideo" class="absolute top-1 right-1 text-white z-10"><i class="fa-solid fa-play text-[10px]"></i></div>
+                                </div>
+                                <!-- Dummy items -->
+                                <div class="aspect-square bg-[#242526] border border-[#3E4042]"></div>
+                                <div class="aspect-square bg-[#242526] border border-[#3E4042]"></div>
+                                <div class="aspect-square bg-[#242526] border border-[#3E4042]"></div>
+                                <div class="aspect-square bg-[#242526] border border-[#3E4042]"></div>
+                                <div class="aspect-square bg-[#242526] border border-[#3E4042]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+        <!-- Edit Email Modal -->
+        <div v-if="showEditEmailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-sans">
+            <div class="bg-white rounded-2xl shadow-2xl flex max-w-7xl w-full h-[85vh] overflow-hidden border border-gray-200">
+                
+                <!-- Left Side: Editor (40%) -->
+                <div class="w-2/5 flex flex-col border-r border-gray-200 bg-gray-50">
+                    <div class="flex items-center justify-between p-6 border-b border-gray-200 bg-white">
+                        <h3 class="font-black text-2xl text-gray-900"><i class="fa-solid fa-envelope-open-text text-purple-600 mr-2"></i> Edit Email Campaign</h3>
+                        <button @click="showEditEmailModal = false" class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Subject Line</label>
+                            <input type="text" v-model="editingEmail.subject" class="w-full border-gray-300 rounded-xl shadow-sm border p-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-medium">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Email Body (HTML)</label>
+                            <textarea v-model="editingEmail.bodyHtml" rows="12" class="w-full border-gray-300 rounded-xl shadow-sm border p-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm leading-relaxed"></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Plain Text Fallback</label>
+                            <textarea v-model="editingEmail.bodyText" rows="6" class="w-full border-gray-300 rounded-xl shadow-sm border p-3 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm text-gray-600"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6 border-t border-gray-200 bg-white flex justify-end gap-3">
+                        <button @click="showEditEmailModal = false" class="px-6 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors">Cancel</button>
+                        <button v-if="editingEmail.status === 'DRAFT'" @click="saveEditEmail('DRAFT')" :disabled="isSavingEmailEdit" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 px-6 rounded-xl transition-colors shadow-md disabled:opacity-50 flex items-center gap-2">
+                            <i v-if="isSavingEmailEdit" class="fa-solid fa-spinner fa-spin"></i>
+                            Save Draft
+                        </button>
+                        <button @click="saveEditEmail(editingEmail.status === 'DRAFT' ? 'SENT' : editingEmail.status)" :disabled="isSavingEmailEdit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-8 rounded-xl transition-colors shadow-md disabled:opacity-50 flex items-center gap-2">
+                            <i v-if="isSavingEmailEdit" class="fa-solid fa-spinner fa-spin"></i>
+                            ${ editingEmail.status === 'DRAFT' ? 'Send Now' : 'Save Campaign' }
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Right Side: Live Preview (60%) -->
+                <div class="w-3/5 bg-gray-200 flex flex-col">
+                    <div class="bg-gray-800 text-white p-3 flex items-center justify-center gap-6 shadow-inner text-sm font-medium">
+                        <div class="flex items-center gap-2 text-gray-300 hover:text-white cursor-pointer"><i class="fa-solid fa-desktop"></i> Desktop</div>
+                        <div class="flex items-center gap-2 text-gray-400 hover:text-white cursor-pointer"><i class="fa-solid fa-mobile-screen"></i> Mobile</div>
+                    </div>
+                    
+                    <div class="flex-1 p-8 overflow-y-auto custom-scrollbar flex justify-center items-start">
+                        <!-- Email Client Mockup -->
+                        <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl overflow-hidden border border-gray-300 flex flex-col min-h-[500px]">
+                            <!-- Mock Email Header -->
+                            <div class="border-b border-gray-100 p-4 bg-gray-50 flex flex-col gap-2">
+                                <div class="flex justify-between items-center text-sm">
+                                    <div class="font-bold text-gray-800">QuantCAI <span class="font-normal text-gray-500">&lt;hello@quantcai.in&gt;</span></div>
+                                    <div class="text-gray-400 text-xs">Today, 10:42 AM</div>
+                                </div>
+                                <div class="text-sm">
+                                    <span class="text-gray-500">to</span> <span class="font-medium text-gray-700">Customer</span>
+                                </div>
+                                <h2 class="text-xl font-bold text-gray-900 mt-2">${ editingEmail.subject || 'No Subject' }</h2>
+                            </div>
+                            
+                            <!-- Live HTML Rendering -->
+                            <div class="p-6 flex-1 bg-white overflow-x-auto" v-html="editingEmail.bodyHtml"></div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+        
+        <!-- Chat Bot Floating UI -->
+        <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+            <!-- Chat Window -->
+            <div v-show="isChatOpen" class="bg-white w-96 max-w-[calc(100vw-2rem)] rounded-2xl shadow-2xl border border-gray-100 flex flex-col h-[500px] mb-4 overflow-hidden transition-all duration-300 transform origin-bottom-right">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-red-600 to-red-700 text-white p-4 flex justify-between items-center shadow-md">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                            <i class="fa-solid fa-robot text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-sm">QuantCAI Assistant</h3>
+                            <p class="text-xs text-red-100">AI Agent & Auto-poster</p>
+                        </div>
+                    </div>
+                    <button @click="isChatOpen = false" class="text-white/80 hover:text-white transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                
+                <!-- Messages -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 flex flex-col custom-scrollbar" id="chatMessagesContainer">
+                    <div v-if="chatMessages.length === 0" class="text-center text-gray-500 text-sm mt-8">
+                        <i class="fa-solid fa-wand-magic-sparkles text-2xl text-red-300 mb-2"></i>
+                        <p>Ask me to prepare a high-conversion ad or send an email campaign!</p>
+                    </div>
+                    
+                    <div v-for="(msg, idx) in chatMessages" :key="idx" :class="{'self-end': msg.role === 'user', 'self-start': msg.role !== 'user'}" class="max-w-[85%]">
+                        <div v-if="msg.role === 'user'" class="bg-red-600 text-white p-3 rounded-2xl rounded-tr-sm shadow-sm text-sm">
+                            ${ msg.content }
+                        </div>
+                        <div v-else-if="msg.role === 'assistant'" class="bg-white border border-gray-100 text-gray-800 p-3 rounded-2xl rounded-tl-sm shadow-sm text-sm whitespace-pre-wrap">
+                            ${ msg.content }
+                        </div>
+                        <div v-else-if="msg.role === 'tool'" class="bg-gray-100 border border-gray-200 text-gray-600 p-2 rounded-xl text-xs font-mono break-all opacity-80 mt-1">
+                            <i class="fa-solid fa-gear mr-1"></i> [System] ${ msg.name } executed.
+                        </div>
+                    </div>
+                    
+                    <!-- Typing Indicator -->
+                    <div v-if="isChatTyping" class="self-start bg-white border border-gray-100 p-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.15s"></div>
+                        <div class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.3s"></div>
+                    </div>
+                </div>
+                
+                <!-- Input Area -->
+                <div class="p-3 bg-white border-t border-gray-100">
+                    <form @submit.prevent="sendChatMessage" class="flex items-center gap-2">
+                        <input type="text" v-model="chatInput" placeholder="Type a command..." class="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all" :disabled="isChatTyping">
+                        <button type="submit" class="bg-red-600 text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-red-700 transition-colors shadow-sm disabled:opacity-50" :disabled="isChatTyping || !chatInput.trim()">
+                            <i class="fa-solid fa-paper-plane text-xs -ml-0.5"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Floating Button -->
+            <button @click="isChatOpen = !isChatOpen" class="bg-gradient-to-r from-red-600 to-red-700 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-105 transition-transform hover:shadow-red-500/30">
+                <i v-if="!isChatOpen" class="fa-solid fa-robot text-xl"></i>
+                <i v-else class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Custom scrollbar styles for modal -->
+        <style>
+            .custom-scrollbar::-webkit-scrollbar {
+                width: 8px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+                background-color: #4E4F50;
+                border-radius: 20px;
+            }
+        </style>
+        
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        createApp({
+            delimiters: ['${', '}'],
+            setup() {
+                const activeTab = ref('social');
+                const socialPosts = ref([]);
+                const emailCampaigns = ref([]);
+                const showSocialModal = ref(false);
+                const showManualEmailModal = ref(false);
+                const showEditEmailModal = ref(false);
+                const editingPost = ref({ id: null, platform: 'BOTH', caption: '', mediaUrls: [], generateAiCaption: false, productId: '', status: 'DRAFT' });
+                const editingEmail = ref(null);
+                const isSavingSocial = ref(false);
+                const isGeneratingCaption = ref(false);
+                const isSavingEmailEdit = ref(false);
+                const isSubmitting = ref(false);
+                const isManuallyRunning = ref(false);
+                const isAutoApprove = ref({{ autoApprove|tojson }});
+                const socialMediaFile = ref(null);
+                const localMediaFiles = ref([]);
+                const remoteMediaUrls = ref([]);
+                
+                // Chat variables
+                const isChatOpen = ref(false);
+                const chatInput = ref('');
+                const chatMessages = ref([]);
+                const isChatTyping = ref(false);
+
+
+                const emailForm = ref({
+                    generateAiEmail: false,
+                    productId: '',
+                    manualSubject: '',
+                    manualBodyHtml: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+    <h2 style="text-align: center; color: #1a1a1a;">Discover QuantCAI™</h2>
+    <p>Check out our latest premium wellness products designed just for you.</p>
+    <div style="text-align: center; margin-top: 20px;">
+        <a href="https://quantcai.in" style="display: inline-block; padding: 14px 28px; background-color: #000; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">Visit Store →</a>
+    </div>
+    <p style="font-size: 0.8em; color: #999; margin-top: 24px;">You're receiving this because you're part of the QuantCAI community. <a href="#">Unsubscribe</a></p>
+</div>`,
+                    manualBodyText: ''
+                });
+
+                const previewMode = ref('Feed');
+                const currentSlideIndex = ref(0);
+                const nextSlide = () => {
+                    if (currentSlideIndex.value < allMedia.value.length - 1) currentSlideIndex.value++;
+                };
+                const prevSlide = () => {
+                    if (currentSlideIndex.value > 0) currentSlideIndex.value--;
+                };
+
+                const fetchPosts = async () => {
+                    const res = await fetch('/marketing/posts');
+                    socialPosts.value = await res.json();
+                };
+
+                const formattedCaption = computed(() => {
+                    if (!editingPost.value || !editingPost.value.caption) return '';
+                    // Replace hashtags with blue styled spans
+                    return editingPost.value.caption.replace(/(#[\w\u0590-\u05ff]+)/g, '<span class="text-[#2D88FF] cursor-pointer hover:underline">$1</span>');
+                });
+
+                const allMedia = computed(() => {
+                    const media = [];
+                    remoteMediaUrls.value.forEach(url => {
+                        const lowerUrl = url.toLowerCase();
+                        const isVideo = lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.mov') || lowerUrl.endsWith('.webm');
+                        let displayUrl = url;
+                        if (isVideo && !displayUrl.includes('#t=')) displayUrl += '#t=0.1';
+                        media.push({ url, displayUrl, isVideo, source: 'remote' });
+                    });
+                    localMediaFiles.value.forEach((item, index) => {
+                        let displayUrl = item.url;
+                        if (item.isVideo && !displayUrl.includes('#t=')) displayUrl += '#t=0.1';
+                        media.push({ url: item.url, displayUrl, isVideo: item.isVideo, source: 'local', fileIndex: index, file: item.file });
+                    });
+                    
+                    if (media.length === 0 && editingPost.value.product) {
+                         const pVid = editingPost.value.product.productVideo;
+                         if (pVid) {
+                             let displayUrl = pVid;
+                             if (!displayUrl.includes('#t=')) displayUrl += '#t=0.1';
+                             media.push({ url: pVid, displayUrl: displayUrl, isVideo: true, source: 'fallback' });
+                         }
+                         const pImg = editingPost.value.product.productImage;
+                         if (pImg) {
+                             media.push({ url: pImg, displayUrl: pImg, isVideo: false, source: 'fallback' });
+                         }
+                    }
+                    return media;
+                });
+
+                const fetchEmails = async () => {
+                    const res = await fetch('/marketing/emails');
+                    emailCampaigns.value = await res.json();
+                };
+
+                const createNewPost = () => {
+                    editingPost.value = { id: null, platform: 'BOTH', caption: '', mediaUrls: [], generateAiCaption: false, productId: '', status: 'DRAFT' };
+                    localMediaFiles.value = [];
+                    remoteMediaUrls.value = [];
+                    if (socialMediaFile.value) socialMediaFile.value.value = '';
+                    showSocialModal.value = true;
+                };
+
+                const editPost = (post) => {
+                    editingPost.value = { ...post, generateAiCaption: false, productId: post.productId || '' };
+                    localMediaFiles.value = [];
+                    remoteMediaUrls.value = [...(post.mediaUrls || [])];
+                    if (socialMediaFile.value) socialMediaFile.value.value = '';
+                    showSocialModal.value = true;
+                };
+
+                const previewMedia = (e) => {
+                    const files = e.target.files;
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        localMediaFiles.value.push({
+                            file: file,
+                            url: URL.createObjectURL(file),
+                            isVideo: file.type.startsWith('video/')
+                        });
+                    }
+                    if (socialMediaFile.value) socialMediaFile.value.value = '';
+                };
+                
+                const removeMedia = (index) => {
+                    const item = allMedia.value[index];
+                    if (item.source === 'local') {
+                        localMediaFiles.value.splice(item.fileIndex, 1);
+                    } else if (item.source === 'remote') {
+                        remoteMediaUrls.value = remoteMediaUrls.value.filter(url => url !== item.url);
+                    }
+                };
+
+                const generateAiCaption = async () => {
+                    if (!editingPost.value.productId) return;
+                    isGeneratingCaption.value = true;
+                    const formData = new FormData();
+                    formData.append("product_id", editingPost.value.productId);
+                    try {
+                        const res = await fetch("/marketing/posts/generate-caption", {
+                            method: "POST",
+                            body: formData
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                            editingPost.value.caption = data.caption;
+                        } else {
+                            alert(data.message || data.detail || "Failed to generate caption");
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error generating caption");
+                    } finally {
+                        isGeneratingCaption.value = false;
+                    }
+                };
+
+                const saveSocialPost = async (targetStatus) => {
+                    isSavingSocial.value = true;
+                    editingPost.value.status = targetStatus;
+                    try {
+                        const formData = new FormData();
+                        if (editingPost.value.platform) formData.append('platform', editingPost.value.platform);
+                        if (editingPost.value.caption) formData.append('caption', editingPost.value.caption);
+                        if (editingPost.value.generateAiCaption) formData.append('generate_ai_caption', editingPost.value.generateAiCaption);
+                        formData.append('status', targetStatus);
+                        if (editingPost.value.productId) formData.append('product_id', editingPost.value.productId);
+                        
+                        remoteMediaUrls.value.forEach(url => {
+                            formData.append('existing_media', url);
+                        });
+                        
+                        localMediaFiles.value.forEach(item => {
+                            formData.append('files', item.file);
+                        });
+
+                        let res;
+                        if (editingPost.value.id) {
+                            res = await fetch(`/marketing/posts/${editingPost.value.id}`, {
+                                method: 'PUT',
+                                body: formData
+                            });
+                        } else {
+                            formData.append('manual_caption', editingPost.value.caption);
+                            res = await fetch('/marketing/posts/manual', {
+                                method: 'POST',
+                                body: formData
+                            });
+                        }
+                        
+                        const data = await res.json();
+                        if (res.ok) {
+                            if (data.status === 'FAILED' || data.success === false) {
+                                const errorMsg = data.errorLog || (data.errors ? data.errors.join(" | ") : "Unknown error");
+                                alert("Failed to publish post:\n\n" + errorMsg);
+                            }
+                            showSocialModal.value = false;
+                            fetchPosts();
+                        } else {
+                            alert("Failed to save post: " + (data.detail || "Unknown error"));
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error saving post");
+                    } finally {
+                        isSavingSocial.value = false;
+                    }
+                };
+
+                const editEmail = (campaign) => {
+                    editingEmail.value = { ...campaign };
+                    showEditEmailModal.value = true;
+                };
+
+                const saveEditEmail = async (targetStatus) => {
+                    isSavingEmailEdit.value = true;
+                    if (targetStatus) {
+                        editingEmail.value.status = targetStatus;
+                    }
+                    try {
+                        const res = await fetch(`/marketing/emails/${editingEmail.value.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(editingEmail.value)
+                        });
+                        if (res.ok) {
+                            showEditEmailModal.value = false;
+                            fetchEmails();
+                        } else {
+                            alert("Failed to update email campaign");
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error updating email campaign");
+                    } finally {
+                        isSavingEmailEdit.value = false;
+                    }
+                };
+
+                const toggleAutoApprove = async () => {
+                    try {
+                        const res = await fetch('/marketing/settings/auto-approve', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ autoApprove: isAutoApprove.value })
+                        });
+                        if (!res.ok) {
+                            alert("Failed to update auto-approve setting");
+                            isAutoApprove.value = !isAutoApprove.value; // revert
+                        }
+                    } catch(e) {
+                        console.error(e);
+                        isAutoApprove.value = !isAutoApprove.value; // revert
+                    }
+                };
+
+                const runAutomationManually = async () => {
+                    isManuallyRunning.value = true;
+                    try {
+                        const res = await fetch('/marketing/run-automation', {
+                            method: 'POST'
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                            alert("Automation loop executed successfully.");
+                            fetchPosts();
+                            fetchEmails();
+                        } else {
+                            alert("Automation failed: " + (data.detail || data.message || "Unknown error"));
+                        }
+                    } catch(e) {
+                        console.error(e);
+                        alert("Error executing automation");
+                    } finally {
+                        isManuallyRunning.value = false;
+                    }
+                };
+
+
+                const submitManualEmail = async () => {
+                    isSubmitting.value = true;
+                    try {
+                        const res = await fetch('/marketing/emails/manual', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(emailForm.value)
+                        });
+                        if (res.ok) {
+                            showManualEmailModal.value = false;
+                            fetchEmails();
+                        } else {
+                            alert("Failed to send email");
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error sending email");
+                    } finally {
+                        isSubmitting.value = false;
+                    }
+                };
+
+                const sendChatMessage = async () => {
+                    const text = chatInput.value.trim();
+                    if (!text || isChatTyping.value) return;
+                    
+                    // Add user message
+                    chatMessages.value.push({ role: "user", content: text });
+                    chatInput.value = '';
+                    isChatTyping.value = true;
+                    scrollToBottom();
+                    
+                    try {
+                        const res = await fetch('/api/v1/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                // We send the whole history
+                                messages: chatMessages.value.filter(m => !m.content.startsWith("Error:") && m.role !== 'tool') 
+                            })
+                        });
+                        
+                        const data = await res.json();
+                        if (data.success && data.data) {
+                            chatMessages.value.push(data.data);
+                            // Refresh tables in case tools posted something
+                            fetchPosts();
+                            fetchEmails();
+                        } else {
+                            chatMessages.value.push({ role: "assistant", content: "Error connecting to server." });
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        chatMessages.value.push({ role: "assistant", content: "Connection failed." });
+                    } finally {
+                        isChatTyping.value = false;
+                        scrollToBottom();
+                    }
+                };
+                
+                const scrollToBottom = () => {
+                    setTimeout(() => {
+                        const container = document.getElementById('chatMessagesContainer');
+                        if (container) container.scrollTop = container.scrollHeight;
+                    }, 100);
+                };
+
+                onMounted(() => {
+                    fetchPosts();
+                    fetchEmails();
+                });
+
+                return {
+                    activeTab,
+                    socialPosts,
+                    emailCampaigns,
+                    showSocialModal,
+                    showManualEmailModal,
+                    emailForm,
+                    isSubmitting,
+                    socialMediaFile,
+                    localMediaFiles,
+                    remoteMediaUrls,
+                    allMedia,
+                    editingPost,
+                    isSavingSocial,
+                    isGeneratingCaption,
+                    formattedCaption,
+                    createNewPost,
+                    generateAiCaption,
+                    editPost,
+                    saveSocialPost,
+                    previewMedia,
+                    removeMedia,
+                    showEditEmailModal,
+                    editingEmail,
+                    isSavingEmailEdit,
+                    editEmail,
+                    saveEditEmail,
+                    submitManualEmail,
+                    isChatOpen,
+                    chatInput,
+                    chatMessages,
+                    isChatTyping,
+                    sendChatMessage,
+                    previewMode,
+                    currentSlideIndex,
+                    nextSlide,
+                    prevSlide,
+                    isAutoApprove,
+                    toggleAutoApprove,
+                    isManuallyRunning,
+                    runAutomationManually
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
