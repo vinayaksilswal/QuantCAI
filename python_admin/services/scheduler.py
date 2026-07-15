@@ -232,17 +232,17 @@ async def execute_marketing_loop() -> None:
         email_campaign = await prisma.emailcampaign.create(
             data={
                 "campaignId": campaign.id,
-                    "type": "AUTO",
-                    "subject": email_subject,
-                    "bodyText": email_text,
-                    "bodyHtml": email_html,
-                    "scheduledAt": datetime.now(),
-                    "status": "DRAFT",
-                }
-            )
-        except Exception as e:
-            logger.error(f"[MARKETING LOOP] Failed to create email campaign record: {e}")
-            email_campaign = None
+                "type": "AUTO",
+                "subject": email_subject,
+                "bodyText": email_text,
+                "bodyHtml": email_html,
+                "scheduledAt": datetime.now(),
+                "status": "DRAFT",
+            }
+        )
+    except Exception as e:
+        logger.error(f"[MARKETING LOOP] Failed to create email campaign record: {e}")
+        email_campaign = None
 
     if email_campaign:
         if auto_approve:
