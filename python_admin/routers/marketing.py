@@ -34,7 +34,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from auth import verify_credentials
-from services.ai_service import generate_promotional_email, generate_social_caption
+from services.ai_service import generate_campaign_email, generate_campaign_variation
 from services.email_service import send_email_blast
 from services.social_service import (
     post_to_facebook,
@@ -148,7 +148,7 @@ async def get_social_posts(request: Request) -> Any:
     prisma = request.app.state.prisma
     posts = await prisma.socialpost.find_many(
         order={"scheduledAt": "desc"},
-        include={"product": True},
+        include={"campaign": True},
     )
     return posts
 
@@ -275,11 +275,11 @@ async def api_generate_caption(
 ) -> dict[str, Any]:
     """Generates an AI caption for a given product ID without creating a post."""
     prisma = request.app.state.prisma
-    product = await prisma.product.find_unique(where={"id": product_id})
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    campaign = await prisma.socialcampaign.find_unique(where={"id": product_id})
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
     
-    caption = await generate_social_caption(product)
+    caption = await generate_campaign_variation(campaign.baseCaption)
     return {"success": True, "caption": caption}
 
 
@@ -320,27 +320,23 @@ async def create_manual_social_post(
                 media_urls.append(f"/uploads/{file.filename}")
 
     caption = manual_caption or ""
-    product = None
+    campaign = None
 
     if product_id:
-        product = await prisma.product.find_unique(where={"id": product_id})
-        # If product found but no manual media, use product media
-        if product and not media_urls:
-            if product.productVideo:
-                media_urls.append(product.productVideo)
-            if product.productImages:
-                media_urls.extend(product.productImages)
-            elif product.productImage:
-                media_urls.append(product.productImage)
+        campaign = await prisma.socialcampaign.find_unique(where={"id": product_id})
+        # If campaign found but no manual media, use campaign media
+        if campaign and not media_urls:
+            if campaign.mediaUrl:
+                media_urls.append(campaign.mediaUrl)
 
     # Generate AI caption if requested
-    if generate_ai_caption.lower() == "true" and product:
-        caption = await generate_social_caption(product)
+    if generate_ai_caption.lower() == "true" and campaign:
+        caption = await generate_campaign_variation(campaign.baseCaption)
 
     # Create the post record
     post = await prisma.socialpost.create(
         data={
-            "productId": product.id if product else None,
+            "campaignId": campaign.id if campaign else None,
             "platform": platform,
             "type": "MANUAL",
             "caption": caption,
@@ -406,7 +402,7 @@ async def get_email_campaigns(request: Request) -> Any:
     prisma = request.app.state.prisma
     emails = await prisma.emailcampaign.find_many(
         order={"scheduledAt": "desc"},
-        include={"product": True},
+        include={"campaign": True},
     )
     return emails
 
@@ -489,13 +485,13 @@ async def create_manual_email(
     body_html = data.manualBodyHtml
     body_text = data.manualBodyText
 
-    product = None
+    social_campaign = None
     if data.productId:
-        product = await prisma.product.find_unique(where={"id": data.productId})
+        social_campaign = await prisma.socialcampaign.find_unique(where={"id": data.productId})
 
     # Generate AI email content if requested
-    if data.generateAiEmail and product:
-        ai_content = await generate_promotional_email(product)
+    if data.generateAiEmail and social_campaign:
+        ai_content = await generate_campaign_email(social_campaign)
         subject = ai_content.get("subject", subject)
         body_html = ai_content.get("bodyHtml", body_html)
         body_text = ai_content.get("bodyText", body_text)
@@ -503,7 +499,7 @@ async def create_manual_email(
     # Create campaign record
     campaign = await prisma.emailcampaign.create(
         data={
-            "productId": product.id if product else None,
+            "campaignId": social_campaign.id if social_campaign else None,
             "type": "MANUAL",
             "subject": subject,
             "bodyText": body_text,
