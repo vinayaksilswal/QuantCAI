@@ -78,32 +78,15 @@ async def upload_media(request: Request, file: UploadFile = File(...)) -> Standa
         prisma = request.app.state.prisma
         mime_type = file.content_type or "application/octet-stream"
         
-        import base64
-        import gc
-        
-        encoded_parts = []
-        chunk_size = 3 * 1024 * 1024 # 3MB chunk (must be multiple of 3)
-        while True:
-            chunk = await file.read(chunk_size)
-            if not chunk:
-                break
-            encoded_parts.append(base64.b64encode(chunk).decode('ascii'))
-            del chunk
-            
-        encoded_data = "".join(encoded_parts)
-        del encoded_parts
-        gc.collect()
+        raw_data = await file.read()
         
         media_record = await prisma.media.create(
             data={
                 "filename": file.filename or "uploaded_media",
                 "mimeType": mime_type,
-                "data": encoded_data
+                "data": raw_data
             }
         )
-        
-        del encoded_data
-        gc.collect()
         
         url_suffix = "?type=video.mp4" if mime_type.startswith("video/") else "?type=image.jpg"
         base_url = str(request.base_url).rstrip("/")

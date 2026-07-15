@@ -102,19 +102,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         os.environ["PRISMA_CLIENT_ENGINE_TYPE"] = "binary"
         os.environ["PRISMA_CLI_QUERY_ENGINE_TYPE"] = "binary"
-        subprocess.run([sys.executable, "-m", "prisma", "py", "fetch"], check=True)
         
-        # Prisma Python bug: The engine is downloaded to node_modules/@prisma/engines/
-        # but the python client looks for it in the current directory or node_modules/prisma/
-        cache_dir = "/opt/render/.cache/prisma-python/binaries/*/*/"
-        engines = glob.glob(cache_dir + "node_modules/@prisma/engines/query-engine-*")
-        if engines:
-            engine_path = engines[0]
-            # Copy to python_admin current directory with the "prisma-" prefix it expects
-            expected_name = "prisma-" + os.path.basename(engine_path)
-            shutil.copy(engine_path, expected_name)
-            os.chmod(expected_name, 0o755)
-            logger.info(f"Fixed Prisma path bug: Copied {engine_path} to {expected_name}")
+        existing_engines = glob.glob("prisma-query-engine-*")
+        if existing_engines:
+            logger.info(f"Prisma engine already exists locally: {existing_engines[0]}, skipping fetch.")
+        else:
+            subprocess.run([sys.executable, "-m", "prisma", "py", "fetch"], check=True)
+            
+            # Prisma Python bug: The engine is downloaded to node_modules/@prisma/engines/
+            # but the python client looks for it in the current directory or node_modules/prisma/
+            cache_dir = "/opt/render/.cache/prisma-python/binaries/*/*/"
+            engines = glob.glob(cache_dir + "node_modules/@prisma/engines/query-engine-*")
+            if engines:
+                engine_path = engines[0]
+                # Copy to python_admin current directory with the "prisma-" prefix it expects
+                expected_name = "prisma-" + os.path.basename(engine_path)
+                shutil.copy(engine_path, expected_name)
+                os.chmod(expected_name, 0o755)
+                logger.info(f"Fixed Prisma path bug: Copied {engine_path} to {expected_name}")
     except Exception as e:
         logger.error(f"Failed to fetch/setup Prisma engine: {e}")
 
