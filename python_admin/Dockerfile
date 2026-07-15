@@ -48,4 +48,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # IMPORTANT: -w 1 (single worker) is REQUIRED because APScheduler runs
 # the bi-hourly marketing loop. Multiple workers would cause duplicate
 # social posts and email blasts.
-CMD ["gunicorn", "main:app", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
+CMD ["sh", "-c", "prisma db push --schema=schema_py.prisma && gunicorn main:app -w 1 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000"]
