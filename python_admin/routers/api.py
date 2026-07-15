@@ -61,7 +61,8 @@ class CampaignCreate(BaseModel):
     mediaType: str
 
 class CampaignUpdate(BaseModel):
-    isActive: bool
+    isActive: Optional[bool] = None
+    baseCaption: Optional[str] = None
 
 
 # =============================================================================
@@ -222,12 +223,18 @@ async def get_campaigns(request: Request) -> StandardResponse:
 
 @router.put("/campaigns/{cid}", response_model=StandardResponse)
 async def update_campaign(cid: str, data: CampaignUpdate, request: Request) -> StandardResponse:
-    """Update a social media campaign's active status."""
+    """Update a social media campaign's active status and caption."""
     prisma = request.app.state.prisma
     try:
+        update_data = {}
+        if data.isActive is not None:
+            update_data["isActive"] = data.isActive
+        if data.baseCaption is not None:
+            update_data["baseCaption"] = data.baseCaption
+            
         updated = await prisma.socialcampaign.update(
             where={"id": cid},
-            data={"isActive": data.isActive},
+            data=update_data,
         )
         return StandardResponse(success=True, data=updated.model_dump())
     except Exception as e:

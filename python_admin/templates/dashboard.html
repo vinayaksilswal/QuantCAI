@@ -112,6 +112,12 @@
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
+                                    <button onclick="previewCampaign('{{ campaign.id }}', '{{ campaign.baseCaption | replace('\n', '\\n') | replace('\'', '\\\'') | replace('\"', '\\&quot;') }}', '{{ campaign.mediaUrl }}', '{{ campaign.mediaType }}')" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
+                                        Preview
+                                    </button>
+                                    <button onclick="openEditModal('{{ campaign.id }}', '{{ campaign.baseCaption | replace('\n', '\\n') | replace('\'', '\\\'') | replace('\"', '\\&quot;') }}')" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
+                                        Edit
+                                    </button>
                                     <button onclick="toggleCampaignStatus('{{ campaign.id }}', {{ 'false' if campaign.isActive else 'true' }})" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
                                         {{ 'Deactivate' if campaign.isActive else 'Activate' }}
                                     </button>
@@ -126,6 +132,43 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg border border-gray-200">
+            <h2 class="text-xl font-bold text-obsidian mb-4">Edit Campaign</h2>
+            <input type="hidden" id="edit-campaign-id">
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Base Caption</label>
+                <textarea id="edit-campaign-caption" rows="4" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-led-purple transition-all"></textarea>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button onclick="closeEditModal()" class="px-5 py-2 text-sm font-bold text-gray-600 hover:text-gray-900 transition-colors">Cancel</button>
+                <button onclick="saveEditCampaign()" class="px-5 py-2 bg-led-purple text-white rounded-lg font-bold text-sm shadow-md hover:bg-purple-700 transition-colors">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-2xl border border-gray-200">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h2 class="font-bold text-obsidian text-sm uppercase tracking-wider">Preview Campaign</h2>
+                <button onclick="closePreviewModal()" class="text-gray-400 hover:text-gray-900">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="p-6">
+                <div id="preview-media-container" class="mb-6 flex justify-center bg-gray-50 rounded-xl p-2 border border-gray-200">
+                    <!-- Media injected here -->
+                </div>
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Caption Content</p>
+                    <p id="preview-caption" class="text-gray-800 text-sm whitespace-pre-wrap"></p>
+                </div>
             </div>
         </div>
     </div>
@@ -216,6 +259,52 @@
             } catch(e) {
                 alert('Error updating campaign');
             }
+        }
+        
+        function openEditModal(id, caption) {
+            document.getElementById('edit-campaign-id').value = id;
+            document.getElementById('edit-campaign-caption').value = caption.replace(/&quot;/g, '"');
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+        
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+        
+        async function saveEditCampaign() {
+            const id = document.getElementById('edit-campaign-id').value;
+            const baseCaption = document.getElementById('edit-campaign-caption').value.trim();
+            if (!baseCaption) return alert('Caption cannot be empty');
+            
+            try {
+                const res = await fetch(`/api/v1/campaigns/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ baseCaption })
+                });
+                if(res.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Failed to update campaign');
+                }
+            } catch(e) {
+                alert('Error updating campaign');
+            }
+        }
+        
+        function previewCampaign(id, caption, mediaUrl, mediaType) {
+            const container = document.getElementById('preview-media-container');
+            if (mediaType === 'video') {
+                container.innerHTML = `<video src="${mediaUrl}" controls class="max-h-96 rounded-lg shadow-sm"></video>`;
+            } else {
+                container.innerHTML = `<img src="${mediaUrl}" alt="Preview" class="max-h-96 rounded-lg shadow-sm">`;
+            }
+            document.getElementById('preview-caption').textContent = caption.replace(/&quot;/g, '"');
+            document.getElementById('previewModal').classList.remove('hidden');
+        }
+        
+        function closePreviewModal() {
+            document.getElementById('previewModal').classList.add('hidden');
         }
     </script>
 </body>
