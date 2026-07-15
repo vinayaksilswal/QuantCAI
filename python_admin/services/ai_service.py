@@ -219,3 +219,90 @@ Return ONLY the new caption text. No intro, no quotes around it."""
 
     text = await _call_openrouter(prompt)
     return text if text and len(text) > 10 else base_caption
+
+# =============================================================================
+# generate_social_caption()
+# =============================================================================
+async def generate_social_caption(product: Any) -> str:
+    """
+    Generate an engaging social media caption for a product.
+    """
+    prompt = f"""Write an engaging social media caption for this product:
+Product Name: {product.productName}
+Description: {product.description}
+Price: ${product.sellPrice}
+
+Keep it exciting, use emojis, and include relevant hashtags.
+Return ONLY the caption text."""
+    
+    text = await _call_openrouter(prompt)
+    return text if text and len(text) > 10 else f"Check out our new {product.productName}! Available now for just ${product.sellPrice}. 🚀 #newarrival #musthave"
+
+# =============================================================================
+# generate_promotional_email()
+# =============================================================================
+async def generate_promotional_email(product: Any) -> dict[str, str]:
+    """
+    Generate a promotional email for a product.
+    """
+    system_prompt = (
+        "You are a marketing email copywriter. "
+        "Your output MUST be a valid JSON object with EXACTLY 5 keys: "
+        "subject, headline, subheadline, body_copy, cta_text. "
+        "No markdown fences. Return ONLY the JSON."
+    )
+
+    prompt = f"""Write a promotional email for this product:
+Product Name: {product.productName}
+Description: {product.description}
+Price: ${product.sellPrice}
+
+Return a JSON object with:
+1. "subject": A catchy email subject line
+2. "headline": A strong 2-5 word headline
+3. "subheadline": A short sentence elaborating on the headline
+4. "body_copy": 2-3 sentences of persuasive body copy selling the product. DO NOT include HTML.
+5. "cta_text": Short text for a button (e.g. "Buy Now")"""
+
+    text = await _call_openrouter(prompt, system_prompt=system_prompt, json_response=True)
+    parsed = _parse_json_response(text)
+    
+    content = {
+        "subject": f"Special Offer: {product.productName}",
+        "headline": "New Arrival!",
+        "subheadline": f"Get the {product.productName} today.",
+        "body_copy": str(product.description)[:100] + "..." if product.description else "Check out our newest addition.",
+        "cta_text": "Shop Now"
+    }
+
+    if parsed and isinstance(parsed, dict):
+        content.update(parsed)
+
+    product_url = "https://quantcai.in/" # default url
+    
+    img_url = ""
+    if hasattr(product, 'productImage') and product.productImage:
+        img_url = product.productImage
+    elif hasattr(product, 'productImages') and product.productImages and len(product.productImages) > 0:
+        img_url = product.productImages[0]
+
+    img_html = f'<div style="text-align: center; margin: 20px 0;"><img src="{img_url}" alt="{product.productName}" style="max-width: 100%; border-radius: 8px;" /></div>' if img_url else ""
+
+    body_html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px;">
+        <h2 style="text-align: center; color: #1a1a1a;">{{content['headline']}}</h2>
+        <p style="text-align: center; font-size: 1.1em; color: #666;">{{content['subheadline']}}</p>
+        {{img_html}}
+        <p style="line-height: 1.6;">{{content['body_copy']}}</p>
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="{{product_url}}" style="display: inline-block; padding: 14px 28px; background-color: #6366f1; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">{{content['cta_text']}}</a>
+        </div>
+        <p style="font-size: 0.8em; color: #999; margin-top: 40px; text-align: center;">You're receiving this because you're part of the QuantCAI community. <a href="#">Unsubscribe</a></p>
+    </div>
+    """
+
+    return {
+        "subject": content["subject"],
+        "bodyText": f"{{content['headline']}}\n\n{{content['body_copy']}}\n\n{{content['cta_text']}}: {{product_url}}",
+        "bodyHtml": body_html,
+    }
