@@ -112,10 +112,10 @@
                             </td>
                             <td class="px-6 py-4 text-right">
                                 <div class="flex items-center justify-end gap-2">
-                                    <button onclick="previewCampaign('{{ campaign.id }}', '{{ campaign.baseCaption | replace('\n', '\\n') | replace('\'', '\\\'') | replace('\"', '\\&quot;') }}', '{{ campaign.mediaUrl }}', '{{ campaign.mediaType }}')" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
+                                    <button data-caption="{{ campaign.baseCaption | escape }}" onclick="previewCampaign('{{ campaign.id }}', this.getAttribute('data-caption'), '{{ campaign.mediaUrl }}', '{{ campaign.mediaType }}')" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
                                         Preview
                                     </button>
-                                    <button onclick="openEditModal('{{ campaign.id }}', '{{ campaign.baseCaption | replace('\n', '\\n') | replace('\'', '\\\'') | replace('\"', '\\&quot;') }}')" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
+                                    <button data-caption="{{ campaign.baseCaption | escape }}" onclick="openEditModal('{{ campaign.id }}', this.getAttribute('data-caption'))" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
                                         Edit
                                     </button>
                                     <button onclick="toggleCampaignStatus('{{ campaign.id }}', {{ 'false' if campaign.isActive else 'true' }})" class="px-3 py-1.5 bg-white border border-gray-200 text-obsidian rounded-lg font-bold text-[10px] uppercase tracking-wider hover:bg-gray-50 transition-colors">
