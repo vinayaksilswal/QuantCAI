@@ -132,14 +132,16 @@ async def get_media(media_id: str, request: Request):
     
     # Data is stored as base64-encoded ASCII string — decode back to raw bytes
     raw_data = media_record.data
-    if isinstance(raw_data, (bytes, bytearray)):
-        raw_data = raw_data.decode('ascii')
     
-    try:
-        data_bytes = base64.b64decode(raw_data)
-    except Exception:
-        # Fallback: data may already be raw bytes in some Prisma Bytes fields
-        data_bytes = raw_data.encode('latin-1') if isinstance(raw_data, str) else bytes(raw_data)
+    if type(raw_data).__name__ == 'Base64':
+        data_bytes = base64.b64decode(str(raw_data))
+    elif isinstance(raw_data, (bytes, bytearray)):
+        data_bytes = raw_data
+    else:
+        try:
+            data_bytes = base64.b64decode(str(raw_data))
+        except Exception:
+            data_bytes = str(raw_data).encode('latin-1')
         
     file_size = len(data_bytes)
     
