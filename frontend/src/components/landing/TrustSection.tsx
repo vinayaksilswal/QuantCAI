@@ -23,24 +23,45 @@ const BoltIcon = () => (
   </svg>
 );
 
+const ShieldCheckIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+  </svg>
+);
+
+const CodeIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+  </svg>
+);
+
 const trustItems = [
-  { icon: <NistIcon />, label: 'Built on NIST FIPS 203 / 204 / 205 standards' },
-  { icon: <GlobeIcon />, label: 'RapidAPI listed' },
-  { icon: <LockIcon />, label: 'DPDPA compliant' },
-  { icon: <BoltIcon />, label: '99.7% uptime SLA' },
+  { icon: <NistIcon />, label: 'Built on NIST FIPS 203 / 204 / 205 standards', metric: '3 NIST Standards' },
+  { icon: <GlobeIcon />, label: 'RapidAPI listed — global API marketplace', metric: 'Listed on RapidAPI' },
+  { icon: <LockIcon />, label: 'DPDPA compliant data handling', metric: 'Privacy Compliant' },
+  { icon: <BoltIcon />, label: '99.7% uptime SLA guarantee', metric: '99.7% Uptime' },
+  { icon: <ShieldCheckIcon />, label: '10,000+ domains scanned for quantum vulnerabilities', metric: '10K+ Scans' },
+  { icon: <CodeIcon />, label: '500+ developers trust our quantum simulation API', metric: '500+ Developers' },
 ];
 
 export const TrustSection = () => (
-  <section id="trust" className="py-16 sm:py-20 px-4 sm:px-6 relative z-10">
-    <div className="max-w-5xl mx-auto">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
+  <section id="trust" className="py-16 sm:py-24 px-4 sm:px-6 relative z-10">
+    <div className="max-w-6xl mx-auto">
+      <div className="text-center mb-12">
+        <p className="text-teal-400 text-xs font-mono uppercase tracking-widest mb-3 drop-shadow-sm">Why Teams Trust QuantCAI</p>
+        <h2 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg">
+          Enterprise-grade security infrastructure
+        </h2>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6">
         {trustItems.map((item, i) => (
           <div
             key={i}
-            className="flex flex-col items-center text-center gap-3 p-5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl hover:border-blue-400/30 transition-all duration-300 shadow-lg shadow-blue-500/5"
+            className="flex flex-col items-center text-center gap-3 p-6 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl hover:border-teal-400/30 hover:bg-white/[0.08] transition-all duration-300 shadow-lg shadow-blue-500/5 group"
           >
-            <div className="text-teal-400 drop-shadow-lg">{item.icon}</div>
-            <p className="text-blue-200 text-xs sm:text-sm leading-snug drop-shadow-sm">{item.label}</p>
+            <div className="text-teal-400 drop-shadow-lg group-hover:scale-110 transition-transform duration-300">{item.icon}</div>
+            <p className="text-white text-sm font-semibold drop-shadow-md">{item.metric}</p>
+            <p className="text-blue-300/70 text-xs leading-snug">{item.label}</p>
           </div>
         ))}
       </div>

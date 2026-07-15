@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Link } from 'react-router-dom';
 import { Zap, ArrowRight, Wrench, Shield, Cpu } from 'lucide-react';
 import { usePageTracking } from '@/hooks/usePageTracking';
+import { SEO } from '@/components/SEO';
 
 const Tools = () => {
     usePageTracking('tools');
@@ -53,6 +54,11 @@ const Tools = () => {
 
     return (
         <div className="min-h-screen relative overflow-hidden">
+            <SEO 
+                title="Quantum Tools & Simulators - QuantCAI" 
+                description="Advanced quantum simulators, multi-qubit circuit builders, and enterprise utilities designed to accelerate quantum research and assess PQC readiness." 
+                keywords="quantum tools, quantum simulator, circuit builder, pqc scanner, quantum states"
+            />
             <Navbar />
 
             <div className="pt-32 pb-20 px-6 relative z-10">

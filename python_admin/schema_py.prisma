@@ -6,13 +6,16 @@ datasource db {
 
 
 model Audience {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  phone     String?
-  source    String   @default("checkout")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  phone        String?
+  source       String   @default("checkout")  // checkout, newsletter, organic, manual, referral
+  unsubscribed Boolean  @default(false)
+  lastEngaged  DateTime?
+  tags         String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model MarketingState {
@@ -27,7 +30,7 @@ model SocialPost {
   id           String   @id @default(cuid())
   campaignId   String?
   campaign     SocialCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  platform     String   // FACEBOOK, INSTAGRAM, BOTH
+  platform     String   // FACEBOOK, INSTAGRAM, BOTH, TWITTER, LINKEDIN
   type         String   @default("AUTO") // AUTO or MANUAL
   caption      String   @db.Text
   mediaUrls    String[]
@@ -37,24 +40,33 @@ model SocialPost {
   errorLog     String?  @db.Text
   fbPostId     String?
   igPostId     String?
+  twitterPostId String?
+  linkedinPostId String?
+  abTestGroup  String?  // "A" or "B" for A/B testing
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  engagementMetrics EngagementMetrics[]
 }
 
 model EmailCampaign {
-  id           String   @id @default(cuid())
-  campaignId   String?
-  campaign     SocialCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  type         String   @default("AUTO") // AUTO or MANUAL
-  subject      String
-  bodyText     String   @db.Text
-  bodyHtml     String   @db.Text
-  scheduledAt  DateTime
-  sentAt       DateTime?
-  status       String   @default("DRAFT") // DRAFT, SENT, FAILED
-  errorLog     String?  @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(cuid())
+  campaignId     String?
+  campaign       SocialCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  type           String   @default("AUTO") // AUTO, MANUAL, DRIP
+  subject        String
+  bodyText       String   @db.Text
+  bodyHtml       String   @db.Text
+  scheduledAt    DateTime
+  sentAt         DateTime?
+  status         String   @default("DRAFT") // DRAFT, SENT, FAILED
+  errorLog       String?  @db.Text
+  recipientCount Int      @default(0)
+  openCount      Int      @default(0)
+  clickCount     Int      @default(0)
+  bounceCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Media {
@@ -76,6 +88,91 @@ model SocialCampaign {
 
   socialPosts     SocialPost[]
   emailCampaigns  EmailCampaign[]
+  marketingLogs   MarketingLog[]
+  contentCalendar ContentCalendar[]
+  abTests         ABTest[]
+}
+
+model MarketingLog {
+  id          String   @id @default(cuid())
+  campaignId  String?
+  campaign    SocialCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  status      String   // SUCCESS, PARTIAL, FAILED
+  socialSuccess Boolean
+  emailSuccess  Boolean
+  emailCount    Int      @default(0)
+  errorLog      String?  @db.Text
+  createdAt     DateTime @default(now())
+}
+
+// ─── NEW: Post-Publish Engagement Tracking ──────────────────────────
+model EngagementMetrics {
+  id            String   @id @default(cuid())
+  postId        String
+  post          SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  platform      String   // FACEBOOK, INSTAGRAM, TWITTER, LINKEDIN
+  reach         Int      @default(0)
+  impressions   Int      @default(0)
+  likes         Int      @default(0)
+  comments      Int      @default(0)
+  shares        Int      @default(0)
+  clicks        Int      @default(0)
+  engagementRate Float   @default(0)
+  fetchedAt     DateTime @default(now())
+}
+
+// ─── NEW: Pre-Planned Content Calendar ──────────────────────────────
+model ContentCalendar {
+  id           String   @id @default(cuid())
+  campaignId   String?
+  campaign     SocialCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  contentType  String   // EDUCATIONAL, PROMOTIONAL, ENGAGEMENT, SOCIAL_PROOF, CASE_STUDY
+  platform     String   // FACEBOOK, INSTAGRAM, TWITTER, LINKEDIN, ALL
+  scheduledFor DateTime
+  caption      String?  @db.Text
+  mediaUrls    String[]
+  status       String   @default("PLANNED") // PLANNED, GENERATED, PUBLISHED, SKIPPED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─── NEW: A/B Test Tracking ─────────────────────────────────────────
+model ABTest {
+  id           String   @id @default(cuid())
+  campaignId   String
+  campaign     SocialCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  captionA     String   @db.Text
+  captionB     String   @db.Text
+  winnerGroup  String?  // "A" or "B" — set after analysis
+  reachA       Int      @default(0)
+  reachB       Int      @default(0)
+  engagementA  Float    @default(0)
+  engagementB  Float    @default(0)
+  status       String   @default("RUNNING") // RUNNING, COMPLETE
+  createdAt    DateTime @default(now())
+  analyzedAt   DateTime?
+}
+
+// ─── NEW: Drip Campaign Sequences ───────────────────────────────────
+model DripSequence {
+  id          String   @id @default(cuid())
+  name        String   // e.g., "Welcome Series", "PQC Education"
+  isActive    Boolean  @default(true)
+  steps       DripStep[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DripStep {
+  id           String   @id @default(cuid())
+  sequenceId   String
+  sequence     DripSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  stepOrder    Int      // 0, 1, 2, 3...
+  delayDays    Int      // Days after subscription to send (0 = immediate)
+  subject      String
+  bodyText     String   @db.Text
+  bodyHtml     String   @db.Text
+  createdAt    DateTime @default(now())
 }
 
 generator py {

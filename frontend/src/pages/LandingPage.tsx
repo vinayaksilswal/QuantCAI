@@ -156,31 +156,31 @@ export default function LandingPage() {
               </div>
 
               <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight text-white drop-shadow-lg">
-                Your Gateway to the <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">Quantum Era</span>
+                Quantum <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">Visionaries</span>
               </h1>
               <h2 className="text-2xl md:text-3xl mb-5 font-light text-blue-100 drop-shadow-md">
-                Accelerate Learning. Power Research. <br />
-                Scale Operations.
+                Leap Forward to Innovate, Educate, <br />
+                and Elevate Tech Horizons
               </h2>
               <p className="text-lg mb-12 max-w-2xl leading-relaxed text-blue-200 drop-shadow-sm">
                 QuantCAI equips learners, researchers, and developers with an interactive, production-ready ecosystem to master quantum computing and secure post-quantum infrastructure.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/signup" className="w-full sm:w-auto">
-                  <Button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-8 py-6 text-lg font-bold rounded-xl transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2 shadow-2xl shadow-cyan-500/40 border border-cyan-400/50">
+                <Link to="/quantum-computing" className="w-full sm:w-auto">
+                  <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-6 text-lg font-bold rounded-xl transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2 shadow-2xl shadow-purple-500/40 border border-purple-400/50">
                     <Rocket className="h-5 w-5" />
-                    Start Free Trial
+                    Explore Quantum World
                   </Button>
                 </Link>
-                <Link to="/sandbox" className="w-full sm:w-auto">
+                <Link to="/enterprise/pqc-scanner" className="w-full sm:w-auto">
                   <Button
                     variant="outline"
                     className="w-full border-2 border-blue-400/60 text-blue-100 hover:bg-blue-500/20 hover:border-blue-400 hover:text-white px-8 py-6 text-lg font-semibold rounded-xl transform hover:scale-105 hover:-translate-y-1 transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-md bg-white/5 shadow-xl shadow-blue-500/10"
                   >
-                    <Settings className="h-5 w-5" />
-                    Launch Simulator
+                    <ShieldCheck className="h-5 w-5" />
+                    For Enterprise: PQC Compliance
                   </Button>
                 </Link>
               </div>
@@ -305,11 +305,21 @@ export default function LandingPage() {
 
               {/* Code block — Request */}
               <div className="bg-black/40 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden mb-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/10">
-                  <span className="w-2 h-2 rounded-full bg-red-500/60" />
-                  <span className="w-2 h-2 rounded-full bg-yellow-500/60" />
-                  <span className="w-2 h-2 rounded-full bg-green-500/60" />
-                  <span className="ml-2 text-[10px] text-blue-300 font-mono">request.sh</span>
+                <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500/60" />
+                    <span className="w-2 h-2 rounded-full bg-yellow-500/60" />
+                    <span className="w-2 h-2 rounded-full bg-green-500/60" />
+                    <span className="ml-2 text-[10px] text-blue-300 font-mono">request.sh</span>
+                  </div>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(curlSnippet)}
+                    className="p-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-colors flex items-center gap-1"
+                    title="Copy Code"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    <span className="text-[9px] font-mono uppercase tracking-widest hidden sm:inline-block">Copy</span>
+                  </button>
                 </div>
                 <pre className="p-4 text-xs sm:text-[13px] leading-relaxed text-blue-100 font-mono overflow-x-auto">
                   <code>{curlSnippet}</code>

@@ -167,8 +167,8 @@ async def send_email_blast(
         return {"success": False, "count": 0, "error": "No database connection"}
 
     try:
-        # Gather all recipients
-        audiences = await prisma.audience.find_many()
+        # Gather all recipients who haven't unsubscribed
+        audiences = await prisma.audience.find_many(where={"unsubscribed": False})
         users = await prisma.user.find_many()
 
         # Deduplicate email addresses (case-insensitive)

@@ -140,7 +140,8 @@ async def generate_campaign_email(campaign: Any) -> dict[str, str]:
     for a social campaign.
     """
     system_prompt = (
-        "You are a marketing email copywriter for QuantCAI, an enterprise AI tech brand. "
+        "You are an elite B2B enterprise SaaS marketing copywriter for QuantCAI, a premium AI automation brand. "
+        "Your goal is to drive high-value organic conversions, highlighting ROI, scalability, and seamless integration. "
         "Your output MUST be a valid JSON object with EXACTLY 5 keys: "
         "subject, headline, subheadline, body_copy, cta_text. "
         "No markdown fences. Return ONLY the JSON."
@@ -151,11 +152,11 @@ async def generate_campaign_email(campaign: Any) -> dict[str, str]:
 Campaign Base Content: {campaign.baseCaption}
 
 Return a JSON object with:
-1. "subject": A catchy email subject line
-2. "headline": A strong 2-5 word headline
-3. "subheadline": A short sentence elaborating on the headline
-4. "body_copy": 2-3 sentences of persuasive body copy selling the service. DO NOT include HTML.
-5. "cta_text": Short text for a button (e.g. "Get Started")"""
+1. "subject": A high-converting, curiosity-driven email subject line
+2. "headline": A strong 2-5 word headline focusing on business value
+3. "subheadline": A short sentence elaborating on the headline and urgency
+4. "body_copy": 2-3 sentences of persuasive body copy selling the service. Focus on pain points and solutions. DO NOT include HTML.
+5. "cta_text": Action-oriented text for a button (e.g. "Scale Your Business", "Start Free Trial")"""
 
     text = await _call_openrouter(
         prompt,
@@ -176,23 +177,62 @@ Return a JSON object with:
     if parsed and isinstance(parsed, dict):
         content.update(parsed)
         
-    # Prepare template variables
-    campaign_url = "https://quantcai.in/"
+    # Prepare template variables (with UTM tracking)
+    campaign_url = f"https://quantcai.in/?utm_source=auto_email&utm_medium=organic&utm_campaign=ai_loop_{campaign.id}"
     
-    # Very basic HTML layout
+    # Premium Enterprise HTML Layout
     body_html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px;">
-        <h2 style="text-align: center; color: #1a1a1a;">{content['headline']}</h2>
-        <p style="text-align: center; font-size: 1.1em; color: #666;">{content['subheadline']}</p>
-        <div style="text-align: center; margin: 20px 0;">
-            <img src="{campaign.mediaUrl}" alt="Campaign Media" style="max-width: 100%; border-radius: 8px;" />
-        </div>
-        <p style="line-height: 1.6;">{content['body_copy']}</p>
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="{campaign_url}" style="display: inline-block; padding: 14px 28px; background-color: #6366f1; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">{content['cta_text']}</a>
-        </div>
-        <p style="font-size: 0.8em; color: #999; margin-top: 40px; text-align: center;">You're receiving this because you're part of the QuantCAI community. <a href="#">Unsubscribe</a></p>
-    </div>
+    <!DOCTYPE html>
+    <html>
+    <body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f7f6; padding: 40px 0;">
+            <tr>
+                <td align="center">
+                    <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden;">
+                        <!-- Header -->
+                        <tr>
+                            <td style="padding: 40px 40px 20px; text-align: center; background-color: #0f172a;">
+                                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">Quant<span style="color: #6366f1;">CAI</span></h1>
+                            </td>
+                        </tr>
+                        <!-- Hero Section -->
+                        <tr>
+                            <td style="padding: 30px 40px; text-align: center;">
+                                <h2 style="margin: 0 0 15px 0; color: #1e293b; font-size: 24px; font-weight: 700;">{content['headline']}</h2>
+                                <p style="margin: 0; color: #64748b; font-size: 18px; line-height: 1.5;">{content['subheadline']}</p>
+                            </td>
+                        </tr>
+                        <!-- Media -->
+                        <tr>
+                            <td style="padding: 0 40px;">
+                                <img src="{campaign.mediaUrl}" alt="QuantCAI Showcase" style="width: 100%; max-width: 520px; height: auto; border-radius: 8px; border: 1px solid #e2e8f0; display: block; margin: 0 auto;" />
+                            </td>
+                        </tr>
+                        <!-- Body Copy -->
+                        <tr>
+                            <td style="padding: 30px 40px;">
+                                <p style="margin: 0; color: #334155; font-size: 16px; line-height: 1.6;">{content['body_copy']}</p>
+                            </td>
+                        </tr>
+                        <!-- CTA Button -->
+                        <tr>
+                            <td style="padding: 10px 40px 40px; text-align: center;">
+                                <a href="{campaign_url}" style="display: inline-block; padding: 16px 36px; background-color: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; transition: background-color 0.2s;">{content['cta_text']}</a>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="padding: 30px 40px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 13px;">Enterprise AI Infrastructure for the Modern Web.</p>
+                                <p style="margin: 10px 0 0; color: #94a3b8; font-size: 12px;">You're receiving this because you're part of the QuantCAI community. <a href="https://quantcai.in/unsubscribe" style="color: #64748b; text-decoration: underline;">Unsubscribe</a></p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
     """
 
     return {
@@ -209,8 +249,10 @@ async def generate_campaign_variation(base_caption: str) -> str:
     """
     Generate a unique variation of a base campaign caption.
     """
-    prompt = f"""Rewrite the following base social media caption to create a unique, engaging variation. 
-Maintain the core message, links, and any key hashtags, but change the hook, phrasing, and emojis to keep the content fresh for a new post.
+    prompt = f"""Rewrite the following base social media caption to create a highly engaging, professional yet energetic variation for an enterprise B2B audience.
+The goal is to drive organic engagement, establish authority, and compel users to click the link.
+Use modern business-friendly formatting, targeted high-value hashtags (#EnterpriseAI, #Automation, #SaaS), and strategic emojis.
+Appened this link at the end of the post (it includes UTM tracking): https://quantcai.in/?utm_source=auto_social&utm_medium=organic&utm_campaign=ai_loop
 
 Base Caption:
 {base_caption}
@@ -289,20 +331,61 @@ Return a JSON object with:
     img_html = f'<div style="text-align: center; margin: 20px 0;"><img src="{img_url}" alt="{product.productName}" style="max-width: 100%; border-radius: 8px;" /></div>' if img_url else ""
 
     body_html = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px;">
-        <h2 style="text-align: center; color: #1a1a1a;">{{content['headline']}}</h2>
-        <p style="text-align: center; font-size: 1.1em; color: #666;">{{content['subheadline']}}</p>
-        {{img_html}}
-        <p style="line-height: 1.6;">{{content['body_copy']}}</p>
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="{{product_url}}" style="display: inline-block; padding: 14px 28px; background-color: #6366f1; color: #fff; text-decoration: none; border-radius: 6px; font-weight: bold;">{{content['cta_text']}}</a>
-        </div>
-        <p style="font-size: 0.8em; color: #999; margin-top: 40px; text-align: center;">You're receiving this because you're part of the QuantCAI community. <a href="#">Unsubscribe</a></p>
-    </div>
+    <!DOCTYPE html>
+    <html>
+    <body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f7f6; padding: 40px 0;">
+            <tr>
+                <td align="center">
+                    <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden;">
+                        <!-- Header -->
+                        <tr>
+                            <td style="padding: 40px 40px 20px; text-align: center; background-color: #0f172a;">
+                                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">Quant<span style="color: #6366f1;">CAI</span></h1>
+                            </td>
+                        </tr>
+                        <!-- Hero Section -->
+                        <tr>
+                            <td style="padding: 30px 40px; text-align: center;">
+                                <h2 style="margin: 0 0 15px 0; color: #1e293b; font-size: 24px; font-weight: 700;">{content['headline']}</h2>
+                                <p style="margin: 0; color: #64748b; font-size: 18px; line-height: 1.5;">{content['subheadline']}</p>
+                            </td>
+                        </tr>
+                        <!-- Media -->
+                        <tr>
+                            <td style="padding: 0 40px;">
+                                {img_html}
+                            </td>
+                        </tr>
+                        <!-- Body Copy -->
+                        <tr>
+                            <td style="padding: 30px 40px;">
+                                <p style="margin: 0; color: #334155; font-size: 16px; line-height: 1.6;">{content['body_copy']}</p>
+                            </td>
+                        </tr>
+                        <!-- CTA Button -->
+                        <tr>
+                            <td style="padding: 10px 40px 40px; text-align: center;">
+                                <a href="{product_url}" style="display: inline-block; padding: 16px 36px; background-color: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">{content['cta_text']}</a>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="padding: 30px 40px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                                <p style="margin: 0; color: #94a3b8; font-size: 13px;">Enterprise Quantum Security & Simulation Infrastructure.</p>
+                                <p style="margin: 10px 0 0; color: #94a3b8; font-size: 12px;">You're receiving this because you're part of the QuantCAI community. <a href="https://quantcai.in/unsubscribe" style="color: #64748b; text-decoration: underline;">Unsubscribe</a></p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
     """
 
     return {
         "subject": content["subject"],
-        "bodyText": f"{{content['headline']}}\n\n{{content['body_copy']}}\n\n{{content['cta_text']}}: {{product_url}}",
+        "bodyText": f"{content['headline']}\n\n{content['body_copy']}\n\n{content['cta_text']}: {product_url}",
         "bodyHtml": body_html,
     }

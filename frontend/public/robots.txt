@@ -1,8 +1,19 @@
+# QuantCAI — Crawl Directives
+# https://quantcai.in
+
 User-agent: Googlebot
 Allow: /
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /api/
+Disallow: /auth/callback
+Disallow: /profile
 
 User-agent: Bingbot
 Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth/callback
 
 User-agent: Twitterbot
 Allow: /
@@ -10,5 +21,19 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
+User-agent: LinkedInBot
+Allow: /
+
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /api/
+Disallow: /auth/callback
+Disallow: /profile
+
+# Sitemap
+Sitemap: https://quantcai.in/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1

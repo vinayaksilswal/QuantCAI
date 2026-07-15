@@ -1,8 +1,8 @@
 """
 =============================================================================
-QuantCAI — Marketing Automation Scheduler (Bi-Hourly Autonomous Loop)
+QuantCAI — Marketing Automation Scheduler (8-Hour Autonomous Loop)
 =============================================================================
-Implements the autonomous marketing loop that runs every 2 hours:
+Implements the autonomous marketing loop that runs every 8 hours:
 
   1. Query the database for the NEXT product (sequential round-robin)
   2. Generate marketing copy via OpenRouter (AI)
@@ -25,7 +25,7 @@ numInstances=1) to prevent duplicate marketing actions.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -39,6 +39,8 @@ from services.ai_service import (
 )
 from services.email_service import send_email_blast
 from services.social_service import post_to_facebook, post_to_instagram
+from services.twitter_service import twitter_service
+from services.linkedin_service import linkedin_service
 
 # =============================================================================
 # Module-level Prisma reference (set during scheduler creation)
@@ -87,13 +89,13 @@ async def _get_next_campaign(
     return selected
 
 # =============================================================================
-# The Autonomous Marketing Loop — Runs Every 2 Hours
+# The Autonomous Marketing Loop — Runs Every 8 Hours
 # =============================================================================
 async def execute_marketing_loop() -> None:
     """
-    The unified bi-hourly autonomous marketing loop.
+    The unified 8-hour autonomous marketing loop.
 
-    This is the heart of the autonomous platform. Every 2 hours, it:
+    This is the heart of the autonomous platform. Every 8 hours, it:
     1. Selects the next product in the catalog rotation
     2. Generates AI marketing copy (caption + email)
     3. Posts to Facebook and Instagram
@@ -126,7 +128,7 @@ async def execute_marketing_loop() -> None:
         logger.info("[MARKETING LOOP] Database reconnected successfully")
 
     logger.info("=" * 60)
-    logger.info("[MARKETING LOOP] Starting bi-hourly autonomous marketing cycle")
+    logger.info("[MARKETING LOOP] Starting 8-hour autonomous marketing cycle")
     logger.info("=" * 60)
 
     campaign = await _get_next_campaign(prisma, "social")
@@ -145,6 +147,8 @@ async def execute_marketing_loop() -> None:
     email_text: str = ""
     fb_post_id: str | None = None
     ig_post_id: str | None = None
+    tw_post_id: str | None = None
+    li_post_id: str | None = None
     social_errors: list[str] = []
     email_errors: list[str] = []
     media_urls: list[str] = []
@@ -194,7 +198,7 @@ async def execute_marketing_loop() -> None:
     social_success = False
     if social_post:
         if auto_approve:
-            fb_post_id, ig_post_id = None, None
+            fb_post_id, ig_post_id, tw_post_id, li_post_id = None, None, None, None
             try:
                 fb_post_id = await post_to_facebook(message=caption, media_urls=media_urls)
                 if not fb_post_id:
@@ -209,7 +213,37 @@ async def execute_marketing_loop() -> None:
             except Exception as e:
                 social_errors.append(f"IG: {str(e)}")
                 
-            social_success = fb_post_id is not None or ig_post_id is not None
+            if twitter_service.is_available:
+                try:
+                    # For Twitter, generate a thread if caption is long
+                    if len(caption) > 280:
+                        tweets = await twitter_service.generate_thread_from_caption(caption, "#QuantCAI #PQC")
+                        thread_ids = await twitter_service.post_thread(tweets)
+                        if thread_ids:
+                            tw_post_id = thread_ids[0]
+                        else:
+                            social_errors.append("TW: Thread posting failed")
+                    else:
+                        tw_post_id = await twitter_service.post_tweet(caption)
+                        if not tw_post_id:
+                            social_errors.append("TW: Post returned None")
+                except Exception as e:
+                    social_errors.append(f"TW: {str(e)}")
+
+            if linkedin_service.is_available:
+                try:
+                    li_copy = await linkedin_service.format_b2b_copy(caption)
+                    li_post_id = await linkedin_service.post_article(
+                        text=li_copy,
+                        article_url=media_urls[0] if media_urls else "https://quantcai.in",
+                        article_title="QuantCAI Enterprise Infrastructure",
+                    )
+                    if not li_post_id:
+                        social_errors.append("LI: Post returned None")
+                except Exception as e:
+                    social_errors.append(f"LI: {str(e)}")
+                
+            social_success = any([fb_post_id, ig_post_id, tw_post_id, li_post_id])
             
             await prisma.socialpost.update(
                 where={"id": social_post.id},
@@ -218,6 +252,8 @@ async def execute_marketing_loop() -> None:
                     "postedAt": datetime.now() if social_success else None,
                     "fbPostId": fb_post_id,
                     "igPostId": ig_post_id,
+                    "twitterPostId": tw_post_id,
+                    "linkedinPostId": li_post_id,
                     "errorLog": " | ".join(social_errors) if social_errors else None
                 }
             )
@@ -289,7 +325,20 @@ async def execute_marketing_loop() -> None:
         overall_status = "PARTIAL"
 
     all_errors = social_errors + email_errors
-    # MarketingLog model is not in schema; skipping audit trail write
+    try:
+        await prisma.marketinglog.create(
+            data={
+                "campaignId": campaign.id,
+                "status": overall_status,
+                "socialSuccess": social_success,
+                "emailSuccess": email_success,
+                "emailCount": email_count,
+                "errorLog": " | ".join(all_errors) if all_errors else None
+            }
+        )
+        logger.info("[MARKETING LOOP] ✓ Audit trail logged successfully")
+    except Exception as e:
+        logger.error(f"[MARKETING LOOP] Failed to write audit trail: {e}")
 
     # --- Summary ---
     logger.info("=" * 60)
@@ -323,7 +372,7 @@ def create_scheduler(prisma: Prisma) -> AsyncIOScheduler:
     """
     Create and configure the AsyncIOScheduler with the marketing loop job.
 
-    The scheduler runs the execute_marketing_loop() function every 2 hours.
+    The scheduler runs the execute_marketing_loop() function every 8 hours.
     It receives the Prisma client from main.py's lifespan context to avoid
     creating standalone database connections.
 
@@ -336,19 +385,19 @@ def create_scheduler(prisma: Prisma) -> AsyncIOScheduler:
     global _prisma
     _prisma = prisma
 
-    scheduler = AsyncIOScheduler()
+    scheduler = AsyncIOScheduler(timezone=timezone.utc)
 
-    # Add the bi-hourly marketing loop
+    # Add the 8-hour marketing loop
     scheduler.add_job(
         execute_marketing_loop,
-        trigger=IntervalTrigger(hours=2),
+        trigger=IntervalTrigger(hours=8),
         id="marketing_loop",
-        name="Bi-Hourly Autonomous Marketing Loop",
+        name="8-Hour Autonomous Marketing Loop",
         replace_existing=True,
     )
 
     logger.info(
-        "Scheduler configured: marketing loop every 2 hours "
+        "Scheduler configured: marketing loop every 8 hours "
     )
 
     # Add a keep-alive job every 3 minutes to prevent the DB connection from dropping

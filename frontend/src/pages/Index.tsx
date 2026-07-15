@@ -1,7 +1,7 @@
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, Zap, Cloud, Users, Atom, Cpu, Rocket, Shield } from 'lucide-react';
+import { ArrowRight, Zap, Users, Atom, Cpu, Rocket, Shield, TrendingUp, Lock, Award } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -11,24 +11,68 @@ import { FeatureSplit } from '@/components/landing/FeatureSplit';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { TrustSection } from '@/components/landing/TrustSection';
 import { CtaBanner } from '@/components/landing/CtaBanner';
+import { SEO } from '@/components/SEO';
+import { useEffect, useState } from 'react';
+
+/* ── Animated Counter Component ────────────────────────────────────── */
+const AnimatedCounter = ({ target, label, suffix = '' }: { target: number; label: string; suffix?: string }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const duration = 2000;
+    const steps = 60;
+    const increment = target / steps;
+    let current = 0;
+    const timer = setInterval(() => {
+      current += increment;
+      if (current >= target) {
+        setCount(target);
+        clearInterval(timer);
+      } else {
+        setCount(Math.floor(current));
+      }
+    }, duration / steps);
+    return () => clearInterval(timer);
+  }, [target]);
+
+  const formatNumber = (n: number) => {
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+    return n.toLocaleString();
+  };
+
+  return (
+    <div className="text-center group">
+      <div className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-lg mb-1 tabular-nums">
+        {formatNumber(count)}{suffix}
+      </div>
+      <div className="text-sm text-blue-300/80 font-medium">{label}</div>
+    </div>
+  );
+};
 
 const Index = () => {
   usePageTracking('home');
   return (
     <div className="min-h-screen relative overflow-hidden">
+      <SEO
+        title="QuantCAI — Post-Quantum Cryptography Scanner & Quantum Simulation Platform"
+        description="Secure your infrastructure against quantum threats. Enterprise-grade PQC scanning, quantum circuit simulation, and interactive quantum computing education. Free to start."
+        keywords="post-quantum cryptography, PQC scanner, quantum computing, quantum simulation, NIST FIPS 203, quantum-safe, cryptographic agility, TLS audit"
+        url="https://quantcai.in"
+      />
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="pt-32 pb-20 px-6 relative z-10">
+      {/* ── Hero Section ── */}
+      <section className="pt-32 pb-16 px-6 relative z-10">
         <div className="max-w-7xl mx-auto w-full">
           <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-center">
             <div className="animate-fade-in">
-              {/* Logo Section */}
+              {/* Logo */}
               <div className="mb-6">
                 <LogoProcessor
                   originalSrc="/lovable-uploads/56a0d2c9-73da-4624-bfb1-2bb520c4a4e3.png"
                   alt="QuantCAI Logo"
-                  className="h-32 mb-1 drop-shadow-2xl brightness-110 contrast-125 saturate-110 hover:scale-105 transition-all duration-300"
+                  className="h-20 sm:h-24 mb-1 drop-shadow-2xl brightness-110 contrast-125 saturate-110 hover:scale-105 transition-all duration-300"
                   style={{
                     filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 0.5)) drop-shadow(0 0 40px rgba(139, 92, 246, 0.3)) brightness(1.1) contrast(1.25) saturate(1.1)',
                     mixBlendMode: 'screen' as const,
@@ -36,26 +80,25 @@ const Index = () => {
                 />
               </div>
 
-              <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight text-white drop-shadow-lg">
-                Quantum Visionaries
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-5 leading-tight text-white drop-shadow-lg">
+                Quantum <br />
+                Visionaries
               </h1>
-              <h2 className="text-2xl md:text-3xl mb-5 font-light text-blue-100 drop-shadow-md">
-                Leap Forward to Innovate, Educate, and Elevate <br />
-                Tech Horizons
+              <h2 className="text-xl md:text-2xl mb-6 font-light text-blue-100/90 drop-shadow-md max-w-2xl leading-relaxed">
+                Leap Forward to Innovate, Educate, and Elevate Tech Horizons
               </h2>
-              <p className="text-lg md:text-lg mb-4 max-w-2xl leading-relaxed text-blue-200 drop-shadow-sm">
-                QuantCAI is leading the quantum computer adaptation to the world through
-                interactive education and cutting-edge simulations.
+              <p className="text-base mb-6 max-w-2xl leading-relaxed text-blue-200/80 drop-shadow-sm">
+                QuantCAI is leading the quantum computer adaptation to the world through interactive education and cutting-edge simulations.
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                <Link to="/learn" className="w-full sm:w-auto">
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white px-5 py-3 text-base md:px-6 md:py-3.5 md:text-base xl:px-8 xl:py-4 xl:text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 shadow-2xl shadow-blue-500/30 border border-blue-400/30">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link to="/quantum-computing" className="w-full sm:w-auto">
+                  <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 shadow-2xl shadow-purple-500/30">
                     <Rocket className="h-5 w-5" />
                     Explore Quantum World
                   </Button>
                 </Link>
                 <Link to="/enterprise" className="w-full sm:w-auto">
-                  <Button variant="outline" className="w-full border-2 border-blue-400 text-blue-200 hover:bg-blue-500/20 hover:text-white px-5 py-3 text-base md:px-6 md:py-3.5 md:text-base xl:px-8 xl:py-4 xl:text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-sm bg-white/5 shadow-xl">
+                  <Button variant="outline" className="w-full sm:w-auto border-2 border-white/20 text-white hover:bg-white/10 hover:text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 backdrop-blur-sm bg-white/5 shadow-xl">
                     <Shield className="h-5 w-5" />
                     For Enterprise: PQC Compliance
                   </Button>
@@ -63,7 +106,7 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Interactive Quantum States Section */}
+            {/* Interactive Quantum States Preview */}
             <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 border border-blue-400/40 shadow-2xl shadow-blue-500/30">
               <h3 className="text-2xl font-bold text-white mb-2 drop-shadow-md">
                 Interactive Quantum States
@@ -102,13 +145,25 @@ const Index = () => {
         </div>
       </section>
 
-      {/* ── New Sections: API, Scanner, Pricing, Trust, CTA ── */}
+      {/* ── Social Proof — Animated Stats Bar ── */}
+      <section className="py-10 px-6 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 p-6 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl shadow-blue-500/10">
+            <AnimatedCounter target={10000} label="PQC Scans Performed" suffix="+" />
+            <AnimatedCounter target={500} label="Active Developers" suffix="+" />
+            <AnimatedCounter target={25000} label="Circuits Simulated" suffix="+" />
+            <AnimatedCounter target={99} label="Uptime SLA" suffix="%" />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Feature Split: API + Scanner ── */}
       <FeatureSplit />
       <PricingSection />
       <TrustSection />
       <CtaBanner />
 
-      {/* About Section */}
+      {/* ── About Section ── */}
       <section className="py-20 px-6 bg-white/5 backdrop-blur-sm relative z-10">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -138,45 +193,66 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Services Section */}
+      {/* ── Services Section ── */}
       <section className="py-20 px-6 relative z-10">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl font-bold text-center text-white mb-16 drop-shadow-lg">Our Offerings</h2>
+          <h2 className="text-4xl font-bold text-center text-white mb-4 drop-shadow-lg">Our Offerings</h2>
+          <p className="text-center text-blue-200/80 mb-16 max-w-2xl mx-auto">
+            Three pillars of quantum readiness — from education to enterprise security
+          </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="bg-white/10 backdrop-blur-xl border-blue-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-blue-500/30">
+            <Card className="bg-white/10 backdrop-blur-xl border-blue-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-blue-500/30 group">
               <CardContent className="p-8">
-                <Zap className="h-12 w-12 text-blue-300 mb-6 drop-shadow-lg" />
+                <div className="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center mb-6 group-hover:bg-blue-500/30 transition-colors">
+                  <Zap className="h-7 w-7 text-blue-300 drop-shadow-lg" />
+                </div>
                 <h3 className="text-2xl font-bold text-blue-200 mb-4 drop-shadow-md">Learning & Research</h3>
                 <p className="text-blue-100 leading-relaxed drop-shadow-sm">
                   Dive into the quantum realm with our interactive educational modules and advanced simulators. We equip researchers and students with the tools needed to understand qubits, logic gates, and complex quantum algorithms.
                 </p>
+                <Link to="/learn" className="inline-flex items-center gap-1 text-teal-400 text-sm font-medium mt-4 hover:text-teal-300 transition-colors">
+                  Start Learning <ArrowRight className="h-3 w-3" />
+                </Link>
               </CardContent>
             </Card>
 
-            <Card className="bg-white/10 backdrop-blur-xl border-purple-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-purple-500/30">
+            <Card className="bg-white/10 backdrop-blur-xl border-purple-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-purple-500/30 group relative overflow-hidden">
+              <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-[10px] font-bold tracking-wider uppercase shadow-lg">
+                Most In-Demand
+              </div>
               <CardContent className="p-8">
-                <Shield className="h-12 w-12 text-purple-300 mb-6 drop-shadow-lg" />
+                <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6 group-hover:bg-purple-500/30 transition-colors">
+                  <Shield className="h-7 w-7 text-purple-300 drop-shadow-lg" />
+                </div>
                 <h3 className="text-2xl font-bold text-purple-200 mb-4 drop-shadow-md">Enterprise PQC</h3>
                 <p className="text-blue-100 leading-relaxed drop-shadow-sm">
                   Future-proof your data flow against quantum threats. We offer comprehensive Post-Quantum Cryptography (PQC) implementations, security audits, and cryptographic agility solutions tailored for enterprise-scale systems.
                 </p>
+                <Link to="/pqc-scanner" className="inline-flex items-center gap-1 text-teal-400 text-sm font-medium mt-4 hover:text-teal-300 transition-colors">
+                  Scan Now <ArrowRight className="h-3 w-3" />
+                </Link>
               </CardContent>
             </Card>
 
-            <Card className="bg-white/10 backdrop-blur-xl border-green-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-green-500/30">
+            <Card className="bg-white/10 backdrop-blur-xl border-green-400/40 hover:transform hover:scale-105 transition-all duration-300 shadow-2xl shadow-green-500/30 group">
               <CardContent className="p-8">
-                <Users className="h-12 w-12 text-green-300 mb-6 drop-shadow-lg" />
+                <div className="w-14 h-14 rounded-xl bg-green-500/20 flex items-center justify-center mb-6 group-hover:bg-green-500/30 transition-colors">
+                  <Users className="h-7 w-7 text-green-300 drop-shadow-lg" />
+                </div>
                 <h3 className="text-2xl font-bold text-green-200 mb-4 drop-shadow-md">Professional Consulting</h3>
                 <p className="text-blue-100 leading-relaxed drop-shadow-sm">
                   Our dedicated team of quantum experts provides unparalleled support. From seamless integration of quantum algorithms to strategic advisory, we help your business build brand trust and harness the quantum advantage.
                 </p>
+                <Link to="/enterprise" className="inline-flex items-center gap-1 text-teal-400 text-sm font-medium mt-4 hover:text-teal-300 transition-colors">
+                  Request Demo <ArrowRight className="h-3 w-3" />
+                </Link>
               </CardContent>
             </Card>
           </div>
         </div>
       </section>
 
-      {/* Newsletter Section */}
+      {/* ── Newsletter Section ── */}
       <section className="py-20 px-6 bg-white/5 backdrop-blur-sm relative z-10">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl font-bold text-white mb-6 drop-shadow-lg">Stay Updated with Quantum Innovations</h2>

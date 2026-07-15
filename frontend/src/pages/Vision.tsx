@@ -4,11 +4,17 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { Card, CardContent } from "@/components/ui/card";
 import { Target, Users, Lightbulb, Shield } from 'lucide-react';
+import { SEO } from '@/components/SEO';
 
 const Vision = () => {
   usePageTracking('vision');
   return (
     <div className="min-h-screen relative">
+      <SEO 
+        title="Our Vision & Mission - QuantCAI" 
+        description="QuantCAI's mission is to democratize quantum computing education and safeguard global digital infrastructure with advanced PQC solutions." 
+        keywords="quantcai vision, quantcai mission, quantum computing future"
+      />
       <Navbar />
       
       <div className="pt-32 pb-20 px-6">

@@ -49,6 +49,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PaymentAutoTrigger } from "./components/PaymentAutoTrigger";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { BackendWaker } from "./components/BackendWaker";
+import { OnboardingTour } from "./components/OnboardingTour";
 
 const queryClient = new QueryClient();
 
@@ -125,6 +126,7 @@ const App = () => (
                 <PaymentAutoTrigger />
                 <BackendWaker />
                 <CookieConsent />
+                <OnboardingTour />
               </AIProvider>
               </BrowserRouter>
             </ErrorBoundary>

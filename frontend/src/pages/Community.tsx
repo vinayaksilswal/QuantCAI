@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { Heart, MessageSquare, Trash2, Send, PlusCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { SEO } from '@/components/SEO';
 
 const Community = () => {
   usePageTracking('community');
@@ -117,6 +118,11 @@ const Community = () => {
 
   return (
     <div className="min-h-screen relative bg-transparent">
+      <SEO 
+        title="Community - QuantCAI" 
+        description="Connect and share with other quantum explorers. Join the QuantCAI community to discuss quantum computing, post-quantum cryptography, and share your insights." 
+        keywords="quantum community, quantum computing forum, pqc discussions"
+      />
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-purple-500/10 pointer-events-none" />
       <Navbar />
       <div className="pt-32 pb-20 px-6 max-w-4xl mx-auto relative z-10">

@@ -179,6 +179,7 @@ const Login = () => {
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-800 bg-slate-950/50 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono"
                     required
                     disabled={loading}
+                    autoComplete="username"
                   />
                   <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
                 </div>
@@ -196,6 +197,7 @@ const Login = () => {
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-800 bg-slate-950/50 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono" 
                   required 
                   disabled={loading}
+                  autoComplete="email"
                 />
                 <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
               </div>
@@ -212,6 +214,7 @@ const Login = () => {
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-800 bg-slate-950/50 text-white text-xs placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all font-mono" 
                   required 
                   disabled={loading}
+                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                 />
                 <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
               </div>

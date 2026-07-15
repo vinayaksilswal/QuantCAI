@@ -4,6 +4,7 @@ import asyncio
 import structlog
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import uuid
 from fastapi import FastAPI, Depends, HTTPException, Request, status, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +24,15 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+logger = logging.getLogger("quantcai.main")
+
+# Sentry configuration (Placeholder for Phase 2 hardening)
+# import sentry_sdk
+# sentry_sdk.init(
+#     dsn="YOUR_SENTRY_DSN",
+#     traces_sample_rate=1.0,
+#     profiles_sample_rate=1.0,
+# )
 logger = logging.getLogger("quantcai.main")
 
 from core.logger import get_structlog_logger
@@ -148,25 +158,33 @@ async def enforce_request_size_limit(request: Request, call_next):
         )
     return await call_next(request)
 
-# Request logging middleware
+# Request ID & Logging Middleware
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def log_requests_and_assign_id(request: Request, call_next):
     if request.url.path in ("/health", "/healthz", "/ready"):
         return await call_next(request)
+        
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
         
     start_time = time.perf_counter()
     response = await call_next(request)
     duration_ms = (time.perf_counter() - start_time) * 1000
     
+    # Inject request ID into response headers
+    response.headers["X-Request-ID"] = request_id
+    
     user_id = getattr(request.state, "user_id", None)
     
     struct_logger.info(
         "request_processed",
+        request_id=request_id,
         method=request.method,
         path=request.url.path,
         status_code=response.status_code,
         response_time_ms=round(duration_ms, 2),
-        user_id=user_id
+        user_id=user_id,
+        client_ip=request.client.host if request.client else "unknown"
     )
     return response
 
@@ -361,37 +379,57 @@ def read_root():
 
 @app.get("/sitemap.xml", include_in_schema=False)
 async def sitemap():
-    xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+    """Dynamic sitemap covering all public-facing routes with lastmod dates."""
+    pages = [
+        {"loc": "https://quantcai.in/", "changefreq": "daily", "priority": "1.0"},
+        {"loc": "https://quantcai.in/learn", "changefreq": "weekly", "priority": "0.9"},
+        {"loc": "https://quantcai.in/pqc-scanner", "changefreq": "weekly", "priority": "0.9"},
+        {"loc": "https://quantcai.in/quantum-simulator", "changefreq": "weekly", "priority": "0.8"},
+        {"loc": "https://quantcai.in/circuit-builder", "changefreq": "weekly", "priority": "0.8"},
+        {"loc": "https://quantcai.in/quantum-states", "changefreq": "weekly", "priority": "0.7"},
+        {"loc": "https://quantcai.in/quantum-computing", "changefreq": "weekly", "priority": "0.8"},
+        {"loc": "https://quantcai.in/enterprise", "changefreq": "monthly", "priority": "0.9"},
+        {"loc": "https://quantcai.in/tools", "changefreq": "weekly", "priority": "0.7"},
+        {"loc": "https://quantcai.in/community", "changefreq": "weekly", "priority": "0.6"},
+        {"loc": "https://quantcai.in/vision", "changefreq": "monthly", "priority": "0.5"},
+        {"loc": "https://quantcai.in/get-started", "changefreq": "monthly", "priority": "0.8"},
+        {"loc": "https://quantcai.in/learn/qubits", "changefreq": "monthly", "priority": "0.7"},
+        {"loc": "https://quantcai.in/learn/gates", "changefreq": "monthly", "priority": "0.7"},
+        {"loc": "https://quantcai.in/learn/pqc", "changefreq": "monthly", "priority": "0.7"},
+        {"loc": "https://quantcai.in/terms", "changefreq": "yearly", "priority": "0.3"},
+        {"loc": "https://quantcai.in/privacy", "changefreq": "yearly", "priority": "0.3"},
+        {"loc": "https://quantcai.in/refund-policy", "changefreq": "yearly", "priority": "0.3"},
+        {"loc": "https://quantcai.in/security", "changefreq": "monthly", "priority": "0.5"},
+    ]
+    
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    
+    urls_xml = ""
+    for page in pages:
+        urls_xml += f"""    <url>
+        <loc>{page['loc']}</loc>
+        <lastmod>{today}</lastmod>
+        <changefreq>{page['changefreq']}</changefreq>
+        <priority>{page['priority']}</priority>
+    </url>
+"""
+    
+    xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    <url>
-        <loc>https://quantcai.in/</loc>
-        <changefreq>daily</changefreq>
-        <priority>1.0</priority>
-    </url>
-    <url>
-        <loc>https://quantcai.in/learn</loc>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-    <url>
-        <loc>https://quantcai.in/pqc-scanner</loc>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-    <url>
-        <loc>https://quantcai.in/quantum-simulator</loc>
-        <changefreq>weekly</changefreq>
-        <priority>0.7</priority>
-    </url>
-    <url>
-        <loc>https://quantcai.in/quantum-states</loc>
-        <changefreq>weekly</changefreq>
-        <priority>0.7</priority>
-    </url>
-    <url>
-        <loc>https://quantcai.in/circuit-builder</loc>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-</urlset>"""
+{urls_xml}</urlset>"""
     return Response(content=xml_content, media_type="application/xml")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    """Serve robots.txt with crawl directives from the API level."""
+    content = """User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth/callback
+Disallow: /profile
+
+Sitemap: https://quantcai.in/sitemap.xml
+"""
+    return Response(content=content, media_type="text/plain")

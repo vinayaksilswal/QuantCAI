@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket, Shield, Terminal } from 'lucide-react';
+import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket, Shield, Terminal, Bell, CreditCard } from 'lucide-react';
 import { LogoProcessor } from './LogoProcessor';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -47,7 +47,7 @@ export const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation - Order: Home, Learn, Community, Soon, Vision */}
-          <div className="hidden lg:flex items-center space-x-1">
+          <div className="hidden lg:flex items-center space-x-1 text-sm">
             <Link
               to="/"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/')
@@ -128,13 +128,17 @@ export const Navbar = () => {
             {(role === 'enterprise_user' || role === 'root') && (
               <Link
                 to="/enterprise/pqc-scanner"
-                className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/enterprise/pqc-scanner')
+                className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 relative ${isActive('/enterprise/pqc-scanner')
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-lg shadow-teal-500/30'
                   : 'text-emerald-400 hover:text-white hover:bg-emerald-600/20'
                   }`}
               >
                 <Shield className="h-4 w-4" />
                 PQC Compliance
+                <span className="absolute -top-1 -right-2 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
               </Link>
             )}
 
@@ -183,9 +187,13 @@ export const Navbar = () => {
           </div>
 
           {/* Desktop Actions */}
-          <div className="hidden lg:flex items-center space-x-3">
+          <div className="hidden lg:flex items-center space-x-3 text-sm">
             {!user ? (
               <>
+                <a href="/#pricing" className="hidden xl:flex items-center gap-2 px-3 py-1 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-lg transition-all">
+                  <CreditCard className="h-4 w-4" />
+                  Pricing
+                </a>
                 <Link to="/login">
                   <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20">
                     Log In
@@ -200,6 +208,13 @@ export const Navbar = () => {
               </>
             ) : (
               <>
+                <button className="p-2 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-full transition-colors relative">
+                  <Bell className="h-5 w-5" />
+                  <span className="absolute top-1 right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                </button>
                 <Link to="/profile">
                   <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
                     <User className="h-4 w-4" />
@@ -296,14 +311,15 @@ export const Navbar = () => {
               {(role === 'enterprise_user' || role === 'root') && (
                 <Link
                   to="/enterprise/pqc-scanner"
-                  className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/enterprise/pqc-scanner')
+                  className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 relative ${isActive('/enterprise/pqc-scanner')
                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-lg shadow-emerald-500/20 border border-emerald-500/30'
                     : 'text-emerald-400 hover:text-white hover:bg-emerald-600/20'
                     }`}
                   onClick={() => setIsMenuOpen(false)}
                 >
                   <Shield className="h-5 w-5" />
-                  PQC Compliance
+                  <span>PQC Compliance</span>
+                  <span className="ml-auto bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">NEW</span>
                 </Link>
               )}
 
@@ -357,6 +373,10 @@ export const Navbar = () => {
               <div className="flex flex-col space-y-2 pt-4 border-t border-blue-700/50">
                 {!user ? (
                   <>
+                    <a href="/#pricing" onClick={() => setIsMenuOpen(false)} className="px-4 py-3 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-lg flex items-center gap-3">
+                      <CreditCard className="h-5 w-5" />
+                      Pricing
+                    </a>
                     <Link to="/login" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="ghost" className="w-full text-blue-200 hover:text-white justify-start">
                         <User className="h-5 w-5 mr-2" />

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Facebook, Linkedin, Youtube, Instagram } from 'lucide-react';
+import { Facebook, Linkedin, Youtube, Instagram, Twitter } from 'lucide-react';
 import { NewsletterForm } from './NewsletterForm';
 import { LogoProcessor } from './LogoProcessor';
 
@@ -116,6 +116,15 @@ export const Footer = () => {
               >
                 <Youtube className="h-6 w-6" />
               </a>
+              <a 
+                href="https://twitter.com/quantcai" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-200 hover:text-white transition-colors"
+                aria-label="Twitter / X"
+              >
+                <Twitter className="h-6 w-6" />
+              </a>
             </div>
           </div>
         </div>
@@ -152,7 +161,7 @@ export const Footer = () => {
         {/* Copyright & Support Email Bar at absolute bottom */}
         <div className="border-t border-blue-700/50 mt-10 pt-6">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 text-sm font-bold">
-            <p className="text-slate-300">© 2024 by QuantCAI</p>
+            <p className="text-slate-300">© 2024–{new Date().getFullYear()} QuantCAI. All rights reserved.</p>
             <p className="text-slate-300">
               Support Email: <a href="mailto:quantc.info@gmail.com" className="text-blue-400 hover:text-blue-300 transition-colors ml-1">
                 quantc.info@gmail.com
