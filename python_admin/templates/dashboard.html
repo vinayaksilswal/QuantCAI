@@ -196,10 +196,18 @@
                     method: 'POST',
                     body: formData
                 });
-                let uploadData = await uploadRes.json();
                 
-                if (!uploadData.success) {
-                    throw new Error(uploadData.message || 'Media upload failed');
+                let uploadData;
+                const contentType = uploadRes.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    uploadData = await uploadRes.json();
+                } else {
+                    const textData = await uploadRes.text();
+                    throw new Error(`Upload failed (${uploadRes.status}): ${textData.substring(0, 100)}...`);
+                }
+                
+                if (!uploadRes.ok || !uploadData.success) {
+                    throw new Error(uploadData.message || uploadData.detail || 'Media upload failed');
                 }
                 
                 const mediaUrl = uploadData.data.url;
