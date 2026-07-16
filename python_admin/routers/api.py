@@ -82,13 +82,15 @@ async def upload_media(request: Request, file: UploadFile = File(...)) -> Standa
         file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
         mime_type = file.content_type or "application/octet-stream"
         file_content = await file.read()
+        import base64
+        file_content_b64 = base64.b64encode(file_content).decode('utf-8')
         
         prisma = request.app.state.prisma
         media = await prisma.media.create(
             data={
                 "filename": file.filename or "upload",
                 "mimeType": mime_type,
-                "data": file_content
+                "data": file_content_b64
             }
         )
         
