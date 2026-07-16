@@ -114,6 +114,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # but the python client looks for it in the current directory or node_modules/prisma/
             cache_dir = "/opt/render/.cache/prisma-python/binaries/*/*/"
             engines = glob.glob(cache_dir + "node_modules/@prisma/engines/query-engine-*")
+            
+            # If not on Render, try local user cache (for local development)
+            if not engines:
+                import platform
+                home = os.path.expanduser("~")
+                cache_dir = os.path.join(home, ".cache", "prisma-python", "binaries", "*", "*", "")
+                engines = glob.glob(cache_dir + "node_modules/@prisma/engines/query-engine-*")
+                
             if engines:
                 engine_path = engines[0]
                 # Copy to python_admin current directory with the "prisma-" prefix it expects
@@ -121,6 +129,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 shutil.copy(engine_path, expected_name)
                 os.chmod(expected_name, 0o755)
                 logger.info(f"Fixed Prisma path bug: Copied {engine_path} to {expected_name}")
+            else:
+                logger.warning("Could not find downloaded Prisma engine in cache directory.")
     except Exception as e:
         logger.error(f"Failed to fetch/setup Prisma engine: {e}")
 

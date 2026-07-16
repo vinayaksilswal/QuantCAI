@@ -26,6 +26,13 @@ RUN uv pip install --system -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
+# Create a non-root user for security
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+RUN chown -R appuser:appgroup /app
+
+# Switch to appuser BEFORE generating prisma
+USER appuser
+
 # Generate Prisma client from the Python-specific schema
 RUN prisma generate --schema=schema_py.prisma
 
@@ -34,11 +41,6 @@ EXPOSE 8000
 
 # Set production environment
 ENV ENVIRONMENT=production
-
-# Create a non-root user for security
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-RUN chown -R appuser:appgroup /app
-USER appuser
 
 # Health check — Render uses this to verify the service is healthy
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
