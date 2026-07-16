@@ -145,6 +145,11 @@
                 <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Base Caption</label>
                 <textarea id="edit-campaign-caption" rows="4" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-led-purple transition-all"></textarea>
             </div>
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Update Media (Optional)</label>
+                <input type="file" id="edit-campaign-media-input" accept="image/*,video/*" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-led-purple transition-all">
+                <p class="text-xs text-gray-400 mt-1">Leave empty to keep existing media.</p>
+            </div>
             <div class="flex justify-end gap-3">
                 <button onclick="closeEditModal()" class="px-5 py-2 text-sm font-bold text-gray-600 hover:text-gray-900 transition-colors">Cancel</button>
                 <button onclick="saveEditCampaign()" class="px-5 py-2 bg-led-purple text-white rounded-lg font-bold text-sm shadow-md hover:bg-purple-700 transition-colors">Save</button>
@@ -272,6 +277,7 @@
         function openEditModal(id, caption) {
             document.getElementById('edit-campaign-id').value = id;
             document.getElementById('edit-campaign-caption').value = caption.replace(/&quot;/g, '"');
+            document.getElementById('edit-campaign-media-input').value = '';
             document.getElementById('editModal').classList.remove('hidden');
         }
         
@@ -282,13 +288,51 @@
         async function saveEditCampaign() {
             const id = document.getElementById('edit-campaign-id').value;
             const baseCaption = document.getElementById('edit-campaign-caption').value.trim();
+            const mediaInput = document.getElementById('edit-campaign-media-input');
+            const file = mediaInput.files[0];
+            
             if (!baseCaption) return alert('Caption cannot be empty');
             
+            const btn = document.querySelector('#editModal button.bg-led-purple');
+            const originalBtnText = btn.innerHTML;
+            
             try {
+                let mediaUrl = undefined;
+                let mediaType = undefined;
+                
+                if (file) {
+                    btn.innerHTML = 'Uploading...';
+                    btn.disabled = true;
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    let uploadRes = await fetch('/api/v1/upload-media', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    let uploadData = await uploadRes.json();
+                    if (!uploadRes.ok || !uploadData.success) {
+                        throw new Error(uploadData.message || uploadData.detail || 'Media upload failed');
+                    }
+                    
+                    mediaUrl = uploadData.data.url;
+                    mediaType = file.type.startsWith('video') ? 'video' : 'image';
+                }
+
+                btn.innerHTML = 'Saving...';
+                
+                const payload = { baseCaption };
+                if (mediaUrl) {
+                    payload.mediaUrl = mediaUrl;
+                    payload.mediaType = mediaType;
+                }
+
                 const res = await fetch(`/api/v1/campaigns/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ baseCaption })
+                    body: JSON.stringify(payload)
                 });
                 if(res.ok) {
                     window.location.reload();
@@ -296,7 +340,10 @@
                     alert('Failed to update campaign');
                 }
             } catch(e) {
-                alert('Error updating campaign');
+                alert('Error updating campaign: ' + e.message);
+            } finally {
+                btn.innerHTML = originalBtnText;
+                btn.disabled = false;
             }
         }
         

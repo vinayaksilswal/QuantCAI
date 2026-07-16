@@ -63,6 +63,8 @@ class CampaignCreate(BaseModel):
 class CampaignUpdate(BaseModel):
     isActive: Optional[bool] = None
     baseCaption: Optional[str] = None
+    mediaUrl: Optional[str] = None
+    mediaType: Optional[str] = None
 
 
 # =============================================================================
@@ -73,26 +75,26 @@ import base64
 
 @router.post("/upload-media", response_model=StandardResponse)
 async def upload_media(request: Request, file: UploadFile = File(...)) -> StandardResponse:
-    """Upload a video or image file to the file system to avoid DB timeouts."""
+    """Upload a video or image file to the database to avoid ephemeral disk 404s."""
     try:
         import os
-        import uuid
-        import shutil
         
-        upload_dir = "uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        # Generate a unique filename to prevent collisions
         file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
-        unique_filename = f"{uuid.uuid4().hex}{file_ext}"
-        file_path = os.path.join(upload_dir, unique_filename)
+        mime_type = file.content_type or "application/octet-stream"
+        file_content = await file.read()
         
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-            
+        prisma = request.app.state.prisma
+        media = await prisma.media.create(
+            data={
+                "filename": file.filename or "upload",
+                "mimeType": mime_type,
+                "data": file_content
+            }
+        )
+        
         base_url = str(request.base_url).rstrip("/")
         
-        return StandardResponse(success=True, data={"url": f"{base_url}/uploads/{unique_filename}"})
+        return StandardResponse(success=True, data={"url": f"{base_url}/api/v1/media/{media.id}?type={file_ext}"})
     except Exception as e:
         logger.error(f"Failed to upload media: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
@@ -207,6 +209,10 @@ async def update_campaign(cid: str, data: CampaignUpdate, request: Request) -> S
             update_data["isActive"] = data.isActive
         if data.baseCaption is not None:
             update_data["baseCaption"] = data.baseCaption
+        if data.mediaUrl is not None:
+            update_data["mediaUrl"] = data.mediaUrl
+        if data.mediaType is not None:
+            update_data["mediaType"] = data.mediaType
             
         updated = await prisma.socialcampaign.update(
             where={"id": cid},

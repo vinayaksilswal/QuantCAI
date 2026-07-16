@@ -186,10 +186,18 @@ async def edit_social_post(
     if files:
         for file in files:
             if file.filename:
-                file_location = os.path.join(UPLOAD_DIR, file.filename)
-                with open(file_location, "wb") as buffer:
-                    shutil.copyfileobj(file.file, buffer)
-                new_media_urls.append(f"/uploads/{file.filename}")
+                file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
+                mime_type = file.content_type or "application/octet-stream"
+                file_content = await file.read()
+                
+                media = await prisma.media.create(
+                    data={
+                        "filename": file.filename,
+                        "mimeType": mime_type,
+                        "data": file_content
+                    }
+                )
+                new_media_urls.append(f"/api/v1/media/{media.id}?type={file_ext}")
 
     # Combine existing media we want to keep with new media
     final_media_urls = existing_media + new_media_urls
@@ -313,11 +321,19 @@ async def create_manual_social_post(
     if files:
         for file in files:
             if file.filename:
-                file_location = os.path.join(UPLOAD_DIR, file.filename)
-                with open(file_location, "wb") as buffer:
-                    shutil.copyfileobj(file.file, buffer)
+                file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
+                mime_type = file.content_type or "application/octet-stream"
+                file_content = await file.read()
+                
+                media = await prisma.media.create(
+                    data={
+                        "filename": file.filename,
+                        "mimeType": mime_type,
+                        "data": file_content
+                    }
+                )
                 # In production, this should use the actual domain
-                media_urls.append(f"/uploads/{file.filename}")
+                media_urls.append(f"/api/v1/media/{media.id}?type={file_ext}")
 
     caption = manual_caption or ""
     campaign = None
