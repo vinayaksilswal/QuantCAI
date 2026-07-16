@@ -358,14 +358,11 @@ async def execute_tool(
 
         # --- get_marketing_stats ---
         elif name == "get_marketing_stats":
-            product_count = await prisma.product.count()
-            order_count = await prisma.order.count()
+            product_count = 0
+            order_count = 0
             audience_count = await prisma.audience.count()
 
-            revenue_result = await prisma.query_raw(
-                'SELECT COALESCE(SUM("totalAmount"), 0) as total FROM "Order"'
-            )
-            total_revenue = revenue_result[0]["total"] if revenue_result else 0
+            total_revenue = 0
 
             # Recent marketing activity
             recent_posts = await prisma.socialpost.count(

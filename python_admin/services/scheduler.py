@@ -1,8 +1,8 @@
 """
 =============================================================================
-QuantCAI — Marketing Automation Scheduler (8-Hour Autonomous Loop)
+QuantCAI — Marketing Automation Scheduler (6-Hour Autonomous Loop)
 =============================================================================
-Implements the autonomous marketing loop that runs every 8 hours:
+Implements the autonomous marketing loop that runs every 6 hours:
 
   1. Query the database for the NEXT product (sequential round-robin)
   2. Generate marketing copy via OpenRouter (AI)
@@ -89,13 +89,13 @@ async def _get_next_campaign(
     return selected
 
 # =============================================================================
-# The Autonomous Marketing Loop — Runs Every 8 Hours
+# The Autonomous Marketing Loop — Runs Every 6 Hours
 # =============================================================================
 async def execute_marketing_loop() -> None:
     """
-    The unified 8-hour autonomous marketing loop.
+    The unified 6-hour autonomous marketing loop.
 
-    This is the heart of the autonomous platform. Every 8 hours, it:
+    This is the heart of the autonomous platform. Every 6 hours, it:
     1. Selects the next product in the catalog rotation
     2. Generates AI marketing copy (caption + email)
     3. Posts to Facebook and Instagram
@@ -128,7 +128,7 @@ async def execute_marketing_loop() -> None:
         logger.info("[MARKETING LOOP] Database reconnected successfully")
 
     logger.info("=" * 60)
-    logger.info("[MARKETING LOOP] Starting 8-hour autonomous marketing cycle")
+    logger.info("[MARKETING LOOP] Starting 6-hour autonomous marketing cycle")
     logger.info("=" * 60)
 
     campaign = await _get_next_campaign(prisma, "social")
@@ -372,7 +372,7 @@ def create_scheduler(prisma: Prisma) -> AsyncIOScheduler:
     """
     Create and configure the AsyncIOScheduler with the marketing loop job.
 
-    The scheduler runs the execute_marketing_loop() function every 8 hours.
+    The scheduler runs the execute_marketing_loop() function every 6 hours.
     It receives the Prisma client from main.py's lifespan context to avoid
     creating standalone database connections.
 
@@ -387,17 +387,17 @@ def create_scheduler(prisma: Prisma) -> AsyncIOScheduler:
 
     scheduler = AsyncIOScheduler(timezone=timezone.utc)
 
-    # Add the 8-hour marketing loop
+    # Add the 6-hour marketing loop
     scheduler.add_job(
         execute_marketing_loop,
-        trigger=IntervalTrigger(hours=8),
+        trigger=IntervalTrigger(hours=6),
         id="marketing_loop",
-        name="8-Hour Autonomous Marketing Loop",
+        name="6-Hour Autonomous Marketing Loop",
         replace_existing=True,
     )
 
     logger.info(
-        "Scheduler configured: marketing loop every 8 hours "
+        "Scheduler configured: marketing loop every 6 hours "
     )
 
     # Add a keep-alive job every 3 minutes to prevent the DB connection from dropping

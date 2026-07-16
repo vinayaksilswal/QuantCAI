@@ -297,17 +297,14 @@ async def root() -> RedirectResponse:
 async def get_stats(request: Request) -> dict:
     """Return high-level platform statistics for the admin dashboard."""
     prisma: Prisma = request.app.state.prisma
-    user_count = await prisma.user.count()
-    order_count = await prisma.order.count()
     audience_count = await prisma.audience.count()
-    product_count = await prisma.product.count()
 
     return {
         "success": True,
         "data": {
-            "users": user_count,
-            "orders": order_count,
+            "users": 0,
+            "orders": 0,
             "audience": audience_count,
-            "products": product_count,
+            "products": 0,
         },
     }
