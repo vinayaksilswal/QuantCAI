@@ -80,11 +80,15 @@ async def upload_media(request: Request, file: UploadFile = File(...)) -> Standa
         
         raw_data = await file.read()
         
+        # Prisma-client-python requires base64 encoded strings for Bytes fields
+        # to correctly serialize to JSON for the query engine.
+        encoded_data = base64.b64encode(raw_data).decode('utf-8')
+        
         media_record = await prisma.media.create(
             data={
                 "filename": file.filename or "uploaded_media",
                 "mimeType": mime_type,
-                "data": raw_data
+                "data": encoded_data
             }
         )
         
