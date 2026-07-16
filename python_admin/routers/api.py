@@ -78,25 +78,30 @@ async def upload_media(request: Request, file: UploadFile = File(...)) -> Standa
     """Upload a video or image file to the database to avoid ephemeral disk 404s."""
     try:
         import os
+        import uuid
+        import asyncpg
+        from config import settings
         
         file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
         mime_type = file.content_type or "application/octet-stream"
+        
+        # Read directly from SpooledTemporaryFile
         file_content = await file.read()
+        media_id = str(uuid.uuid4())
         
-        from prisma import Base64
-        
-        prisma = request.app.state.prisma
-        media = await prisma.media.create(
-            data={
-                "filename": file.filename or "upload",
-                "mimeType": mime_type,
-                "data": Base64.encode(file_content)
-            }
-        )
+        # Use asyncpg directly to avoid Prisma JSON serialization overhead which causes OOM
+        conn = await asyncpg.connect(settings.database_url)
+        try:
+            await conn.execute(
+                'INSERT INTO "Media" (id, filename, "mimeType", data, "createdAt") VALUES ($1, $2, $3, $4, NOW())',
+                media_id, file.filename or "upload", mime_type, file_content
+            )
+        finally:
+            await conn.close()
         
         base_url = str(request.base_url).rstrip("/")
         
-        return StandardResponse(success=True, data={"url": f"{base_url}/api/v1/media/{media.id}?type={file_ext}"})
+        return StandardResponse(success=True, data={"url": f"{base_url}/api/v1/media/{media_id}?type={file_ext}"})
     except Exception as e:
         logger.error(f"Failed to upload media: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
@@ -110,7 +115,8 @@ public_router = APIRouter(
 async def get_media(media_id: str, request: Request):
     """Retrieve media from the database (PUBLIC)."""
     import os
-    import base64
+    import asyncpg
+    from config import settings
     from fastapi.responses import FileResponse
     from fastapi import HTTPException
     
@@ -127,26 +133,22 @@ async def get_media(media_id: str, request: Request):
         with open(mime_path, "r") as f:
             mime_type = f.read().strip()
     else:
-        # Not cached, fetch from DB
-        prisma = request.app.state.prisma
-        media_record = await prisma.media.find_unique(where={"id": media_id})
-        if not media_record:
+        # Not cached, fetch from DB using asyncpg to bypass Prisma serialization
+        conn = await asyncpg.connect(settings.database_url)
+        try:
+            row = await conn.fetchrow(
+                'SELECT "mimeType", data FROM "Media" WHERE id = $1',
+                media_id
+            )
+        finally:
+            await conn.close()
+            
+        if not row:
             raise HTTPException(status_code=404, detail="Media not found")
             
-        mime_type = media_record.mimeType
+        mime_type = row["mimeType"]
+        data_bytes = row["data"]
         
-        # Decode data
-        raw_data = media_record.data
-        if type(raw_data).__name__ == 'Base64':
-            data_bytes = base64.b64decode(str(raw_data))
-        elif isinstance(raw_data, (bytes, bytearray)):
-            data_bytes = raw_data
-        else:
-            try:
-                data_bytes = base64.b64decode(str(raw_data))
-            except Exception:
-                data_bytes = str(raw_data).encode('latin-1')
-                
         # Cache to disk for future requests
         with open(cache_path, "wb") as f:
             f.write(data_bytes)
