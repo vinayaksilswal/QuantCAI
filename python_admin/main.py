@@ -107,6 +107,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if existing_engines:
             logger.info(f"Prisma engine already exists locally: {existing_engines[0]}, skipping fetch.")
         else:
+            logger.warning("Prisma engine not found locally! Fetching at runtime (this may cause Gunicorn timeout in production).")
             subprocess.run([sys.executable, "-m", "prisma", "py", "fetch"], check=True)
             
             # Prisma Python bug: The engine is downloaded to node_modules/@prisma/engines/

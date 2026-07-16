@@ -111,7 +111,18 @@ async def get_media(media_id: str, request: Request):
         
     import base64
     import re
-    from fastapi.responses import Response, StreamingResponse
+    from fastapi.responses import Response
+    
+    # Check if a specific type is requested (e.g. ?type=video.mp4)
+    req_type = request.query_params.get("type")
+    mime_type = media_record.mimeType
+    if req_type:
+        if req_type.endswith(".mp4"):
+            mime_type = "video/mp4"
+        elif req_type.endswith(".jpg") or req_type.endswith(".jpeg"):
+            mime_type = "image/jpeg"
+        elif req_type.endswith(".png"):
+            mime_type = "image/png"
     
     # Data is stored as base64-encoded ASCII string — decode back to raw bytes
     raw_data = media_record.data
@@ -138,7 +149,7 @@ async def get_media(media_id: str, request: Request):
             if g[1]:
                 byte2 = int(g[1])
                 
-        MAX_CHUNK_SIZE = 3 * 1024 * 1024 # 3MB max chunk
+        MAX_CHUNK_SIZE = 5 * 1024 * 1024 # 5MB max chunk
         
         if byte2 is None:
             byte2 = byte1 + MAX_CHUNK_SIZE - 1
@@ -159,7 +170,7 @@ async def get_media(media_id: str, request: Request):
             "Content-Length": str(length),
             "Cache-Control": "public, max-age=86400",
         }
-        return Response(content=data, status_code=206, headers=headers, media_type=media_record.mimeType)
+        return Response(content=data, status_code=206, headers=headers, media_type=mime_type)
     
     headers = {
         "Accept-Ranges": "bytes",
@@ -167,12 +178,9 @@ async def get_media(media_id: str, request: Request):
         "Cache-Control": "public, max-age=86400",
     }
     
-    def iter_bytes():
-        chunk_size = 1024 * 1024 # 1MB chunks
-        for i in range(0, file_size, chunk_size):
-            yield data_bytes[i:i+chunk_size]
-            
-    return StreamingResponse(iter_bytes(), headers=headers, media_type=media_record.mimeType)
+    # Do not use StreamingResponse here because it uses Transfer-Encoding: chunked,
+    # which breaks video playback on many browsers (e.g. Safari).
+    return Response(content=data_bytes, headers=headers, media_type=mime_type)
 
 # =============================================================================
 # Social Campaign Endpoints
