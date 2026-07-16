@@ -73,29 +73,26 @@ import base64
 
 @router.post("/upload-media", response_model=StandardResponse)
 async def upload_media(request: Request, file: UploadFile = File(...)) -> StandardResponse:
-    """Upload a video or image file to the database (Media table)."""
+    """Upload a video or image file to the file system to avoid DB timeouts."""
     try:
-        prisma = request.app.state.prisma
-        mime_type = file.content_type or "application/octet-stream"
+        import os
+        import uuid
+        import shutil
         
-        raw_data = await file.read()
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
         
-        # Prisma-client-python requires base64 encoded strings for Bytes fields
-        # to correctly serialize to JSON for the query engine.
-        encoded_data = base64.b64encode(raw_data).decode('utf-8')
+        # Generate a unique filename to prevent collisions
+        file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
+        unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+        file_path = os.path.join(upload_dir, unique_filename)
         
-        media_record = await prisma.media.create(
-            data={
-                "filename": file.filename or "uploaded_media",
-                "mimeType": mime_type,
-                "data": encoded_data
-            }
-        )
-        
-        url_suffix = "?type=video.mp4" if mime_type.startswith("video/") else "?type=image.jpg"
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+            
         base_url = str(request.base_url).rstrip("/")
         
-        return StandardResponse(success=True, data={"url": f"{base_url}/api/v1/media/{media_record.id}{url_suffix}"})
+        return StandardResponse(success=True, data={"url": f"{base_url}/uploads/{unique_filename}"})
     except Exception as e:
         logger.error(f"Failed to upload media: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")

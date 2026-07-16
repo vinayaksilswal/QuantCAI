@@ -33,6 +33,46 @@ async def get_subscription_status(
         "status": "active" if plan != "free" else "inactive"
     }
 
+@router.post("/subscribe")
+async def subscribe_plan(
+    request: Request,
+    current_user: DBmodels.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Generate a mock checkout session that automatically provisions the user to PRO.
+    For production, this would integrate with Stripe Checkout.
+    """
+    try:
+        # Check if user already has an active subscription
+        stmt = select(DBmodels.Subscription).where(
+            (DBmodels.Subscription.user_id == current_user.id) &
+            (DBmodels.Subscription.status == DBmodels.SubscriptionStatus.ACTIVE)
+        )
+        result = await db.execute(stmt)
+        existing_sub = result.scalar_one_or_none()
+        
+        if existing_sub:
+            existing_sub.plan = DBmodels.SubscriptionPlan.PRO
+            existing_sub.updated_at = datetime.now(timezone.utc)
+        else:
+            new_sub = DBmodels.Subscription(
+                user_id=current_user.id,
+                plan=DBmodels.SubscriptionPlan.PRO,
+                status=DBmodels.SubscriptionStatus.ACTIVE,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            )
+            db.add(new_sub)
+            
+        await db.commit()
+        await clear_feature_access_cache(current_user.id)
+        
+        return {"url": f"{FRONTEND_URL}/profile?success=true", "subscription_id": "mock_sub_123", "plan": "PRO"}
+    except Exception as e:
+        logger.error(f"Subscription error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process subscription.")
+
 # -----------------------------------------------------------------------------
 # Redis Caching Helpers
 # -----------------------------------------------------------------------------
