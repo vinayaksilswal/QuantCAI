@@ -104,18 +104,51 @@ public_router = APIRouter(
 @public_router.get("/media/{media_id}")
 async def get_media(media_id: str, request: Request):
     """Retrieve media from the database (PUBLIC)."""
-    prisma = request.app.state.prisma
-    media_record = await prisma.media.find_unique(where={"id": media_id})
-    if not media_record:
-        raise HTTPException(status_code=404, detail="Media not found")
-        
+    import os
     import base64
-    import re
-    from fastapi.responses import Response
+    from fastapi.responses import FileResponse
+    from fastapi import HTTPException
     
-    # Check if a specific type is requested (e.g. ?type=video.mp4)
+    cache_dir = "uploads/cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_path = os.path.join(cache_dir, f"{media_id}.bin")
+    mime_path = os.path.join(cache_dir, f"{media_id}.mime")
+    
     req_type = request.query_params.get("type")
-    mime_type = media_record.mimeType
+    mime_type = "application/octet-stream"
+    
+    # If cached on disk, skip DB entirely to prevent OOM on large files
+    if os.path.exists(cache_path) and os.path.exists(mime_path):
+        with open(mime_path, "r") as f:
+            mime_type = f.read().strip()
+    else:
+        # Not cached, fetch from DB
+        prisma = request.app.state.prisma
+        media_record = await prisma.media.find_unique(where={"id": media_id})
+        if not media_record:
+            raise HTTPException(status_code=404, detail="Media not found")
+            
+        mime_type = media_record.mimeType
+        
+        # Decode data
+        raw_data = media_record.data
+        if type(raw_data).__name__ == 'Base64':
+            data_bytes = base64.b64decode(str(raw_data))
+        elif isinstance(raw_data, (bytes, bytearray)):
+            data_bytes = raw_data
+        else:
+            try:
+                data_bytes = base64.b64decode(str(raw_data))
+            except Exception:
+                data_bytes = str(raw_data).encode('latin-1')
+                
+        # Cache to disk for future requests
+        with open(cache_path, "wb") as f:
+            f.write(data_bytes)
+        with open(mime_path, "w") as f:
+            f.write(mime_type)
+            
+    # Override mime type if requested
     if req_type:
         if req_type.endswith(".mp4"):
             mime_type = "video/mp4"
@@ -123,64 +156,13 @@ async def get_media(media_id: str, request: Request):
             mime_type = "image/jpeg"
         elif req_type.endswith(".png"):
             mime_type = "image/png"
-    
-    # Data is stored as base64-encoded ASCII string — decode back to raw bytes
-    raw_data = media_record.data
-    
-    if type(raw_data).__name__ == 'Base64':
-        data_bytes = base64.b64decode(str(raw_data))
-    elif isinstance(raw_data, (bytes, bytearray)):
-        data_bytes = raw_data
-    else:
-        try:
-            data_bytes = base64.b64decode(str(raw_data))
-        except Exception:
-            data_bytes = str(raw_data).encode('latin-1')
-        
-    file_size = len(data_bytes)
-    
-    range_header = request.headers.get("Range")
-    if range_header:
-        byte1, byte2 = 0, None
-        match = re.search(r"bytes=(\d+)-(\d*)", range_header)
-        if match:
-            g = match.groups()
-            byte1 = int(g[0])
-            if g[1]:
-                byte2 = int(g[1])
-                
-        MAX_CHUNK_SIZE = 5 * 1024 * 1024 # 5MB max chunk
-        
-        if byte2 is None:
-            byte2 = byte1 + MAX_CHUNK_SIZE - 1
-            
-        if (byte2 - byte1 + 1) > MAX_CHUNK_SIZE:
-            byte2 = byte1 + MAX_CHUNK_SIZE - 1
-            
-        if byte2 >= file_size:
-            byte2 = file_size - 1
-            
-        length = byte2 - byte1 + 1
-        
-        data = data_bytes[byte1:byte2 + 1]
-        
-        headers = {
-            "Content-Range": f"bytes {byte1}-{byte2}/{file_size}",
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(length),
-            "Cache-Control": "public, max-age=86400",
-        }
-        return Response(content=data, status_code=206, headers=headers, media_type=mime_type)
-    
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Content-Length": str(file_size),
-        "Cache-Control": "public, max-age=86400",
-    }
-    
-    # Do not use StreamingResponse here because it uses Transfer-Encoding: chunked,
-    # which breaks video playback on many browsers (e.g. Safari).
-    return Response(content=data_bytes, headers=headers, media_type=mime_type)
+
+    # FileResponse natively handles Range headers, Content-Length, and streams from disk with zero memory overhead
+    return FileResponse(
+        path=cache_path, 
+        media_type=mime_type, 
+        headers={"Cache-Control": "public, max-age=86400"}
+    )
 
 # =============================================================================
 # Social Campaign Endpoints
