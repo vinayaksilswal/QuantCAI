@@ -58,9 +58,15 @@ def _is_video(url: str) -> bool:
     """Check if a URL points to a video file based on extension or query param."""
     if not url:
         return False
-    if "type=video" in url.lower():
+    url_lower = url.lower()
+    if "type=video" in url_lower:
         return True
-    return url.lower().split("?")[0].endswith((".mp4", ".mov", ".webm", ".avi"))
+    
+    # Check if any common video extension is present in the URL (handles query params like ?type=.mp4)
+    if any(ext in url_lower for ext in [".mp4", ".mov", ".webm", ".avi"]):
+        return True
+        
+    return False
 
 
 # =============================================================================
