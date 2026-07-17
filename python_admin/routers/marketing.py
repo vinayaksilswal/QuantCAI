@@ -190,9 +190,14 @@ async def edit_social_post(
                 file_location = os.path.join(UPLOAD_DIR, file.filename)
                 with open(file_location, "wb") as buffer:
                     shutil.copyfileobj(file.file, buffer)
-                url = f"/uploads/{file.filename}"
-                if file.content_type and file.content_type.startswith("video/"):
+                
+                base_url = str(request.base_url).rstrip("/")
+                url = f"{base_url}/uploads/{file.filename}"
+                
+                is_video_ext = file.filename.lower().endswith((".mp4", ".mov", ".webm", ".avi", ".mkv"))
+                if (file.content_type and file.content_type.startswith("video/")) or is_video_ext:
                     url += "?type=video"
+                    
                 new_media_urls.append(url)
 
     # Combine existing media we want to keep with new media
@@ -321,9 +326,14 @@ async def create_manual_social_post(
                 file_location = os.path.join(UPLOAD_DIR, file.filename)
                 with open(file_location, "wb") as buffer:
                     shutil.copyfileobj(file.file, buffer)
-                url = f"/uploads/{file.filename}"
-                if file.content_type and file.content_type.startswith("video/"):
+                
+                base_url = str(request.base_url).rstrip("/")
+                url = f"{base_url}/uploads/{file.filename}"
+                
+                is_video_ext = file.filename.lower().endswith((".mp4", ".mov", ".webm", ".avi", ".mkv"))
+                if (file.content_type and file.content_type.startswith("video/")) or is_video_ext:
                     url += "?type=video"
+                    
                 media_urls.append(url)
 
     caption = manual_caption or ""
