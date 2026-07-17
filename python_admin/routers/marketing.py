@@ -186,21 +186,14 @@ async def edit_social_post(
     if files:
         for file in files:
             if file.filename:
-                file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
-                mime_type = file.content_type or "application/octet-stream"
-                file_content = await file.read()
-                import base64
-                file_content_b64 = base64.b64encode(file_content).decode('utf-8')
-                
-                media = await prisma.media.create(
-                    data={
-                        "filename": file.filename,
-                        "mimeType": mime_type,
-                        "data": file_content_b64
-                    }
-                )
-                url_suffix = "?type=video" if mime_type.startswith("video/") else f"?type={file_ext}"
-                new_media_urls.append(f"/api/v1/media/{media.id}{url_suffix}")
+                import shutil
+                file_location = os.path.join(UPLOAD_DIR, file.filename)
+                with open(file_location, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+                url = f"/uploads/{file.filename}"
+                if file.content_type and file.content_type.startswith("video/"):
+                    url += "?type=video"
+                new_media_urls.append(url)
 
     # Combine existing media we want to keep with new media
     final_media_urls = existing_media + new_media_urls
@@ -324,28 +317,14 @@ async def create_manual_social_post(
     if files:
         for file in files:
             if file.filename:
-                file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
-                mime_type = file.content_type or "application/octet-stream"
-                file_content = await file.read()
-                import base64
-                file_content_b64 = base64.b64encode(file_content).decode('utf-8')
-                
-                media = await prisma.media.create(
-                    data={
-                        "filename": file.filename,
-                        "mimeType": mime_type,
-                        "data": file_content_b64
-                    }
-                )
-                # In production, this should use the actual domain
-<<<<<<< HEAD
-                media_urls.append(f"/api/v1/media/{media.id}?type={file_ext}")
-=======
+                import shutil
+                file_location = os.path.join(UPLOAD_DIR, file.filename)
+                with open(file_location, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
                 url = f"/uploads/{file.filename}"
                 if file.content_type and file.content_type.startswith("video/"):
                     url += "?type=video"
                 media_urls.append(url)
->>>>>>> d7a3ffa (fix: append ?type=video to media urls to ensure IG video uploads work)
 
     caption = manual_caption or ""
     campaign = None
