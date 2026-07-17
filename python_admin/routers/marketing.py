@@ -200,8 +200,24 @@ async def edit_social_post(
                     
                 new_media_urls.append(url)
 
+    cleaned_existing_media = []
+    base_url_str = str(request.base_url).rstrip("/")
+    import urllib.parse
+    for url in existing_media:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.netloc:
+            url = f"{base_url_str}{parsed.path}"
+            if parsed.query:
+                url += f"?{parsed.query}"
+        
+        # Ensure it has ?type=video if it's a video
+        if url.lower().split("?")[0].endswith((".mp4", ".mov", ".webm", ".avi", ".mkv")):
+            if "type=video" not in url.lower():
+                url += "&type=video" if "?" in url else "?type=video"
+        cleaned_existing_media.append(url)
+
     # Combine existing media we want to keep with new media
-    final_media_urls = existing_media + new_media_urls
+    final_media_urls = cleaned_existing_media + new_media_urls
 
     update_data: dict[str, Any] = {
         "mediaUrls": final_media_urls
