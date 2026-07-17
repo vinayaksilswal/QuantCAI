@@ -99,9 +99,10 @@ async def upload_media(request: Request, file: UploadFile = File(...)) -> Standa
         finally:
             await conn.close()
         
+        url_suffix = "?type=video" if mime_type.startswith("video/") else f"?type={file_ext}"
         base_url = str(request.base_url).rstrip("/")
         
-        return StandardResponse(success=True, data={"url": f"{base_url}/api/v1/media/{media_id}?type={file_ext}"})
+        return StandardResponse(success=True, data={"url": f"{base_url}/api/v1/media/{media_id}{url_suffix}"})
     except Exception as e:
         logger.error(f"Failed to upload media: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")

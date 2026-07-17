@@ -199,7 +199,8 @@ async def edit_social_post(
                         "data": file_content_b64
                     }
                 )
-                new_media_urls.append(f"/api/v1/media/{media.id}?type={file_ext}")
+                url_suffix = "?type=video" if mime_type.startswith("video/") else f"?type={file_ext}"
+                new_media_urls.append(f"/api/v1/media/{media.id}{url_suffix}")
 
     # Combine existing media we want to keep with new media
     final_media_urls = existing_media + new_media_urls
@@ -337,7 +338,14 @@ async def create_manual_social_post(
                     }
                 )
                 # In production, this should use the actual domain
+<<<<<<< HEAD
                 media_urls.append(f"/api/v1/media/{media.id}?type={file_ext}")
+=======
+                url = f"/uploads/{file.filename}"
+                if file.content_type and file.content_type.startswith("video/"):
+                    url += "?type=video"
+                media_urls.append(url)
+>>>>>>> d7a3ffa (fix: append ?type=video to media urls to ensure IG video uploads work)
 
     caption = manual_caption or ""
     campaign = None
