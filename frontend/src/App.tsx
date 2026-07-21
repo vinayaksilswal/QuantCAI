@@ -29,6 +29,7 @@ const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 // const Dashboard = lazy(() => import("./pages/Dashboard"));
 const QuantumSimulator = lazy(() => import("./pages/QuantumSimulator"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const SimulatePage = lazy(() => import("./pages/SimulatePage"));
 const PqcScanner = lazy(() => import("./pages/PqcScanner"));
 const RepoScanner = lazy(() => import("./pages/RepoScanner"));
 const Enterprise = lazy(() => import("./pages/Enterprise"));
@@ -96,6 +97,7 @@ const App = () => (
                       <Route path="/quantum-states" element={<QuantumStates />} />
                       <Route path="/tools" element={<Tools />} />
                       <Route path="/circuit-builder" element={<CircuitBuilder />} />
+                      <Route path="/simulate/:slug" element={<SimulatePage />} />
                       <Route path="/shared/:slug" element={<SharedCircuit />} />
                       <Route path="/get-started" element={<GetStarted />} />
                       <Route path="/soon" element={<Soon />} />

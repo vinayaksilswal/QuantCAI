@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 15px; color: #333333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
+    
+    <p>Hi {{ first_name }},</p>
+    
+    <p>I’m reaching out because my team at QuantCAI ran an automated cryptographic scan on your public GitHub repositories, specifically focusing on <strong>{{ repo_name }}</strong>.</p>
+    
+    <p>With the NSA's CNSA 2.0 mandate requiring all new software to integrate Post-Quantum Cryptography (PQC) by 2030, we’re helping engineering leaders at {{ company_name }} map out their vulnerability to "Harvest Now, Decrypt Later" quantum attacks.</p>
+    
+    <p>Our scanner detected <strong>{{ total_findings }} instances</strong> of legacy cryptographic primitives (like RSA or ECC) in your repository that will be broken by Shor's algorithm.</p>
+    
+    <div style="background-color: #f8fafc; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
+        <strong>Critical Finding:</strong><br>
+        File: <code>{{ primary_finding_file }}</code><br>
+        Vulnerability: {{ primary_finding_type }}<br>
+        Recommendation: Migrate to NIST standardized ML-KEM / ML-DSA.
+    </div>
+    
+    <p>I've attached a complete, detailed <strong>PQC Vulnerability Audit Report</strong> for your team to review.</p>
+    
+    <p>Would you have 15 minutes next week to discuss how QuantCAI can help automate your migration to quantum-safe encryption?</p>
+    
+    <p>Best regards,</p>
+    <p>
+        <strong>Vinayak Silswal</strong><br>
+        Founder, QuantCAI<br>
+        <a href="https://quantcai.in" style="color: #4f46e5; text-decoration: none;">quantcai.in</a>
+    </p>
+
+</body>
+</html>

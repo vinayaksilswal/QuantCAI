@@ -36,11 +36,18 @@ from prisma import Prisma
 from services.ai_service import (
     generate_campaign_variation,
     generate_campaign_email,
+    generate_arxiv_content,
+    _classify_paper_category,
+    _build_arxiv_cta_link,
 )
 from services.email_service import send_email_blast
 from services.social_service import post_to_facebook, post_to_instagram
 from services.twitter_service import twitter_service
 from services.linkedin_service import linkedin_service
+from services.arxiv_newsroom import (
+    ArxivRegistry,
+    fetch_and_filter_new_papers,
+)
 
 # =============================================================================
 # Module-level Prisma reference (set during scheduler creation)
@@ -366,15 +373,159 @@ async def keep_alive_db() -> None:
 
 
 # =============================================================================
+# Autonomous arXiv Newsroom Loop — Runs Every 12 Hours
+# =============================================================================
+async def execute_arxiv_newsroom_loop() -> None:
+    """
+    The autonomous arXiv research-to-social pipeline.
+
+    Every 12 hours, this loop:
+    1. Fetches the latest papers from quant-ph and cs.CR on arXiv
+    2. Filters out already-processed papers via SQLite registry
+    3. Generates AI-powered X threads and LinkedIn posts for each paper
+    4. Posts to X (Twitter) and LinkedIn
+    5. Marks papers as processed in the registry
+
+    This loop runs INDEPENDENTLY from the 6-hour marketing campaign loop.
+    Error handling is per-paper — one failure doesn't block the rest.
+    """
+    logger.info("=" * 60)
+    logger.info("[ARXIV NEWSROOM] Starting 12-hour arXiv research scan")
+    logger.info("=" * 60)
+
+    registry = ArxivRegistry()
+    papers_posted = 0
+    papers_failed = 0
+
+    try:
+        new_papers = await fetch_and_filter_new_papers(
+            registry=registry,
+            max_results=15,  # 15 per category = 30 total max, typically ~5-10 new
+        )
+    except Exception as e:
+        logger.error(f"[ARXIV NEWSROOM] Failed to fetch papers: {e}")
+        return
+
+    if not new_papers:
+        logger.info("[ARXIV NEWSROOM] No new papers found — skipping cycle")
+        return
+
+    # Process up to 5 papers per cycle to avoid API rate limits and content fatigue
+    papers_to_process = new_papers[:5]
+    logger.info(
+        f"[ARXIV NEWSROOM] Processing {len(papers_to_process)} papers "
+        f"(of {len(new_papers)} new)"
+    )
+
+    for paper in papers_to_process:
+        x_posted = False
+        li_posted = False
+
+        try:
+            # Generate AI content
+            content = await generate_arxiv_content(
+                title=paper.title,
+                abstract=paper.abstract,
+                arxiv_id=paper.arxiv_id,
+            )
+
+            x_thread = content["x_thread"]
+            li_post = content["linkedin_post"]
+
+            logger.info(
+                f"[ARXIV NEWSROOM] ✓ AI content generated for {paper.arxiv_id} "
+                f"(category: {content['category']})"
+            )
+
+            # --- Post to X (Twitter) as a thread ---
+            if twitter_service.is_available:
+                try:
+                    tweets = [
+                        x_thread["post_1"],
+                        x_thread["post_2"],
+                        x_thread["post_3"],
+                    ]
+                    # Append hashtags to the last tweet
+                    hashtag_str = " ".join(x_thread.get("hashtags", []))
+                    if hashtag_str and len(tweets[-1]) + len(hashtag_str) + 2 <= 280:
+                        tweets[-1] = f"{tweets[-1]}\n\n{hashtag_str}"
+
+                    thread_ids = await twitter_service.post_thread(tweets)
+                    if thread_ids:
+                        x_posted = True
+                        logger.info(
+                            f"[ARXIV NEWSROOM] ✓ X thread posted for {paper.arxiv_id}: "
+                            f"{len(thread_ids)} tweets"
+                        )
+                except Exception as e:
+                    logger.error(f"[ARXIV NEWSROOM] X posting failed for {paper.arxiv_id}: {e}")
+
+            # --- Post to LinkedIn ---
+            if linkedin_service.is_available:
+                try:
+                    li_body = li_post["body"]
+                    hashtag_str = " ".join(li_post.get("hashtags", []))
+                    if hashtag_str:
+                        li_body = f"{li_body}\n\n{hashtag_str}"
+
+                    li_post_id = await linkedin_service.post_article(
+                        text=li_body,
+                        article_url=paper.abs_url or f"https://arxiv.org/abs/{paper.arxiv_id}",
+                        article_title=paper.title,
+                        article_description=paper.abstract[:200],
+                    )
+                    if li_post_id:
+                        li_posted = True
+                        logger.info(
+                            f"[ARXIV NEWSROOM] ✓ LinkedIn post published for {paper.arxiv_id}"
+                        )
+                except Exception as e:
+                    logger.error(f"[ARXIV NEWSROOM] LinkedIn posting failed for {paper.arxiv_id}: {e}")
+
+            # Mark as processed regardless of posting success
+            # (prevents re-processing on next cycle)
+            registry.mark_processed(
+                arxiv_id=paper.arxiv_id,
+                title=paper.title,
+                category=content["category"],
+                x_posted=x_posted,
+                linkedin_posted=li_posted,
+            )
+
+            if x_posted or li_posted:
+                papers_posted += 1
+            else:
+                papers_failed += 1
+
+        except Exception as e:
+            logger.error(f"[ARXIV NEWSROOM] Failed to process {paper.arxiv_id}: {e}")
+            # Still mark as processed to avoid infinite retries on bad data
+            registry.mark_processed(
+                arxiv_id=paper.arxiv_id,
+                title=paper.title,
+            )
+            papers_failed += 1
+
+    # --- Summary ---
+    stats = registry.get_stats()
+    logger.info("=" * 60)
+    logger.info(
+        f"[ARXIV NEWSROOM] Cycle complete | "
+        f"Posted: {papers_posted} | Failed: {papers_failed} | "
+        f"Total processed (all time): {stats['total_processed']}"
+    )
+    logger.info("=" * 60)
+
+
+# =============================================================================
 # Scheduler Factory — Creates and configures the APScheduler instance
 # =============================================================================
 def create_scheduler(prisma: Prisma) -> AsyncIOScheduler:
     """
-    Create and configure the AsyncIOScheduler with the marketing loop job.
-
-    The scheduler runs the execute_marketing_loop() function every 6 hours.
-    It receives the Prisma client from main.py's lifespan context to avoid
-    creating standalone database connections.
+    Create and configure the AsyncIOScheduler with all automation jobs:
+    1. Marketing campaign loop (every 6 hours)
+    2. arXiv newsroom loop (every 12 hours)
+    3. Database keep-alive (every 3 minutes)
 
     Args:
         prisma: The Prisma client instance from the application lifespan
@@ -387,7 +538,7 @@ def create_scheduler(prisma: Prisma) -> AsyncIOScheduler:
 
     scheduler = AsyncIOScheduler(timezone=timezone.utc)
 
-    # Add the 6-hour marketing loop
+    # --- 6-hour marketing campaign loop ---
     scheduler.add_job(
         execute_marketing_loop,
         trigger=IntervalTrigger(hours=6),
@@ -396,11 +547,21 @@ def create_scheduler(prisma: Prisma) -> AsyncIOScheduler:
         replace_existing=True,
     )
 
-    logger.info(
-        "Scheduler configured: marketing loop every 6 hours "
+    # --- 12-hour arXiv newsroom loop ---
+    scheduler.add_job(
+        execute_arxiv_newsroom_loop,
+        trigger=IntervalTrigger(hours=12),
+        id="arxiv_newsroom_loop",
+        name="12-Hour Autonomous arXiv Newsroom",
+        replace_existing=True,
     )
 
-    # Add a keep-alive job every 3 minutes to prevent the DB connection from dropping
+    logger.info(
+        "Scheduler configured: marketing loop every 6 hours, "
+        "arXiv newsroom every 12 hours"
+    )
+
+    # --- Keep-alive ping every 3 minutes ---
     scheduler.add_job(
         keep_alive_db,
         trigger=IntervalTrigger(minutes=3),

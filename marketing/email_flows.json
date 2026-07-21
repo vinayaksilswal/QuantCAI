@@ -1,0 +1,66 @@
+{
+  "sequences": {
+    "developer_onboarding": [
+      {
+        "day": 1,
+        "subject": "Welcome to QuantCAI ⚛️ — Build Your First Quantum Circuit",
+        "headline": "Start Simulating Quantum Circuits",
+        "body_html": "<p>Welcome to QuantCAI! We're thrilled to have you join our community of quantum developers.</p><p>As your first step, we recommend trying out our interactive circuit builder. You can start with a simple Bell State or dive into Grover's algorithm.</p>",
+        "cta_text": "Launch Circuit Builder",
+        "cta_link": "https://quantcai.in/circuit-builder"
+      },
+      {
+        "day": 3,
+        "subject": "Export your quantum circuits to Qiskit 🐍",
+        "headline": "From Browser to IBM Quantum",
+        "body_html": "<p>Did you know you can export any circuit built in QuantCAI directly to Qiskit Python code?</p><p>This means you can prototype in our visual editor, export the code, and run it on real quantum hardware via IBM Quantum.</p>",
+        "cta_text": "Try Qiskit Export",
+        "cta_link": "https://quantcai.in/tools"
+      },
+      {
+        "day": 7,
+        "subject": "Quantum-Safe Cryptography: Is your code ready? 🛡️",
+        "headline": "The Post-Quantum Threat",
+        "body_html": "<p>As quantum hardware scales, classical encryption like RSA and ECC becomes vulnerable.</p><p>Explore our Post-Quantum Cryptography (PQC) scanner to identify weak algorithms in your GitHub repositories and get migration recommendations for ML-KEM and ML-DSA.</p>",
+        "cta_text": "Scan My Repo",
+        "cta_link": "https://quantcai.in/pqc-scanner"
+      }
+    ],
+    "ciso_nurture": [
+      {
+        "day": 1,
+        "subject": "Your QuantCAI PQC Audit Report is Ready 📊",
+        "headline": "Cryptographic Vulnerability Audit",
+        "body_html": "<p>Thank you for using QuantCAI's PQC Scanner. Your preliminary audit report highlights several repositories using legacy algorithms (RSA, ECC) that are vulnerable to 'Harvest Now, Decrypt Later' attacks.</p><p>The NSA CNSA 2.0 mandate requires all new software to use Post-Quantum Cryptography by 2030.</p>",
+        "cta_text": "View Full Report",
+        "cta_link": "https://quantcai.in/enterprise"
+      },
+      {
+        "day": 4,
+        "subject": "The cost of delaying PQC migration (Case Studies) 📉",
+        "headline": "Why Migrate Now?",
+        "body_html": "<p>Migrating to PQC is not a flip of a switch. It requires discovering all cryptographic assets, testing hybrid TLS handshakes, and updating PKI.</p><p>Read our latest case studies on how enterprise teams are using QuantCAI to map their cryptographic inventory and automate the transition to ML-KEM.</p>",
+        "cta_text": "Read Case Studies",
+        "cta_link": "https://quantcai.in/learn/pqc"
+      },
+      {
+        "day": 10,
+        "subject": "Schedule a PQC Readiness Workshop with QuantCAI 📅",
+        "headline": "Let's Build Your Migration Plan",
+        "body_html": "<p>We offer hands-on workshops for enterprise security teams to build a concrete timeline for PQC migration.</p><p>In this 60-minute session, we'll review your audit report and map out a step-by-step transition strategy to meet CNSA 2.0 requirements.</p>",
+        "cta_text": "Book a Workshop",
+        "cta_link": "https://quantcai.in/enterprise"
+      }
+    ],
+    "inactive_winback": [
+      {
+        "day": 14,
+        "subject": "We miss you at QuantCAI! See what's new 🚀",
+        "headline": "New Quantum Features Released",
+        "body_html": "<p>It's been a while since you last simulated a circuit! We've recently added new tools, including a Quantum Phase Estimation visualizer and an updated Qiskit export engine.</p><p>Jump back in and continue exploring quantum computing.</p>",
+        "cta_text": "Explore New Features",
+        "cta_link": "https://quantcai.in/tools"
+      }
+    ]
+  }
+}

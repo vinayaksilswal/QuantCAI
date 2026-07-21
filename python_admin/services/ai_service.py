@@ -389,3 +389,174 @@ Return a JSON object with:
         "bodyText": f"{content['headline']}\n\n{content['body_copy']}\n\n{content['cta_text']}: {product_url}",
         "bodyHtml": body_html,
     }
+
+
+# =============================================================================
+# arXiv Research → Social Content Generation
+# =============================================================================
+# These functions transform academic paper abstracts into platform-ready
+# social media content for the autonomous arXiv newsroom pipeline.
+# =============================================================================
+
+ARXIV_X_SYSTEM_PROMPT = """You are a senior quantum computing developer advocate writing for X (Twitter).
+Your audience is Python developers, quantum researchers, and Qiskit users.
+
+RULES:
+- Write exactly 3 posts for an X thread. Each post MUST be under 280 characters.
+- Post 1: Hook — summarize what the paper discovered in a punchy, engaging way. Use an emoji opener.
+- Post 2: Technical implications — what this means for Python/Qiskit developers. Include a hypothetical code snippet or library reference if relevant.
+- Post 3: Call-to-action — direct readers to explore this concept on QuantCAI. Use the CTA link provided.
+- Be technically accurate but accessible. No hype or buzzwords.
+- Include 3-5 relevant hashtags separately.
+
+OUTPUT FORMAT (strict JSON, no markdown fences):
+{
+  "post_1": "...",
+  "post_2": "...",
+  "post_3": "...",
+  "hashtags": ["#Quantum", "#Qiskit", ...]
+}"""
+
+ARXIV_LINKEDIN_SYSTEM_PROMPT = """You are a cybersecurity thought leader writing for LinkedIn.
+Your audience is CISOs, VP of Engineering, compliance officers, and DevSecOps leaders.
+
+RULES:
+- Write a professional, risk-focused executive summary (max 3000 characters).
+- Frame the research around the NSA CNSA 2.0 mandate (PQC in all new software by 2030, full replacement by 2033).
+- Emphasize the shrinking timeline for Post-Quantum Cryptography (PQC) migration.
+- Reference the average data breach cost ($4.44M) and the regulatory implications.
+- End with a clear call-to-action to assess cryptographic posture using QuantCAI's PQC scanner at https://quantcai.in/pqc-scanner
+- Include 3-5 professional hashtags separately.
+- Do NOT use emojis. Use professional tone throughout.
+
+OUTPUT FORMAT (strict JSON, no markdown fences):
+{
+  "body": "...",
+  "hashtags": ["#PostQuantumCryptography", "#CyberSecurity", ...]
+}"""
+
+
+def _classify_paper_category(title: str, abstract: str) -> str:
+    """Classify a paper as 'quantum' or 'cybersecurity' based on keywords."""
+    text = (title + " " + abstract).lower()
+    crypto_keywords = {
+        "cryptograph", "post-quantum", "pqc", "lattice-based", "ml-kem", "ml-dsa",
+        "slh-dsa", "nist", "rsa", "ecc", "key exchange", "digital signature",
+        "encryption", "tls", "certificate", "vulnerability", "cybersecurity",
+        "shor's algorithm", "factoring", "key encapsulation", "hash-based",
+    }
+    for kw in crypto_keywords:
+        if kw in text:
+            return "cybersecurity"
+    return "quantum"
+
+
+def _build_arxiv_cta_link(category: str, arxiv_id: str) -> str:
+    """Build a trackable CTA link based on the paper's category."""
+    base = "https://quantcai.in"
+    utm = f"utm_source=arxiv_newsroom&utm_medium=social&utm_campaign={arxiv_id}"
+    if category == "cybersecurity":
+        return f"{base}/pqc-scanner?{utm}"
+    return f"{base}/circuit-builder?{utm}"
+
+
+async def generate_arxiv_x_thread(
+    title: str, abstract: str, arxiv_id: str, cta_link: str
+) -> dict:
+    """
+    Generate a 3-post X thread from an arXiv paper abstract.
+
+    Returns:
+        Dict with keys: post_1, post_2, post_3, hashtags
+    """
+    prompt = f"""Paper Title: {title}
+Paper ID: {arxiv_id}
+Abstract: {abstract}
+
+CTA Link to include in post 3: {cta_link}"""
+
+    text = await _call_openrouter(
+        prompt,
+        system_prompt=ARXIV_X_SYSTEM_PROMPT,
+    )
+
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed, dict):
+        return {
+            "post_1": str(parsed.get("post_1", ""))[:280],
+            "post_2": str(parsed.get("post_2", ""))[:280],
+            "post_3": str(parsed.get("post_3", ""))[:280],
+            "hashtags": parsed.get("hashtags", ["#Quantum", "#QuantCAI"]),
+        }
+
+    # Fallback if LLM fails
+    return {
+        "post_1": f"🔬 New research: {title[:200]}",
+        "post_2": f"Read the full paper: https://arxiv.org/abs/{arxiv_id}",
+        "post_3": f"Explore quantum concepts interactively → {cta_link}",
+        "hashtags": ["#Quantum", "#Research", "#QuantCAI"],
+    }
+
+
+async def generate_arxiv_linkedin_post(
+    title: str, abstract: str, arxiv_id: str, cta_link: str
+) -> dict:
+    """
+    Generate a LinkedIn executive summary from an arXiv paper abstract.
+
+    Returns:
+        Dict with keys: body, hashtags
+    """
+    prompt = f"""Paper Title: {title}
+Paper ID: {arxiv_id}
+Abstract: {abstract}
+
+CTA Link: {cta_link}"""
+
+    text = await _call_openrouter(
+        prompt,
+        system_prompt=ARXIV_LINKEDIN_SYSTEM_PROMPT,
+    )
+
+    parsed = _parse_json_response(text)
+    if parsed and isinstance(parsed, dict):
+        return {
+            "body": str(parsed.get("body", ""))[:3000],
+            "hashtags": parsed.get("hashtags", ["#PostQuantumCryptography", "#CyberSecurity"]),
+        }
+
+    # Fallback if LLM fails
+    category = _classify_paper_category(title, abstract)
+    return {
+        "body": (
+            f"New research published on arXiv highlights critical developments "
+            f"in {'post-quantum cryptography' if category == 'cybersecurity' else 'quantum computing'}.\n\n"
+            f'"{title}"\n\n'
+            f"Organizations preparing for the NSA CNSA 2.0 mandate should take note. "
+            f"Assess your cryptographic posture at {cta_link}"
+        ),
+        "hashtags": ["#PostQuantumCryptography", "#CyberSecurity", "#CNSA2"],
+    }
+
+
+async def generate_arxiv_content(
+    title: str, abstract: str, arxiv_id: str
+) -> dict:
+    """
+    Full pipeline: Generate both X thread and LinkedIn post from an arXiv paper.
+
+    Returns:
+        Dict with keys: category, cta_link, x_thread, linkedin_post
+    """
+    category = _classify_paper_category(title, abstract)
+    cta_link = _build_arxiv_cta_link(category, arxiv_id)
+
+    x_thread = await generate_arxiv_x_thread(title, abstract, arxiv_id, cta_link)
+    linkedin_post = await generate_arxiv_linkedin_post(title, abstract, arxiv_id, cta_link)
+
+    return {
+        "category": category,
+        "cta_link": cta_link,
+        "x_thread": x_thread,
+        "linkedin_post": linkedin_post,
+    }

@@ -32,6 +32,9 @@ apscheduler
 # --- Email (Resend SDK) ---
 resend
 
+# --- Twitter/X API ---
+tweepy
+
 # --- Authentication ---
 pyjwt
 

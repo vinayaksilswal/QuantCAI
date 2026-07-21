@@ -23,6 +23,7 @@ interface PlanProps {
   originalPrice?: string;
   discountPercentage?: string;
   period?: string;
+  billingNote?: string;
   badge?: string;
   features: string[];
   cta: string;
@@ -31,7 +32,7 @@ interface PlanProps {
   planKey?: string; // "pro" or "enterprise" for checkout
 }
 
-const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badge, features, cta, ctaHref, highlighted, planKey }: PlanProps) => {
+const PlanCard = ({ name, price, originalPrice, discountPercentage, period, billingNote, badge, features, cta, ctaHref, highlighted, planKey }: PlanProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -72,6 +73,7 @@ const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badg
           <span className="font-extrabold text-3xl text-white drop-shadow-md">{price}</span>
           {period && <span className="text-blue-300/70 text-sm">{period}</span>}
         </div>
+        {billingNote && <div className="text-teal-400 text-xs mt-1 font-medium">{billingNote}</div>}
       </div>
       <ul className="space-y-3 mb-8 flex-1">
         {features.map((f, i) => (
@@ -84,9 +86,11 @@ const PlanCard = ({ name, price, originalPrice, discountPercentage, period, badg
       {planKey === 'pro' ? (
         <div className="mt-auto w-full">
           <div className="bg-white rounded-xl p-4 text-center mt-auto shadow-md border border-gray-200">
-             <div className="flex justify-center items-center gap-2 mb-2">
-               <span className="text-gray-400 line-through text-xs font-semibold">Regular: $99</span> 
-               <span className="text-red-600 font-bold text-sm">Today: {price}</span>
+             <div className="flex flex-col justify-center items-center gap-1 mb-2">
+               <span className="text-gray-400 line-through text-[11px] font-semibold">Regular: {originalPrice || '$99'}</span> 
+               <span className="text-red-600 font-bold text-sm">
+                 {billingNote ? billingNote : `Today: ${price}`}
+               </span>
              </div>
              <div className="flex justify-center items-center py-2 w-full">
                <a href="https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63" onClick={handleProCheckout}>
@@ -194,10 +198,11 @@ export const PricingSection = () => {
           />
           <PlanCard
             name="Pro Tier"
-            price={isAnnual ? "$216" : "$27"}
+            price={isAnnual ? "$18" : "$27"}
             originalPrice={isAnnual ? "$1188" : "$99"}
             discountPercentage="72% OFF"
-            period={isAnnual ? "/ year" : "/ month"}
+            period="/ month"
+            billingNote={isAnnual ? "Billed $216 yearly today" : undefined}
             badge="Most Popular"
             highlighted
             features={[

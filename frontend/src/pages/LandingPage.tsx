@@ -129,9 +129,9 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      <SEO 
-        title="QuantCAI - Enterprise Quantum Computing Simulations & APIs" 
-        description="QuantCAI equips learners, researchers, and developers with an interactive ecosystem to master quantum computing, deploy algorithms, and secure post-quantum infrastructure." 
+      <SEO
+        title="QuantCAI - Enterprise Quantum Computing Simulations & APIs"
+        description="QuantCAI equips learners, researchers, and developers with an interactive ecosystem to master quantum computing, deploy algorithms, and secure post-quantum infrastructure."
       />
       <Navbar />
 
@@ -156,7 +156,7 @@ export default function LandingPage() {
               </div>
 
               <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight text-white drop-shadow-lg">
-                Quantum <br/>
+                Quantum <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">Visionaries</span>
               </h1>
               <h2 className="text-2xl md:text-3xl mb-5 font-light text-blue-100 drop-shadow-md">
@@ -226,6 +226,29 @@ export default function LandingPage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
+          VIDEO PRESENTATION
+          ═══════════════════════════════════════════════════════════════ */}
+      <section className="py-12 px-6 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="relative rounded-2xl overflow-hidden border border-cyan-400/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] bg-black/40 backdrop-blur-xl group">
+            <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <video
+              className="w-full h-auto aspect-video object-cover rounded-2xl"
+              controls
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster="/placeholder.svg"
+              src="/QuantCAI_Shaping_the_Quantum_Future_with_captions.mp4"
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
           NEW: COHORT PROMO BANNER — Promoting the 8-Week Cohort
           ═══════════════════════════════════════════════════════════════ */}
       <section className="py-10 px-6 relative z-10">
@@ -240,7 +263,7 @@ export default function LandingPage() {
                 Applied Quantum Software Engineering
               </h2>
               <p className="text-blue-200 text-sm sm:text-base max-w-2xl leading-relaxed">
-                An 8-week intensive training cohort led by post-quantum security researchers. 
+                An 8-week intensive training cohort led by post-quantum security researchers.
                 Master Shor's algorithm, VQE, and CBOM compliance. Limited to 20 seats.
               </p>
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-2 text-xs font-mono text-slate-400">
@@ -312,12 +335,12 @@ export default function LandingPage() {
                     <span className="w-2 h-2 rounded-full bg-green-500/60" />
                     <span className="ml-2 text-[10px] text-blue-300 font-mono">request.sh</span>
                   </div>
-                  <button 
+                  <button
                     onClick={() => navigator.clipboard.writeText(curlSnippet)}
                     className="p-1 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white transition-colors flex items-center gap-1"
                     title="Copy Code"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
                     <span className="text-[9px] font-mono uppercase tracking-widest hidden sm:inline-block">Copy</span>
                   </button>
                 </div>
@@ -482,7 +505,7 @@ export default function LandingPage() {
                 Access Developer Console
               </Link>
             </div>
-            
+
             <div className="bg-gradient-to-br from-slate-900/90 to-emerald-900/50 p-10 rounded-3xl border border-emerald-500/30 shadow-2xl backdrop-blur-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all duration-500">
               <div className="absolute -top-20 -right-20 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all duration-500"></div>
               <Shield className="w-12 h-12 text-emerald-400 mb-6 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]" />
@@ -505,7 +528,7 @@ export default function LandingPage() {
       <section className="py-20 sm:py-28 px-6 relative z-10">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="font-bold text-3xl sm:text-4xl text-white mb-6 drop-shadow-lg leading-tight">
-            The quantum advantage <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">starts right now.</span>
+            The quantum advantage <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">starts right now.</span>
           </h2>
           <p className="text-blue-100 text-lg max-w-xl mx-auto mb-10 leading-relaxed drop-shadow-sm">
             Whether you're building quantum algorithms or hardening your infrastructure against quantum threats — QuantCAI gives you the tools to move first.

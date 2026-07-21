@@ -1,7 +1,7 @@
 import { usePageTracking } from '@/hooks/usePageTracking';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, Zap, Users, Atom, Cpu, Rocket, Shield, TrendingUp, Lock, Award } from 'lucide-react';
+import { ArrowRight, Zap, Users, Atom, Cpu, Rocket, Shield, TrendingUp, Lock, Award, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
@@ -72,7 +72,7 @@ const Index = () => {
                 <LogoProcessor
                   originalSrc="/lovable-uploads/56a0d2c9-73da-4624-bfb1-2bb520c4a4e3.png"
                   alt="QuantCAI Logo"
-                  className="h-20 sm:h-24 mb-1 drop-shadow-2xl brightness-110 contrast-125 saturate-110 hover:scale-105 transition-all duration-300"
+                  className="h-24 sm:h-28 mb-2 drop-shadow-2xl brightness-110 contrast-125 saturate-110 hover:scale-105 transition-all duration-300"
                   style={{
                     filter: 'drop-shadow(0 0 20px rgba(59, 130, 246, 0.5)) drop-shadow(0 0 40px rgba(139, 92, 246, 0.3)) brightness(1.1) contrast(1.25) saturate(1.1)',
                     mixBlendMode: 'screen' as const,
@@ -80,18 +80,19 @@ const Index = () => {
                 />
               </div>
 
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-5 leading-tight text-white drop-shadow-lg">
+              <h1 className="text-5xl md:text-6xl lg:text-7xl font-syne font-bold mb-5 leading-tight text-white drop-shadow-lg tracking-tight">
                 Quantum <br />
                 Visionaries
               </h1>
-              <h2 className="text-xl md:text-2xl mb-6 font-light text-blue-100/90 drop-shadow-md max-w-2xl leading-relaxed">
+              <h2 className="text-2xl md:text-3xl mb-6 font-light text-blue-100/90 drop-shadow-md max-w-2xl leading-relaxed">
                 Leap Forward to Innovate, Educate, and Elevate Tech Horizons
               </h2>
               <p className="text-base mb-6 max-w-2xl leading-relaxed text-blue-200/80 drop-shadow-sm">
                 QuantCAI is leading the quantum computer adaptation to the world through interactive education and cutting-edge simulations.
               </p>
+
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/quantum-computing" className="w-full sm:w-auto">
+                <Link to="/learn" className="w-full sm:w-auto">
                   <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 text-lg rounded-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 shadow-2xl shadow-purple-500/30">
                     <Rocket className="h-5 w-5" />
                     Explore Quantum World
@@ -141,6 +142,27 @@ const Index = () => {
                 </Button>
               </Link>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Video Presentation ── */}
+      <section className="py-12 px-6 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="relative rounded-2xl overflow-hidden border border-cyan-400/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] bg-black/40 backdrop-blur-xl group">
+            <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <video
+              className="w-full h-auto aspect-video object-cover rounded-2xl"
+              controls
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster="/placeholder.svg"
+              src="/QuantCAI_Shaping_the_Quantum_Future_with_captions.mp4"
+            >
+              Your browser does not support the video tag.
+            </video>
           </div>
         </div>
       </section>

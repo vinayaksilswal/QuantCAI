@@ -116,15 +116,6 @@ export const Footer = () => {
               >
                 <Youtube className="h-6 w-6" />
               </a>
-              <a 
-                href="https://twitter.com/quantcai" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-blue-200 hover:text-white transition-colors"
-                aria-label="Twitter / X"
-              >
-                <Twitter className="h-6 w-6" />
-              </a>
             </div>
           </div>
         </div>

@@ -402,6 +402,19 @@ async def sitemap():
         {"loc": "https://quantcai.in/security", "changefreq": "monthly", "priority": "0.5"},
     ]
     
+    # 20 Programmatic SEO Landing Pages
+    pseo_slugs = [
+        "quantum-teleportation", "grovers-algorithm", "bell-state", "quantum-fourier-transform",
+        "deutsch-jozsa", "quantum-error-correction", "ghz-state", "quantum-phase-estimation",
+        "swap-test", "quantum-key-distribution", "shors-algorithm", "pqc-ml-kem-explainer",
+        "pqc-ml-dsa-explainer", "variational-quantum-eigensolver", "quantum-approximate-optimization",
+        "quantum-random-number-generator", "bernstein-vazirani", "quantum-walk",
+        "harvest-now-decrypt-later", "pqc-tls-handshake"
+    ]
+    
+    for slug in pseo_slugs:
+        pages.append({"loc": f"https://quantcai.in/simulate/{slug}", "changefreq": "monthly", "priority": "0.8"})
+    
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     urls_xml = ""

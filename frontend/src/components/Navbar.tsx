@@ -17,6 +17,7 @@ const learningPaths = [
 export const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLearnOpen, setIsLearnOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut, role } = useAuth();
@@ -208,13 +209,70 @@ export const Navbar = () => {
               </>
             ) : (
               <>
-                <button className="p-2 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-full transition-colors relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute top-1 right-1 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                  </span>
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                    className="p-2 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-full transition-colors relative"
+                  >
+                    <Bell className="h-5 w-5" />
+                    <span className="absolute top-1 right-1 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                  </button>
+                  
+                  {isNotificationsOpen && (
+                    <div className="absolute right-0 mt-2 w-80 bg-[#0f172a] border border-blue-500/20 rounded-xl shadow-2xl py-2 z-50">
+                      <div className="px-4 py-2 border-b border-blue-500/20 flex justify-between items-center">
+                        <h3 className="font-syne font-bold text-white">Notifications</h3>
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">3 New</span>
+                      </div>
+                      <div className="max-h-[300px] overflow-y-auto">
+                        <div className="px-4 py-3 hover:bg-blue-900/20 transition-colors cursor-pointer border-b border-blue-500/10">
+                          <div className="flex items-start gap-3">
+                            <div className="bg-emerald-500/20 p-2 rounded-lg mt-0.5">
+                              <Zap className="h-4 w-4 text-emerald-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white mb-1 leading-tight">New Feature: PQC Scanner</p>
+                              <p className="text-xs text-slate-400 leading-snug">Scan your repositories for Post-Quantum Cryptography vulnerabilities today!</p>
+                              <p className="text-[10px] text-slate-500 mt-1">2 hours ago</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-4 py-3 hover:bg-blue-900/20 transition-colors cursor-pointer border-b border-blue-500/10">
+                          <div className="flex items-start gap-3">
+                            <div className="bg-purple-500/20 p-2 rounded-lg mt-0.5">
+                              <Rocket className="h-4 w-4 text-purple-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white mb-1 leading-tight">Summer Promotion 🌟</p>
+                              <p className="text-xs text-slate-400 leading-snug">Upgrade to Enterprise plan and get 30% off your first 3 months.</p>
+                              <p className="text-[10px] text-slate-500 mt-1">1 day ago</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-4 py-3 hover:bg-blue-900/20 transition-colors cursor-pointer">
+                          <div className="flex items-start gap-3">
+                            <div className="bg-blue-500/20 p-2 rounded-lg mt-0.5">
+                              <Atom className="h-4 w-4 text-blue-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white mb-1 leading-tight">Quantum Simulator v2.0</p>
+                              <p className="text-xs text-slate-400 leading-snug">Experience faster rendering and more precise entanglement visualizations.</p>
+                              <p className="text-[10px] text-slate-500 mt-1">3 days ago</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="px-4 py-2 border-t border-blue-500/20 text-center">
+                        <button className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">
+                          Mark all as read
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <Link to="/profile">
                   <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
                     <User className="h-4 w-4" />
