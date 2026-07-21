@@ -15,7 +15,7 @@ from security import get_current_user_or_api_key, redis_client
 from services.quantum import QuantumEngine
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from routers.quantai import open_tool, manage_circuit, navigate_to_learn, start_tutorial, apply_gate_to_visualizer, run_pqc_scan
+from routers.quantai import open_tool, manage_circuit, navigate_to_page, start_tutorial, apply_gate_to_visualizer, run_pqc_scan
 
 logger = logging.getLogger("quantcai.developer_api")
 router = APIRouter(prefix="/api/v1/developer", tags=["Developer APIs"])
@@ -95,7 +95,7 @@ async def quantai_chat(
         raise HTTPException(status_code=500, detail="AI API not configured")
         
     llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=api_key, temperature=0.2)
-    llm_with_tools = llm.bind_tools([open_tool, manage_circuit, navigate_to_learn, start_tutorial, apply_gate_to_visualizer, run_pqc_scan])
+    llm_with_tools = llm.bind_tools([open_tool, manage_circuit, navigate_to_page, start_tutorial, apply_gate_to_visualizer, run_pqc_scan])
     
     sys_prompt = "You are the QuantCAI Developer AI Assistant. You have access to tools to control the quantum environment."
     messages = [SystemMessage(content=sys_prompt), HumanMessage(content=request.message)]
