@@ -15,8 +15,17 @@ pip install -r requirements.txt
 # the service is healthy.
 python setup_prisma.py
 
+# Generating the client is offline and must succeed.
 prisma generate --schema=schema_py.prisma
-prisma db push --schema=schema_py.prisma
+
+# Pushing the schema needs a live database, so it must NOT gate the deploy.
+# A database outage (e.g. Neon compute quota exceeded) previously failed the
+# build, which left Render serving the last release and blocked every fix from
+# shipping. The schema push is idempotent — rerun it once the database is back.
+if ! prisma db push --schema=schema_py.prisma; then
+  echo "WARNING: 'prisma db push' failed — deploying anyway."
+  echo "         The schema was NOT synced. Re-run this once the database is reachable."
+fi
 
 # Diagnostics only — must not trip errexit if the glob matches nothing.
 echo "--- Prisma engine provisioned ---"

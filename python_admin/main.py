@@ -133,9 +133,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     prisma_client = Prisma()
     os.environ["DATABASE_URL"] = settings.database_url
-    await prisma_client.connect()
     app.state.prisma = prisma_client
-    logger.info("Prisma ORM connected to PostgreSQL")
+
+    # A database outage must not take the whole service down. Raising here kills
+    # the Gunicorn worker, Render restarts it, it dies again — the process never
+    # comes back on its own even after the database recovers, and every request
+    # gets a 502 rather than a diagnosable error.
+    #
+    # Boot degraded instead: /health reports unhealthy, and the scheduler's
+    # keep-alive reconnects within a few minutes once the database is reachable,
+    # at which point marketing resumes without a redeploy.
+    try:
+        await prisma_client.connect()
+        logger.info("Prisma ORM connected to PostgreSQL")
+    except Exception as e:
+        logger.error(
+            f"Could not connect to PostgreSQL at startup: {e}. "
+            "Starting in degraded mode — the keep-alive job will keep retrying."
+        )
 
     # --- Step 2: Initialize and start the marketing scheduler ---
     # The scheduler receives the prisma client so it doesn't create its own.

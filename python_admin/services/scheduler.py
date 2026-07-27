@@ -363,13 +363,40 @@ async def execute_marketing_loop() -> None:
 # Database Keep-Alive
 # =============================================================================
 async def keep_alive_db() -> None:
-    """Ping the database to keep the connection alive (prevents idle timeouts)."""
+    """
+    Ping the database to keep the connection alive (prevents idle timeouts),
+    and reconnect if it is down.
+
+    This is also the recovery path after a database outage: the app now boots
+    in degraded mode rather than crashing when PostgreSQL is unreachable, so
+    this job is what brings marketing back once the database returns — no
+    redeploy needed.
+    """
     global _prisma
-    if _prisma and _prisma.is_connected():
+    if not _prisma:
+        return
+
+    if not _prisma.is_connected():
         try:
-            await _prisma.query_raw("SELECT 1")
+            await _prisma.connect()
+            logger.info("[KEEP ALIVE] Database connection (re-)established")
         except Exception as e:
-            logger.warning(f"[KEEP ALIVE] Database ping failed ({e})")
+            logger.warning(f"[KEEP ALIVE] Database still unreachable ({e})")
+        return
+
+    try:
+        await _prisma.query_raw("SELECT 1")
+    except Exception as e:
+        logger.warning(f"[KEEP ALIVE] Database ping failed ({e}), reconnecting...")
+        try:
+            await _prisma.disconnect()
+        except Exception:
+            pass  # Ignore disconnect errors on a dead connection
+        try:
+            await _prisma.connect()
+            logger.info("[KEEP ALIVE] Database reconnected")
+        except Exception as reconnect_error:
+            logger.warning(f"[KEEP ALIVE] Reconnect failed ({reconnect_error})")
 
 
 # =============================================================================
