@@ -38,7 +38,13 @@ from loguru import logger
 # prisma-client-py resolves the query engine type and binary path at import
 # time, so setting these env vars afterwards (as this file used to) has no
 # effect whatsoever.
-from prisma_engine import configure_engine_env, ensure_engine, local_engine_path  # noqa: E402
+from prisma_engine import (  # noqa: E402
+    configure_engine_env,
+    ensure_engine,
+    expected_platform,
+    local_engine_path,
+    verify_engine,
+)
 
 configure_engine_env()
 
@@ -119,7 +125,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if engine is None:
         logger.error("Prisma query engine unavailable — database connection will fail")
     else:
-        logger.info(f"Prisma query engine: {engine.name}")
+        logger.info(f"Prisma query engine: {engine.name} (platform: {expected_platform()})")
+        # prisma collapses every spawn failure into the same opaque
+        # EngineConnectionError, so probe the binary first — this log line names
+        # the actual cause (bad architecture, missing shared library, etc.).
+        verify_engine(engine)
 
     prisma_client = Prisma()
     os.environ["DATABASE_URL"] = settings.database_url
