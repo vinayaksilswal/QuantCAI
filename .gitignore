@@ -58,4 +58,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Prisma query engine — a ~20MB platform-specific binary provisioned per build
+# by python_admin/setup_prisma.py. Never commit it: a Linux binary checked in
+# from CI would shadow the correct one on other platforms.
+python_admin/prisma-query-engine-*
+
 .gitignore

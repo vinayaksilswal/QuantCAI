@@ -33,10 +33,19 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from loguru import logger
-from prisma import Prisma
-from prometheus_fastapi_instrumentator import Instrumentator
 
-from config import settings
+# --- Prisma engine configuration MUST happen before `import prisma` ---------
+# prisma-client-py resolves the query engine type and binary path at import
+# time, so setting these env vars afterwards (as this file used to) has no
+# effect whatsoever.
+from prisma_engine import configure_engine_env, ensure_engine, local_engine_path  # noqa: E402
+
+configure_engine_env()
+
+from prisma import Prisma  # noqa: E402
+from prometheus_fastapi_instrumentator import Instrumentator  # noqa: E402
+
+from config import settings  # noqa: E402
 
 # =============================================================================
 # Loguru Configuration
@@ -93,46 +102,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # --- Step 1: Instantiate and connect Prisma INSIDE the lifespan ---
     # This is the critical fix: creating Prisma() here ensures it uses
     # the current running event loop, not a stale or non-existent one.
-    import subprocess
-    import sys
-    import os
-    import glob
-    import shutil
-    logger.info("Ensuring Prisma engine is available at runtime...")
-    try:
-        os.environ["PRISMA_CLIENT_ENGINE_TYPE"] = "binary"
-        os.environ["PRISMA_CLI_QUERY_ENGINE_TYPE"] = "binary"
-        
-        existing_engines = glob.glob("prisma-query-engine-*")
-        if existing_engines:
-            logger.info(f"Prisma engine already exists locally: {existing_engines[0]}, skipping fetch.")
-        else:
-            logger.warning("Prisma engine not found locally! Fetching at runtime (this may cause Gunicorn timeout in production).")
-            subprocess.run([sys.executable, "-m", "prisma", "py", "fetch"], check=True)
-            
-            # Prisma Python bug: The engine is downloaded to node_modules/@prisma/engines/
-            # but the python client looks for it in the current directory or node_modules/prisma/
-            cache_dir = "/opt/render/.cache/prisma-python/binaries/*/*/"
-            engines = glob.glob(cache_dir + "node_modules/@prisma/engines/query-engine-*")
-            
-            # If not on Render, try local user cache (for local development)
-            if not engines:
-                import platform
-                home = os.path.expanduser("~")
-                cache_dir = os.path.join(home, ".cache", "prisma-python", "binaries", "*", "*", "")
-                engines = glob.glob(cache_dir + "node_modules/@prisma/engines/query-engine-*")
-                
-            if engines:
-                engine_path = engines[0]
-                # Copy to python_admin current directory with the "prisma-" prefix it expects
-                expected_name = "prisma-" + os.path.basename(engine_path)
-                shutil.copy(engine_path, expected_name)
-                os.chmod(expected_name, 0o755)
-                logger.info(f"Fixed Prisma path bug: Copied {engine_path} to {expected_name}")
-            else:
-                logger.warning("Could not find downloaded Prisma engine in cache directory.")
-    except Exception as e:
-        logger.error(f"Failed to fetch/setup Prisma engine: {e}")
+    #
+    # The engine should already have been installed by build.sh (via
+    # setup_prisma.py). This is a last-resort fallback for the case where the
+    # build step was skipped — prisma re-checks the filesystem when it
+    # connects, so installing the binary here still works even though prisma
+    # was imported at module load.
+    engine = local_engine_path()
+    if engine is None:
+        logger.warning(
+            "Prisma engine not found next to the app — provisioning at runtime. "
+            "This should have happened during the build; check that build.sh ran."
+        )
+        engine = ensure_engine()
+
+    if engine is None:
+        logger.error("Prisma query engine unavailable — database connection will fail")
+    else:
+        logger.info(f"Prisma query engine: {engine.name}")
 
     prisma_client = Prisma()
     os.environ["DATABASE_URL"] = settings.database_url
