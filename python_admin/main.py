@@ -131,33 +131,53 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # the actual cause (bad architecture, missing shared library, etc.).
         verify_engine(engine)
 
+    import asyncio
+
     prisma_client = Prisma()
     os.environ["DATABASE_URL"] = settings.database_url
-    app.state.prisma = prisma_client
 
+    # --- Retry logic: attempt DB connection with exponential backoff ---
     # A database outage must not take the whole service down. Raising here kills
     # the Gunicorn worker, Render restarts it, it dies again — the process never
-    # comes back on its own even after the database recovers, and every request
-    # gets a 502 rather than a diagnosable error.
-    #
-    # Boot degraded instead: /health reports unhealthy, and the scheduler's
-    # keep-alive reconnects within a few minutes once the database is reachable,
-    # at which point marketing resumes without a redeploy.
-    try:
-        await prisma_client.connect()
-        logger.info("Prisma ORM connected to PostgreSQL")
-    except Exception as e:
-        logger.error(
-            f"Could not connect to PostgreSQL at startup: {e}. "
-            "Starting in degraded mode — the keep-alive job will keep retrying."
-        )
+    # comes back on its own even after the database recovers.
+    # Boot degraded instead: /health reports the status, and endpoints degrade
+    # gracefully until the database is reachable again.
+    max_retries = 5
+    connected = False
+    for attempt in range(1, max_retries + 1):
+        try:
+            await prisma_client.connect()
+            connected = True
+            logger.info("Prisma ORM connected to PostgreSQL")
+            break
+        except Exception as e:
+            wait = 2 ** attempt  # 2, 4, 8, 16, 32 seconds
+            logger.warning(
+                f"Database connection attempt {attempt}/{max_retries} failed: {e}"
+            )
+            if attempt < max_retries:
+                logger.info(f"Retrying in {wait}s...")
+                await asyncio.sleep(wait)
+            else:
+                logger.error(
+                    "All database connection attempts failed. "
+                    "Starting in DEGRADED MODE — DB-dependent endpoints will return 503. "
+                    "Check your DATABASE_URL and database provider quota/status."
+                )
+
+    app.state.prisma = prisma_client if connected else None
+    app.state.db_degraded = not connected
 
     # --- Step 2: Initialize and start the marketing scheduler ---
     # The scheduler receives the prisma client so it doesn't create its own.
-    scheduler = create_scheduler(prisma_client)
-    scheduler.start()
-    app.state.scheduler = scheduler
-    logger.info("APScheduler started (bi-hourly marketing loop active)")
+    if connected:
+        scheduler = create_scheduler(prisma_client)
+        scheduler.start()
+        app.state.scheduler = scheduler
+        logger.info("APScheduler started (bi-hourly marketing loop active)")
+    else:
+        app.state.scheduler = None
+        logger.warning("Scheduler NOT started (database unavailable)")
 
     logger.info("=" * 60)
     logger.info("QuantCAI is ready to serve requests")
@@ -168,10 +188,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # --- Shutdown: Clean up resources in reverse order ---
     logger.info("Shutting down QuantCAI...")
 
-    shutdown_scheduler(scheduler)
-    logger.info("Scheduler stopped")
+    if app.state.scheduler:
+        shutdown_scheduler(app.state.scheduler)
+        logger.info("Scheduler stopped")
 
-    if prisma_client.is_connected():
+    if app.state.prisma and prisma_client.is_connected():
         await prisma_client.disconnect()
     logger.info("Prisma ORM disconnected")
 
@@ -261,7 +282,13 @@ async def health_check(request: Request) -> dict | JSONResponse:
     """
     Health check endpoint for Render's health monitoring.
     Verifies database connectivity with a simple query.
+    Returns 200 even in degraded mode so Render doesn't kill the service.
     """
+    if getattr(request.app.state, "db_degraded", False) or request.app.state.prisma is None:
+        return JSONResponse(
+            status_code=200,
+            content={"status": "degraded", "database": "unavailable", "message": "App running without database — check provider quota"},
+        )
     try:
         prisma: Prisma = request.app.state.prisma
         await prisma.query_raw("SELECT 1")
@@ -269,8 +296,8 @@ async def health_check(request: Request) -> dict | JSONResponse:
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
-            status_code=503,
-            content={"status": "unhealthy", "database": "disconnected"},
+            status_code=200,
+            content={"status": "degraded", "database": "error", "detail": str(e)},
         )
 
 
