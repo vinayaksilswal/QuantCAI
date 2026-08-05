@@ -57,7 +57,7 @@ jobs:
     - name: Run database migrations
       working-directory: ./backend
       run: |
-        python scripts/migrate_db.py
+        alembic upgrade head
 
     - name: Run tests with coverage
       working-directory: ./backend
@@ -89,6 +89,11 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    # Required for github/codeql-action/upload-sarif to write results.
+    # Without these the upload fails with "Resource not accessible by integration".
+    permissions:
+      contents: read
+      security-events: write
     steps:
     - uses: actions/checkout@v4
 
