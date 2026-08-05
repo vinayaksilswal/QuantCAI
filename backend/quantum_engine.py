@@ -63,6 +63,31 @@ class NoiseModelType(str, Enum):
     THERMAL = "thermal"
 
 
+class SimulationMethod(str, Enum):
+    """
+    Qiskit Aer simulation backends.
+
+    Only STATEVECTOR and DENSITY_MATRIX cost 2**n memory. STABILIZER runs
+    Clifford circuits in polynomial time, and MATRIX_PRODUCT_STATE handles
+    low-entanglement circuits well beyond the statevector qubit ceiling —
+    which is why paid tiers get far more reach than max_qubits alone implies.
+    """
+    AUTOMATIC = "automatic"
+    STATEVECTOR = "statevector"
+    DENSITY_MATRIX = "density_matrix"
+    STABILIZER = "stabilizer"
+    MATRIX_PRODUCT_STATE = "matrix_product_state"
+    EXTENDED_STABILIZER = "extended_stabilizer"
+
+
+# Methods whose memory and time cost grows as 2**num_qubits. The others scale
+# polynomially for suitable circuits, so the exponential budget must not be
+# applied to them or it would reject exactly what these methods make possible.
+EXPONENTIAL_METHODS: frozenset[str] = frozenset({
+    "automatic", "statevector", "density_matrix",
+})
+
+
 class ExecutionProviderType(str, Enum):
     SIMULATOR = "simulator"
     IBM_QUANTUM = "ibm_quantum"
@@ -86,6 +111,21 @@ class SimulateRequest(BaseModel):
     noise_model: NoiseModelType = Field(
         default=NoiseModelType.IDEAL,
         description="Noise model: ideal (free), depolarizing/thermal (pro)",
+    )
+    simulation_method: SimulationMethod = Field(
+        default=SimulationMethod.AUTOMATIC,
+        description=(
+            "Aer simulation method. statevector (all tiers); density_matrix, "
+            "stabilizer, matrix_product_state and extended_stabilizer require "
+            "Pro. stabilizer and matrix_product_state scale polynomially, so "
+            "they reach far more qubits than statevector for suitable circuits."
+        ),
+    )
+    optimization_level: int = Field(
+        default=1,
+        ge=0,
+        le=3,
+        description="Qiskit transpiler optimization level (0-3). Levels above 1 require Pro.",
     )
     backend_provider: ExecutionProviderType = Field(
         default=ExecutionProviderType.SIMULATOR,
@@ -141,27 +181,43 @@ class JobStatusResponse(BaseModel):
 
 
 
-def _estimate_cost_seconds(num_qubits: int, shots: int, depth: int = 1) -> float:
+def _estimate_cost_seconds(
+    num_qubits: int,
+    shots: int,
+    depth: int = 1,
+    method: str = "automatic",
+) -> float:
     """
     Unclamped wall-clock estimate, used to enforce the execution budget.
 
-    Statevector simulation is exponential in qubit count and linear in both
-    depth and shots, so a single oversized request can occupy a worker for
-    minutes. This must NOT be clamped — the whole point is to recognise a
-    request that is far too expensive before any work begins.
+    Statevector and density-matrix simulation are exponential in qubit count
+    and linear in depth and shots, so one oversized request can occupy a worker
+    for minutes. This must NOT be clamped — the point is to recognise a request
+    that is far too expensive before any work begins.
+
+    Stabilizer and matrix-product-state are polynomial for the circuits they
+    are designed for, so applying the exponential model to them would reject
+    precisely the large circuits those methods exist to make feasible.
     """
     base = 0.5
-    qubit_factor = 2 ** max(0, num_qubits - 10) * 0.001
     shot_factor = shots / 1024.0
     depth_factor = max(1, depth) / 20.0
+
+    if method not in EXPONENTIAL_METHODS:
+        # Polynomial regime: cost tracks qubits * depth * shots, not 2**n.
+        return base + (num_qubits * max(1, depth) * 0.0002) * shot_factor
+
+    qubit_factor = 2 ** max(0, num_qubits - 10) * 0.001
     return base + qubit_factor * shot_factor * depth_factor
 
 
-def _estimate_execution_seconds(num_qubits: int, shots: int, depth: int = 1) -> int:
+def _estimate_execution_seconds(
+    num_qubits: int, shots: int, depth: int = 1, method: str = "automatic"
+) -> int:
     """
     Clamped estimate handed back to the client purely as a polling hint.
     """
-    return max(1, min(int(_estimate_cost_seconds(num_qubits, shots, depth)) + 1, 30))
+    return max(1, min(int(_estimate_cost_seconds(num_qubits, shots, depth, method)) + 1, 30))
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +301,36 @@ async def submit_simulation(
             detail=(
                 f"Noise model '{body.noise_model.value}' requires a Pro or Enterprise subscription. "
                 f"Your current tier is '{tier}'."
+            ),
+        )
+
+    # --- Validate: simulation method entitlement -----------------------------
+    allowed_methods = limits.get("simulation_methods", ["automatic", "statevector"])
+    if body.simulation_method.value not in allowed_methods:
+        log.warning(
+            "simulation.method_denied",
+            job_id=job_id,
+            user_id=current_user.id,
+            tier=tier,
+            requested_method=body.simulation_method.value,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Simulation method '{body.simulation_method.value}' requires a Pro "
+                f"subscription. Your current tier is '{tier}'. "
+                f"Available on your plan: {', '.join(allowed_methods)}."
+            ),
+        )
+
+    # --- Validate: transpiler optimization level -----------------------------
+    max_opt = limits.get("max_optimization_level", 1)
+    if body.optimization_level > max_opt:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Transpiler optimization level {body.optimization_level} requires a "
+                f"Pro subscription. The '{tier}' tier is limited to level {max_opt}."
             ),
         )
 
@@ -356,7 +442,9 @@ async def submit_simulation(
     # the web process, where Celery's task_soft_time_limit never applies and
     # the SoftTimeLimitExceeded handler in worker.py is unreachable. Rejecting
     # up front is the only cap that holds on both dispatch paths.
-    estimated_cost = _estimate_cost_seconds(num_qubits, body.shots, circuit_depth)
+    estimated_cost = _estimate_cost_seconds(
+        num_qubits, body.shots, circuit_depth, body.simulation_method.value
+    )
     max_seconds = settings.SIMULATION_MAX_ESTIMATED_SECONDS
 
     if estimated_cost > max_seconds:
@@ -381,7 +469,9 @@ async def submit_simulation(
             ),
         )
 
-    estimated_seconds = _estimate_execution_seconds(num_qubits, body.shots, circuit_depth)
+    estimated_seconds = _estimate_execution_seconds(
+        num_qubits, body.shots, circuit_depth, body.simulation_method.value
+    )
 
     # Store initial job metadata in Redis (TTL = 1 hour)
     job_meta = {
@@ -392,6 +482,8 @@ async def submit_simulation(
         "circuit_qasm": body.circuit_qasm,
         "shots": body.shots,
         "noise_model": body.noise_model.value,
+        "simulation_method": body.simulation_method.value,
+        "optimization_level": body.optimization_level,
         "backend_provider": body.backend_provider.value,
         "num_qubits": num_qubits,
         "circuit_depth": circuit_depth,

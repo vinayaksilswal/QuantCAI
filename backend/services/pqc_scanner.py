@@ -63,8 +63,13 @@ logger = logging.getLogger("quantcai.pqc_scanner")
 _CONNECTION_TIMEOUT_S = 5
 _DEFAULT_PORT = 443
 
-# NIST-referenced PQC hybrid key exchange identifiers
-# These appear in cipher suite names when the server supports PQC hybrids
+# DEPRECATED for TLS 1.3 analysis — retained only for legacy suite-name
+# matching and for scanner_engine.py, which keeps its own copy.
+#
+# These substrings only ever appear in TLS 1.2-style suite names. A TLS 1.3
+# suite name ("TLS_AES_256_GCM_SHA384") contains no key exchange at all, so
+# matching against it silently reports every modern host as non-PQC. Use
+# PQC_NAMED_GROUPS with the negotiated group instead.
 PQC_HYBRID_KEYWORDS: frozenset[str] = frozenset({
     "mlkem",           # ML-KEM (FIPS 203) generic
     "x25519mlkem768",  # X25519 + ML-KEM-768 hybrid
@@ -77,13 +82,52 @@ PQC_HYBRID_KEYWORDS: frozenset[str] = frozenset({
     "pq_hybrid",
 })
 
-# Quantum-vulnerable key exchange prefixes
+# Quantum-vulnerable key exchange prefixes.
+# NOTE: these only ever appear in TLS 1.2 and earlier cipher suite names
+# (e.g. "ECDHE-RSA-AES256-GCM-SHA384"). TLS 1.3 suite names carry no key
+# exchange information whatsoever — see _analyze_key_exchange().
 VULNERABLE_KEX_PREFIXES: tuple[str, ...] = (
     "ECDHE",
     "DHE",
     "ECDH",
     "DH",
 )
+
+# Named groups (TLS supported_groups / key_share) that provide post-quantum
+# protection. In TLS 1.3 the key exchange is determined entirely by the
+# negotiated group, NOT by the cipher suite.
+PQC_NAMED_GROUPS: frozenset[str] = frozenset({
+    "x25519mlkem768",        # RFC 9370 hybrid, the de-facto deployed default
+    "secp256r1mlkem768",
+    "secp384r1mlkem1024",
+    "mlkem512",
+    "mlkem768",
+    "mlkem1024",
+    # Draft-era names still seen in the wild; treated as PQC but flagged as
+    # pre-standard because they are not FIPS 203 compliant.
+    "x25519kyber768draft00",
+    "x25519kyber512draft00",
+    "p256kyber768draft00",
+})
+
+# Draft/pre-standard groups: post-quantum, but not FIPS 203 as ratified.
+PRE_STANDARD_GROUPS: frozenset[str] = frozenset({
+    "x25519kyber768draft00",
+    "x25519kyber512draft00",
+    "p256kyber768draft00",
+})
+
+# Classical groups broken by Shor's algorithm.
+CLASSICAL_NAMED_GROUPS: frozenset[str] = frozenset({
+    "x25519", "x448",
+    "secp256r1", "secp384r1", "secp521r1", "prime256v1",
+    "ffdhe2048", "ffdhe3072", "ffdhe4096", "ffdhe6144", "ffdhe8192",
+})
+
+# Grover's algorithm halves the effective security of a symmetric cipher, so
+# CNSA 2.0 requires AES-256. AES-128 retains only ~64 bits against a CRQC.
+_MIN_CNSA_SYMMETRIC_BITS = 256
+_SCORE_WEAK_SYMMETRIC = 15.0
 
 # TLS version risk mapping
 TLS_VERSION_RISK: dict[str, dict[str, Any]] = {
@@ -261,47 +305,223 @@ def _domain_matches_san(domain: str, san_list: list[str]) -> bool:
     return False
 
 
-def _analyze_cipher_suite(cipher_name: str) -> dict[str, Any]:
-    """Analyze a negotiated cipher suite for quantum safety."""
-    cipher_upper = cipher_name.upper().replace("-", "_")
+def _normalize_group(group: Optional[str]) -> str:
+    """Lower-case and strip separators from a TLS named group."""
+    if not group:
+        return ""
+    return group.lower().replace("-", "").replace("_", "").replace(" ", "")
 
-    # Check for PQC hybrid first
-    cipher_check = cipher_name.lower().replace("-", "").replace("_", "")
-    is_pqc = any(kw in cipher_check for kw in PQC_HYBRID_KEYWORDS)
 
-    if is_pqc:
-        return {
-            "cipher_quantum_safe": True,
-            "cipher_risk": "COMPLIANT",
-            "cipher_reason": (
-                f"Cipher suite '{cipher_name}' uses a PQC hybrid key exchange — "
-                "compliant with CNSA 2.0 and FIPS 203 (ML-KEM)"
-            ),
-            "risk_points": _SCORE_PQC_HYBRID,
-        }
+def negotiated_group(ssock: Any) -> Optional[str]:
+    """
+    Return the TLS named group actually negotiated, or None if unavailable.
 
-    # Check for vulnerable key exchanges
-    for prefix in VULNERABLE_KEX_PREFIXES:
-        if cipher_upper.startswith(prefix):
+    `SSLSocket.group()` requires CPython 3.13+ built against OpenSSL 3.2+.
+    Returning None is meaningful: it means "not measured", which must never be
+    reported as "vulnerable".
+    """
+    getter = getattr(ssock, "group", None)
+    if not callable(getter):
+        return None
+    try:
+        return getter() or None
+    except Exception:  # noqa: BLE001 - unsupported build, treat as unmeasured
+        return None
+
+
+def probe_pqc_support(host: str, port: int, timeout: float = _CONNECTION_TIMEOUT_S) -> Optional[bool]:
+    """
+    Actively determine whether a server supports PQC hybrid key exchange.
+
+    Observing the negotiated group is not sufficient: a PQC-capable server will
+    still negotiate x25519 if our client never offers ML-KEM, which produces a
+    false negative on exactly the signal this product sells. So open a second
+    handshake offering ONLY PQC groups — success proves support, a handshake
+    failure proves absence.
+
+    Returns True/False, or None when the runtime cannot express the constraint
+    (Python < 3.13 or OpenSSL < 3.5), which must be reported as unknown rather
+    than guessed.
+    """
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    setter = getattr(ctx, "set_groups", None)
+    if not callable(setter):
+        return None
+    try:
+        setter("X25519MLKEM768:SecP256r1MLKEM768:X25519Kyber768Draft00")
+    except Exception:  # noqa: BLE001 - OpenSSL too old to know these groups
+        return None
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as raw:
+            with ctx.wrap_socket(raw, server_hostname=None):
+                return True
+    except ssl.SSLError:
+        # Handshake refused: the server shares no PQC group with us.
+        return False
+    except (socket.timeout, OSError):
+        # Network-level failure says nothing about PQC support.
+        return None
+
+
+def _analyze_key_exchange(
+    cipher_name: str,
+    tls_version: str,
+    group: Optional[str] = None,
+    pqc_capable: Optional[bool] = None,
+) -> dict[str, Any]:
+    """
+    Determine the quantum safety of the negotiated key exchange.
+
+    Correctness note — this is the heart of the scan and the previous
+    implementation got it backwards for modern servers:
+
+      TLS 1.3 cipher suite names ("TLS_AES_256_GCM_SHA384") encode ONLY the
+      AEAD and hash. They carry no key exchange information at all; the key
+      exchange is the negotiated named group. Matching "mlkem"/"ECDHE" against
+      a TLS 1.3 suite name therefore never matches, so every TLS 1.3 host fell
+      through to an UNKNOWN branch worth +50 risk points, and a server actually
+      running ML-KEM was reported as quantum-vulnerable.
+
+      TLS 1.2 and earlier DO embed the exchange in the suite name
+      ("ECDHE-RSA-AES256-GCM-SHA384"), so that path stays name-based.
+    """
+    norm_group = _normalize_group(group)
+
+    # --- Authoritative: the negotiated group, when we could measure it -------
+    if norm_group:
+        if norm_group in PQC_NAMED_GROUPS:
+            pre_standard = norm_group in PRE_STANDARD_GROUPS
+            return {
+                "cipher_quantum_safe": True,
+                "cipher_risk": "COMPLIANT" if not pre_standard else "WARNING",
+                "key_exchange": group,
+                "cipher_reason": (
+                    f"Negotiated group '{group}' is a post-quantum hybrid key exchange. "
+                    + (
+                        "This is a pre-standard draft group (Kyber, not ratified ML-KEM); "
+                        "migrate to X25519MLKEM768 for FIPS 203 compliance."
+                        if pre_standard
+                        else "Compliant with CNSA 2.0 and FIPS 203 (ML-KEM)."
+                    )
+                ),
+                "risk_points": _SCORE_PQC_HYBRID if not pre_standard else 0.0,
+            }
+
+        if norm_group in CLASSICAL_NAMED_GROUPS:
             return {
                 "cipher_quantum_safe": False,
                 "cipher_risk": "VULNERABLE",
+                "key_exchange": group,
                 "cipher_reason": (
-                    f"Key exchange '{prefix}' in '{cipher_name}' is quantum-vulnerable — "
-                    "a CRQC can solve the underlying DH/ECDH problem in polynomial time"
+                    f"Negotiated group '{group}' is a classical Diffie-Hellman "
+                    "construction that a CRQC solves in polynomial time via Shor's "
+                    "algorithm. Traffic captured today is decryptable later "
+                    "(harvest-now-decrypt-later)."
                 ),
                 "risk_points": _SCORE_ECDHE_KEX,
             }
 
-    # Fallback — no recognized KEX prefix, conservative warning
+    # --- TLS 1.2 and earlier: the suite name is authoritative ----------------
+    if tls_version and tls_version != "TLSv1.3":
+        cipher_upper = cipher_name.upper().replace("-", "_")
+        for prefix in VULNERABLE_KEX_PREFIXES:
+            if cipher_upper.startswith(prefix):
+                return {
+                    "cipher_quantum_safe": False,
+                    "cipher_risk": "VULNERABLE",
+                    "key_exchange": prefix,
+                    "cipher_reason": (
+                        f"Key exchange '{prefix}' in '{cipher_name}' is quantum-vulnerable — "
+                        "a CRQC solves the underlying DH/ECDH problem in polynomial time. "
+                        "TLS 1.2 additionally cannot negotiate PQC hybrid groups at all."
+                    ),
+                    "risk_points": _SCORE_ECDHE_KEX,
+                }
+
+    # --- TLS 1.3 where the group could not be read ---------------------------
+    # Fall back to the active capability probe if one was performed.
+    if pqc_capable is True:
+        return {
+            "cipher_quantum_safe": True,
+            "cipher_risk": "COMPLIANT",
+            "key_exchange": "PQC hybrid (confirmed by capability probe)",
+            "cipher_reason": (
+                "The server completed a handshake offering only post-quantum hybrid "
+                "groups, proving ML-KEM support, even though the group negotiated "
+                "for this scan could not be read from the local TLS runtime."
+            ),
+            "risk_points": _SCORE_PQC_HYBRID,
+        }
+
+    if pqc_capable is False:
+        return {
+            "cipher_quantum_safe": False,
+            "cipher_risk": "VULNERABLE",
+            "key_exchange": "classical (no PQC group accepted)",
+            "cipher_reason": (
+                "The server refused a handshake restricted to post-quantum hybrid "
+                "groups, so it supports no PQC key exchange. All session keys rest "
+                "on classical Diffie-Hellman and are exposed to "
+                "harvest-now-decrypt-later."
+            ),
+            "risk_points": _SCORE_ECDHE_KEX,
+        }
+
+    # Genuinely unmeasured. Report it as such and add NO risk points — an
+    # inability to measure is not evidence of a vulnerability, and charging 50
+    # points for it made every TLS 1.3 host look broken.
     return {
-        "cipher_quantum_safe": False,
-        "cipher_risk": "UNKNOWN",
+        "cipher_quantum_safe": None,
+        "cipher_risk": "UNDETERMINED",
+        "key_exchange": None,
         "cipher_reason": (
-            f"Cipher suite '{cipher_name}' — could not determine key exchange "
-            "quantum safety; manual review recommended"
+            f"The key exchange for '{cipher_name}' over {tls_version or 'an unknown TLS version'} "
+            "could not be determined. TLS 1.3 does not encode the key exchange in the "
+            "cipher suite, and this scanner host's TLS runtime does not expose the "
+            "negotiated group (requires Python 3.13+ with OpenSSL 3.2+, and OpenSSL "
+            "3.5+ for PQC capability probing). This is a scanner limitation, not a "
+            "finding about the target."
         ),
-        "risk_points": 50.0,
+        "risk_points": 0.0,
+    }
+
+
+def _analyze_symmetric_strength(cipher_name: str, cipher_bits: int) -> Optional[dict[str, Any]]:
+    """
+    Assess the record-layer cipher against Grover's algorithm.
+
+    Grover gives a quadratic speedup on brute-force search, halving effective
+    symmetric strength: AES-128 retains only ~64 bits against a CRQC, which is
+    why CNSA 2.0 mandates AES-256. Returns None when the cipher is already
+    compliant.
+    """
+    if not cipher_bits or cipher_bits >= _MIN_CNSA_SYMMETRIC_BITS:
+        return None
+
+    effective = cipher_bits // 2
+    return {
+        "severity": "HIGH",
+        "category": "SYMMETRIC_CIPHER",
+        "title": f"Symmetric Cipher Below CNSA 2.0 Minimum: {cipher_name} ({cipher_bits}-bit)",
+        "description": (
+            f"The record layer uses a {cipher_bits}-bit symmetric cipher. Grover's "
+            f"algorithm halves effective symmetric security, leaving roughly "
+            f"{effective} bits against a cryptographically relevant quantum computer. "
+            f"CNSA 2.0 requires AES-256 for national security systems."
+        ),
+        "affected_asset": cipher_name,
+        "nist_reference": (
+            "CNSA 2.0 (NSA) — AES-256 required; NIST SP 800-57 Part 1 Rev 5"
+        ),
+        "remediation": (
+            "Prefer TLS_AES_256_GCM_SHA384 and place AES-256 suites ahead of "
+            "AES-128 in the server's cipher preference order."
+        ),
+        "risk_points": _SCORE_WEAK_SYMMETRIC,
     }
 
 
@@ -414,6 +634,10 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
                 cipher_info = ssock.cipher()  # (name, version, bits)
                 tls_version_raw = ssock.version()  # e.g. "TLSv1.3"
 
+                # In TLS 1.3 the key exchange IS the negotiated group; the
+                # cipher suite name says nothing about it.
+                kex_group = negotiated_group(ssock)
+
                 # Certificate chain (DER-encoded)
                 der_chain: list[bytes] = ssock.getpeercert(binary_form=True)  # type: ignore[assignment]
                 peer_cert_decoded = ssock.getpeercert()
@@ -478,7 +702,21 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
     tls_label = tls_version_raw or cipher_tls_version or "UNKNOWN"
     tls_meta = TLS_VERSION_RISK.get(tls_label, {"label": tls_label, "risk": "UNKNOWN", "points": 0})
 
-    cipher_analysis = _analyze_cipher_suite(cipher_name)
+    # Only probe when we could not read the group directly, or when the group
+    # we did read is classical — a PQC-capable server may still have negotiated
+    # x25519 because our client never offered ML-KEM. Skips the extra handshake
+    # when the negotiated group already proves PQC support.
+    pqc_capable: Optional[bool] = None
+    if tls_label == "TLSv1.3" and _normalize_group(kex_group) not in PQC_NAMED_GROUPS:
+        try:
+            pqc_capable = probe_pqc_support(host, port)
+        except Exception as exc:  # noqa: BLE001 - probe is best-effort
+            logger.debug("PQC capability probe failed for %s:%s — %s", host, port, exc)
+            pqc_capable = None
+
+    cipher_analysis = _analyze_key_exchange(
+        cipher_name, tls_label, kex_group, pqc_capable
+    )
 
     # ── Analyze Certificate Chain ─────────────────────────────────────
     risk_points: float = 0.0
@@ -607,25 +845,48 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
     # ── Cipher / KEX Finding ──────────────────────────────────────────
     risk_points += cipher_analysis["risk_points"]
 
+    _kex_safe = cipher_analysis["cipher_quantum_safe"]  # True / False / None
+    _kex_risk = cipher_analysis["cipher_risk"]
+    _kex_label = cipher_analysis.get("key_exchange") or cipher_name
+
+    _kex_severity = {
+        "VULNERABLE": "CRITICAL",
+        "COMPLIANT": "COMPLIANT",
+        "WARNING": "WARNING",
+        "UNDETERMINED": "LOW",
+    }.get(_kex_risk, "MEDIUM")
+
+    if _kex_safe is True:
+        _kex_title = f"PQC-Compliant Key Exchange: {_kex_label}"
+        _kex_remediation = "No action required — PQC hybrid key exchange is deployed."
+    elif _kex_safe is False:
+        _kex_title = f"Quantum-Vulnerable Key Exchange: {_kex_label}"
+        _kex_remediation = (
+            "Deploy ML-KEM-768 (FIPS 203) hybrid key exchange (e.g. X25519MLKEM768). "
+            "Requires TLS 1.3 and OpenSSL 3.5+ (or BoringSSL/equivalent) on the server."
+        )
+    else:
+        _kex_title = f"Key Exchange Not Determined: {cipher_name}"
+        _kex_remediation = (
+            "No action indicated for the target. Re-run this scan from a host with "
+            "Python 3.13+ and OpenSSL 3.5+ to resolve the negotiated group."
+        )
+
     findings.append({
-        "severity": "CRITICAL" if cipher_analysis["cipher_risk"] == "VULNERABLE" else (
-            "COMPLIANT" if cipher_analysis["cipher_risk"] == "COMPLIANT" else "MEDIUM"
-        ),
+        "severity": _kex_severity,
         "category": "KEY_EXCHANGE",
-        "title": (
-            f"{'Quantum-Vulnerable' if not cipher_analysis['cipher_quantum_safe'] else 'PQC-Compliant'} "
-            f"Key Exchange: {cipher_name}"
-        ),
+        "title": _kex_title,
         "description": cipher_analysis["cipher_reason"],
         "affected_asset": f"TLS session to {host}:{port}",
         "nist_reference": NIST_REFERENCES.get("KEX", ""),
-        "remediation": (
-            "Deploy ML-KEM-768 (FIPS 203) hybrid key exchange (e.g. X25519MLKEM768) "
-            "on the server. Requires TLS 1.3 and updated TLS library (e.g. OpenSSL 3.5+)."
-            if not cipher_analysis["cipher_quantum_safe"]
-            else "No action required — PQC hybrid key exchange is deployed."
-        ),
+        "remediation": _kex_remediation,
     })
+
+    # ── Symmetric Strength Finding (Grover / CNSA 2.0) ────────────────
+    symmetric_finding = _analyze_symmetric_strength(cipher_name, cipher_bits)
+    if symmetric_finding:
+        risk_points += symmetric_finding.pop("risk_points")
+        findings.append(symmetric_finding)
 
     # ── TLS Version Finding ───────────────────────────────────────────
     risk_points += tls_meta["points"]
@@ -666,7 +927,13 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
         "tls_version_risk": tls_meta["risk"],
         "cipher_suite": cipher_name,
         "cipher_bits": cipher_bits,
+        # Tri-state: True / False / None. None means "could not measure",
+        # which is deliberately distinct from False ("measured as vulnerable").
         "cipher_quantum_safe": cipher_analysis["cipher_quantum_safe"],
+        "key_exchange_group": kex_group,
+        "key_exchange": cipher_analysis.get("key_exchange"),
+        "key_exchange_risk": cipher_analysis["cipher_risk"],
+        "pqc_capable": pqc_capable,
         "certificates": cert_results,
         "findings": findings,
         "cbom_summary": {
@@ -820,8 +1087,11 @@ if __name__ == "__main__":
     print(f"\n{'-' * 72}")
     print(f"  Risk Score : {result['overall_risk_score']}/100  [{result['risk_level']}]")
     print(f"  TLS        : {result['tls_version']}")
-    print(f"  Cipher     : {result['cipher_suite']} "
-          f"({'PQC OK' if result['cipher_quantum_safe'] else 'Quantum-Vulnerable'})")
+    _safe = result["cipher_quantum_safe"]
+    _verdict = "PQC OK" if _safe is True else ("Quantum-Vulnerable" if _safe is False else "Undetermined")
+    print(f"  Cipher     : {result['cipher_suite']} ({_verdict})")
+    if result.get("key_exchange_group"):
+        print(f"  KEX Group  : {result['key_exchange_group']}")
     print(f"  Certs      : {result['cbom_summary']['total_assets']} total, "
           f"{result['cbom_summary']['vulnerable_assets']} vulnerable")
     print(f"{'-' * 72}")

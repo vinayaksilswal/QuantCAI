@@ -30,6 +30,8 @@ REVENUE_CRITICAL_KEYS = {
     "max_depth",
     "max_shots",
     "noise_models",
+    "simulation_methods",
+    "max_optimization_level",
     "statevector_access",
     "daily_circuit_runs",
     "daily_ai_chats",
@@ -89,12 +91,32 @@ def test_paid_tiers_are_never_more_restrictive_than_free(key):
 def test_free_tier_is_actually_limited():
     """The paywall only works if the free tier is genuinely constrained."""
     free = settings.TIER_LIMITS["FREE"]
+    pro = settings.TIER_LIMITS["PRO"]
     assert free["statevector_access"] is False
     assert list(free["noise_models"]) == ["ideal"], (
         "Free tier must not include paid noise models — they are the Pro upgrade hook."
     )
-    assert free["max_qubits"] < settings.TIER_LIMITS["PRO"]["max_qubits"]
-    assert free["max_shots"] < settings.TIER_LIMITS["PRO"]["max_shots"]
+    assert free["max_qubits"] < pro["max_qubits"]
+    assert free["max_shots"] < pro["max_shots"]
+    assert set(free["simulation_methods"]) < set(pro["simulation_methods"]), (
+        "Free tier must be a strict subset of Pro's simulation methods."
+    )
+
+
+def test_statevector_qubit_ceilings_fit_worker_memory():
+    """
+    A statevector needs 2**n * 16 bytes. worker.py caps a worker child at 4 GB,
+    so any tier allowing more than 27 qubits produces an OOM crash rather than
+    a feature. ENTERPRISE was previously set to 29 (8 GB).
+    """
+    worker_memory_bytes = 4_000_000_000  # worker_max_memory_per_child
+    for tier, limits in settings.TIER_LIMITS.items():
+        required = (2 ** limits["max_qubits"]) * 16
+        assert required <= worker_memory_bytes / 2, (
+            f"Tier '{tier}' allows {limits['max_qubits']} qubits, needing "
+            f"{required / 1024**3:.1f} GB of statevector against a "
+            f"{worker_memory_bytes / 1024**3:.1f} GB worker ceiling."
+        )
 
 
 def test_no_consumer_references_an_undefined_tier_limit_key():

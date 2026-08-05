@@ -157,12 +157,24 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Centralized Tier Limits — single source of truth for all enforcement
     # -------------------------------------------------------------------------
+    # Statevector simulation needs 2**n * 16 bytes, so max_qubits is bounded by
+    # worker memory, not by policy:
+    #   24 -> 0.25 GB   25 -> 0.5 GB   26 -> 1 GB   27 -> 2 GB   29 -> 8 GB
+    # worker.py sets worker_max_memory_per_child=4 GB, so anything above 27 is
+    # an out-of-memory crash rather than a feature. ENTERPRISE was 29.
+    #
+    # Higher qubit counts remain reachable on the non-statevector methods:
+    # matrix_product_state and stabilizer scale polynomially for
+    # low-entanglement and Clifford circuits respectively, which is what
+    # "simulation_methods" unlocks for paid tiers.
     TIER_LIMITS: dict = {
         "FREE": {
             "max_qubits": 3,
             "max_depth": 15,
             "max_shots": 1024,
             "noise_models": ["ideal"],
+            "simulation_methods": ["automatic", "statevector"],
+            "max_optimization_level": 1,
             "statevector_access": False,
             "daily_circuit_runs": 10,
             "daily_ai_chats": 10,
@@ -172,10 +184,15 @@ class Settings(BaseSettings):
             "max_api_keys": 5,
         },
         "PRO": {
-            "max_qubits": 15,
+            "max_qubits": 24,
             "max_depth": 999999,
             "max_shots": 65536,
             "noise_models": ["ideal", "depolarizing", "thermal"],
+            "simulation_methods": [
+                "automatic", "statevector", "density_matrix",
+                "stabilizer", "matrix_product_state", "extended_stabilizer",
+            ],
+            "max_optimization_level": 3,
             "statevector_access": True,
             "daily_circuit_runs": 500,
             "daily_ai_chats": 999999,
@@ -185,10 +202,15 @@ class Settings(BaseSettings):
             "max_api_keys": 20,
         },
         "API_METERED": {
-            "max_qubits": 15,
+            "max_qubits": 24,
             "max_depth": 999999,
             "max_shots": 65536,
             "noise_models": ["ideal", "depolarizing", "thermal"],
+            "simulation_methods": [
+                "automatic", "statevector", "density_matrix",
+                "stabilizer", "matrix_product_state", "extended_stabilizer",
+            ],
+            "max_optimization_level": 3,
             "statevector_access": True,
             "daily_circuit_runs": 999999,
             "daily_ai_chats": 999999,
@@ -202,6 +224,11 @@ class Settings(BaseSettings):
             "max_depth": 999999,
             "max_shots": 65536,
             "noise_models": ["ideal", "depolarizing", "thermal"],
+            "simulation_methods": [
+                "automatic", "statevector", "density_matrix",
+                "stabilizer", "matrix_product_state", "extended_stabilizer",
+            ],
+            "max_optimization_level": 3,
             "statevector_access": True,
             "daily_circuit_runs": 999999,
             "daily_ai_chats": 999999,
@@ -211,10 +238,19 @@ class Settings(BaseSettings):
             "max_api_keys": 100,
         },
         "ENTERPRISE": {
-            "max_qubits": 29,
+            # 26 not 29: 29 qubits needs 8 GB of statevector against a 4 GB
+            # worker_max_memory_per_child, so it OOMs instead of running. 26 is
+            # 1 GB, leaving headroom for the transpiled circuit and results.
+            # Raise this only together with the worker memory ceiling.
+            "max_qubits": 26,
             "max_depth": 999999,
             "max_shots": 65536,
             "noise_models": ["ideal", "depolarizing", "thermal"],
+            "simulation_methods": [
+                "automatic", "statevector", "density_matrix",
+                "stabilizer", "matrix_product_state", "extended_stabilizer",
+            ],
+            "max_optimization_level": 3,
             "statevector_access": True,
             "daily_circuit_runs": 999999,
             "daily_ai_chats": 999999,

@@ -237,6 +237,9 @@ def run_simulation_logic(job_id: str, celery_task_id: Optional[str] = None) -> d
     noise_model_name: str = job["noise_model"]
     tier: str = job.get("tier", "free")
     backend_provider: str = job.get("backend_provider", "simulator")
+    # Entitlement for both was validated at submission time in quantum_engine.py.
+    simulation_method: str = job.get("simulation_method", "automatic")
+    optimization_level: int = int(job.get("optimization_level", 1))
 
     _set_job_status(job_id, "running")
     log.info(
@@ -319,7 +322,14 @@ def run_simulation_logic(job_id: str, celery_task_id: Optional[str] = None) -> d
                 telemetry=qpu_telemetry
             )
         else:
-            simulator = AerSimulator(noise_model=noise) if noise else AerSimulator()
+            # `method` selects the Aer backend. stabilizer and
+            # matrix_product_state avoid the 2**n statevector allocation
+            # entirely, which is what lets paid tiers run circuits far wider
+            # than max_qubits would suggest.
+            aer_options: dict[str, Any] = {"method": simulation_method}
+            if noise:
+                aer_options["noise_model"] = noise
+            simulator = AerSimulator(**aer_options)
 
             # Ensure measurement operations exist so we can get counts
             if not any(
@@ -327,7 +337,7 @@ def run_simulation_logic(job_id: str, celery_task_id: Optional[str] = None) -> d
             ):
                 qc.measure_all()
 
-            transpiled = transpile(qc, simulator)
+            transpiled = transpile(qc, simulator, optimization_level=optimization_level)
 
             t_sim_start = time.perf_counter()
             sim_result = simulator.run(transpiled, shots=shots).result()
@@ -357,7 +367,30 @@ def run_simulation_logic(job_id: str, celery_task_id: Optional[str] = None) -> d
         _tier_limits = _settings.TIER_LIMITS.get(
             str(tier).upper(), _settings.TIER_LIMITS["FREE"]
         )
-        if _tier_limits["statevector_access"] and noise is None and backend_provider == "simulator":
+        # Statevector extraction allocates 2**n amplitudes regardless of the
+        # simulation method used for the run. Without this bound, a 40-qubit
+        # matrix_product_state circuit — perfectly cheap to simulate — would
+        # OOM the worker here trying to materialise its full statevector.
+        _SV_EXTRACTION_MAX_QUBITS = 25  # 2**25 * 16B = 0.5 GB
+
+        _sv_allowed = (
+            _tier_limits["statevector_access"]
+            and noise is None
+            and backend_provider == "simulator"
+            and num_qubits <= _SV_EXTRACTION_MAX_QUBITS
+        )
+        if (
+            _tier_limits["statevector_access"]
+            and num_qubits > _SV_EXTRACTION_MAX_QUBITS
+        ):
+            log.info(
+                "worker.statevector_skipped_too_large",
+                job_id=job_id,
+                num_qubits=num_qubits,
+                max_qubits=_SV_EXTRACTION_MAX_QUBITS,
+            )
+
+        if _sv_allowed:
             try:
                 from qiskit.quantum_info import Statevector
 

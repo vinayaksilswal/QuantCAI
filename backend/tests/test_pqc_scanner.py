@@ -28,15 +28,19 @@ from cryptography.x509.oid import NameOID
 
 from services.pqc_scanner import (
     _classify_public_key,
-    _analyze_cipher_suite,
+    _analyze_key_exchange,
+    _analyze_symmetric_strength,
     _compute_risk_level,
     _domain_matches_san,
     _extract_san_domains,
     _error_result,
     _format_subject,
+    _normalize_group,
     scan_domain,
     scan_domain_async,
     PQC_HYBRID_KEYWORDS,
+    PQC_NAMED_GROUPS,
+    CLASSICAL_NAMED_GROUPS,
 )
 
 
@@ -160,43 +164,123 @@ class TestClassifyPublicKey:
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Unit Tests — _analyze_cipher_suite
+# Unit Tests — _analyze_key_exchange
+#
+# TLS 1.3 encodes NO key exchange information in the cipher suite name; the
+# key exchange is the negotiated named group. The previous implementation
+# matched keywords against the suite name, so it reported every TLS 1.3 host
+# as quantum-vulnerable with a +50 penalty — including hosts actually running
+# ML-KEM. The superseded test asserted that behaviour as correct, which is a
+# large part of why it survived.
 # ──────────────────────────────────────────────────────────────────────────
 
-class TestAnalyzeCipherSuite:
+class TestAnalyzeKeyExchangeTls12:
+    """TLS 1.2 and earlier DO embed the exchange in the suite name."""
+
     def test_ecdhe_is_vulnerable(self):
-        result = _analyze_cipher_suite("ECDHE-RSA-AES256-GCM-SHA384")
+        result = _analyze_key_exchange("ECDHE-RSA-AES256-GCM-SHA384", "TLSv1.2")
         assert result["cipher_quantum_safe"] is False
         assert result["cipher_risk"] == "VULNERABLE"
         assert result["risk_points"] == 15
 
     def test_dhe_is_vulnerable(self):
-        result = _analyze_cipher_suite("DHE-RSA-AES256-GCM-SHA384")
+        result = _analyze_key_exchange("DHE-RSA-AES256-GCM-SHA384", "TLSv1.2")
         assert result["cipher_quantum_safe"] is False
         assert result["cipher_risk"] == "VULNERABLE"
         assert result["risk_points"] == 15
 
-    def test_pqc_hybrid_mlkem(self):
-        result = _analyze_cipher_suite("X25519MLKEM768-AES256-GCM-SHA384")
+
+class TestAnalyzeKeyExchangeTls13:
+    """TLS 1.3 must be judged on the negotiated group, never the suite name."""
+
+    def test_mlkem_group_is_compliant(self):
+        result = _analyze_key_exchange(
+            "TLS_AES_256_GCM_SHA384", "TLSv1.3", group="X25519MLKEM768"
+        )
         assert result["cipher_quantum_safe"] is True
         assert result["cipher_risk"] == "COMPLIANT"
         assert result["risk_points"] == -20
 
-    def test_pqc_hybrid_kyber(self):
-        result = _analyze_cipher_suite("X25519Kyber768-AES256-GCM-SHA384")
-        assert result["cipher_quantum_safe"] is True
-        assert result["cipher_risk"] == "COMPLIANT"
-        assert result["risk_points"] == -20
-
-    def test_tls13_aes_gcm_no_explicit_kex(self):
-        # TLS 1.3 cipher suites don't include the KEX in the name
-        result = _analyze_cipher_suite("TLS_AES_256_GCM_SHA384")
-        assert result["cipher_risk"] == "UNKNOWN"  # no KEX prefix detected
+    def test_classical_group_is_vulnerable(self):
+        result = _analyze_key_exchange(
+            "TLS_AES_256_GCM_SHA384", "TLSv1.3", group="x25519"
+        )
         assert result["cipher_quantum_safe"] is False
+        assert result["cipher_risk"] == "VULNERABLE"
+        assert result["risk_points"] == 15
 
-    def test_pqc_detection_case_insensitive(self):
-        result = _analyze_cipher_suite("x25519MLKEM768")
+    def test_draft_kyber_group_flagged_as_pre_standard(self):
+        """Kyber draft groups are post-quantum but not ratified FIPS 203."""
+        result = _analyze_key_exchange(
+            "TLS_AES_256_GCM_SHA384", "TLSv1.3", group="X25519Kyber768Draft00"
+        )
         assert result["cipher_quantum_safe"] is True
+        assert result["cipher_risk"] == "WARNING"
+        assert "FIPS 203" in result["cipher_reason"]
+
+    def test_group_detection_is_case_and_separator_insensitive(self):
+        for variant in ("x25519mlkem768", "X25519-MLKEM-768", "X25519_MLKEM_768"):
+            result = _analyze_key_exchange("TLS_AES_256_GCM_SHA384", "TLSv1.3", group=variant)
+            assert result["cipher_quantum_safe"] is True, variant
+
+    def test_unmeasurable_group_is_undetermined_not_vulnerable(self):
+        """
+        The regression guard. An inability to read the group is a scanner
+        limitation, not a finding about the target, and must carry no risk
+        points — the old code charged 50 and declared the host vulnerable.
+        """
+        result = _analyze_key_exchange("TLS_AES_256_GCM_SHA384", "TLSv1.3")
+        assert result["cipher_quantum_safe"] is None
+        assert result["cipher_risk"] == "UNDETERMINED"
+        assert result["risk_points"] == 0.0
+
+    def test_capability_probe_resolves_undetermined_case(self):
+        confirmed = _analyze_key_exchange(
+            "TLS_AES_256_GCM_SHA384", "TLSv1.3", pqc_capable=True
+        )
+        assert confirmed["cipher_quantum_safe"] is True
+        assert confirmed["risk_points"] == -20
+
+        refused = _analyze_key_exchange(
+            "TLS_AES_256_GCM_SHA384", "TLSv1.3", pqc_capable=False
+        )
+        assert refused["cipher_quantum_safe"] is False
+        assert refused["risk_points"] == 15
+
+    def test_negotiated_pqc_group_wins_over_probe(self):
+        """A measured PQC group is authoritative even if a probe failed."""
+        result = _analyze_key_exchange(
+            "TLS_AES_256_GCM_SHA384", "TLSv1.3",
+            group="X25519MLKEM768", pqc_capable=False,
+        )
+        assert result["cipher_quantum_safe"] is True
+
+
+class TestGroupTables:
+    def test_group_tables_are_disjoint(self):
+        """A group cannot be both post-quantum and classical."""
+        assert not (PQC_NAMED_GROUPS & CLASSICAL_NAMED_GROUPS)
+
+    def test_group_tables_are_prenormalized(self):
+        """Lookups normalize the input, so the tables must already be normal."""
+        for group in PQC_NAMED_GROUPS | CLASSICAL_NAMED_GROUPS:
+            assert _normalize_group(group) == group, f"{group!r} is not normalized"
+
+
+class TestSymmetricStrength:
+    """Grover halves symmetric strength; CNSA 2.0 therefore requires AES-256."""
+
+    def test_aes256_is_compliant(self):
+        assert _analyze_symmetric_strength("TLS_AES_256_GCM_SHA384", 256) is None
+
+    def test_aes128_is_flagged(self):
+        finding = _analyze_symmetric_strength("TLS_AES_128_GCM_SHA256", 128)
+        assert finding is not None
+        assert finding["severity"] == "HIGH"
+        assert "64 bits" in finding["description"]
+
+    def test_unknown_bits_does_not_fabricate_a_finding(self):
+        assert _analyze_symmetric_strength("UNKNOWN", 0) is None
 
 
 # ──────────────────────────────────────────────────────────────────────────
