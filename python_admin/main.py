@@ -165,19 +165,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     "Check your DATABASE_URL and database provider quota/status."
                 )
 
-    app.state.prisma = prisma_client if connected else None
-    app.state.db_degraded = not connected
+    # Always hand routes the client itself, never None. A None here would be
+    # permanent — nothing reassigns it — so the service could not recover even
+    # after the database came back. `prisma_client.is_connected()` is the live
+    # signal; anything derived at boot goes stale the moment the outage ends.
+    app.state.prisma = prisma_client
 
     # --- Step 2: Initialize and start the marketing scheduler ---
     # The scheduler receives the prisma client so it doesn't create its own.
+    #
+    # Start this unconditionally, including while degraded. The keep-alive job
+    # inside it is precisely what reconnects once the database is reachable, so
+    # skipping it when disconnected removes the only automatic recovery path and
+    # strands the service until someone redeploys. Both the keep-alive and the
+    # marketing loop already reconnect and bail out safely on a dead connection.
+    scheduler = create_scheduler(prisma_client)
+    scheduler.start()
+    app.state.scheduler = scheduler
     if connected:
-        scheduler = create_scheduler(prisma_client)
-        scheduler.start()
-        app.state.scheduler = scheduler
         logger.info("APScheduler started (bi-hourly marketing loop active)")
     else:
-        app.state.scheduler = None
-        logger.warning("Scheduler NOT started (database unavailable)")
+        logger.warning(
+            "APScheduler started in degraded mode — the keep-alive job will "
+            "reconnect and resume marketing automatically once the database "
+            "is reachable. No redeploy required."
+        )
 
     logger.info("=" * 60)
     logger.info("QuantCAI is ready to serve requests")
@@ -281,23 +293,40 @@ async def serve_logo() -> FileResponse:
 async def health_check(request: Request) -> dict | JSONResponse:
     """
     Health check endpoint for Render's health monitoring.
-    Verifies database connectivity with a simple query.
-    Returns 200 even in degraded mode so Render doesn't kill the service.
+
+    Returns 200 even while degraded so Render does not kill a service that is
+    up and merely waiting on its database.
+
+    State is measured live on every call. An earlier version short-circuited on
+    a `db_degraded` flag captured at startup, which nothing ever cleared — once
+    the app booted without a database it reported degraded forever, even after
+    the keep-alive job had reconnected.
     """
-    if getattr(request.app.state, "db_degraded", False) or request.app.state.prisma is None:
+    prisma: Prisma | None = getattr(request.app.state, "prisma", None)
+
+    if prisma is None:
         return JSONResponse(
             status_code=200,
-            content={"status": "degraded", "database": "unavailable", "message": "App running without database — check provider quota"},
+            content={
+                "status": "degraded",
+                "database": "unavailable",
+                "message": "App running without a database client",
+            },
         )
+
     try:
-        prisma: Prisma = request.app.state.prisma
         await prisma.query_raw("SELECT 1")
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=200,
-            content={"status": "degraded", "database": "error", "detail": str(e)},
+            content={
+                "status": "degraded",
+                "database": "error",
+                "detail": str(e),
+                "message": "Retrying automatically — check database provider quota/status",
+            },
         )
 
 
