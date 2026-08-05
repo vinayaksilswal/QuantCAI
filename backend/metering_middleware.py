@@ -147,8 +147,12 @@ async def verify_api_key_and_meter(
     
     tier = await get_user_tier(db, user_id)
     tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["FREE"])
-    daily_api_limit = tier_limits.get("developer_api_requests_daily", 10)
-    
+    # Key must match core.config.settings.TIER_LIMITS exactly. It previously read
+    # "developer_api_requests_daily", which exists in no tier, so every plan
+    # silently fell back to the default of 10 — capping Pro at the free limit and
+    # starting overage billing at request 11 instead of 501.
+    daily_api_limit = tier_limits["daily_api_requests"]
+
     now = datetime.now(timezone.utc)
     from datetime import time as datetime_time, timedelta
     tomorrow = datetime.combine(now.date() + timedelta(days=1), datetime_time.min, tzinfo=timezone.utc)

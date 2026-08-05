@@ -345,9 +345,19 @@ def run_simulation_logic(job_id: str, celery_task_id: Optional[str] = None) -> d
                 unique_bitstrings=len(counts),
             )
 
-        # ---- 5. Statevector extraction (pro / enterprise only) ------------
+        # ---- 5. Statevector extraction (entitled tiers only) --------------
         statevector_data = None
-        if tier in ("pro", "enterprise") and noise is None and backend_provider == "simulator":
+        # Resolve entitlement from the single source of truth rather than a
+        # hardcoded tuple: the previous ("pro", "enterprise") check silently
+        # denied statevector access to INSTITUTIONAL and API_METERED plans,
+        # both of which have statevector_access=True in the config, and would
+        # break entirely if the stored tier string were ever upper-case.
+        from core.config import settings as _settings
+
+        _tier_limits = _settings.TIER_LIMITS.get(
+            str(tier).upper(), _settings.TIER_LIMITS["FREE"]
+        )
+        if _tier_limits["statevector_access"] and noise is None and backend_provider == "simulator":
             try:
                 from qiskit.quantum_info import Statevector
 

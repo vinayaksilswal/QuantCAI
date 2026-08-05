@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as aioredis
 import structlog
 
+from core.config import settings
 from core.database import get_db
 from security import get_current_user_or_api_key, get_subscription_plan, redis_client
 import models as DBmodels
@@ -31,29 +32,28 @@ log = structlog.get_logger("quantcai.quantum_engine")
 # ---------------------------------------------------------------------------
 # Constants — Tier Limits
 # ---------------------------------------------------------------------------
-TIER_LIMITS = {
-    "free": {
-        "max_shots": 1024,
-        "max_qubits": 20,
-        "noise_models": {"ideal"},
-        "statevector_access": False,
-        "max_concurrent_jobs": 1,
-    },
-    "pro": {
-        "max_shots": 65536,
-        "max_qubits": 29,
-        "noise_models": {"ideal", "depolarizing", "thermal"},
-        "statevector_access": True,
-        "max_concurrent_jobs": 5,
-    },
-    "enterprise": {
-        "max_shots": 65536,
-        "max_qubits": 29,
-        "noise_models": {"ideal", "depolarizing", "thermal"},
-        "statevector_access": True,
-        "max_concurrent_jobs": 20,
-    },
-}
+# This module previously carried its own TIER_LIMITS table, which drifted from
+# core.config: it granted the free tier 20 qubits where the config allows 3.
+# The stricter config value won only because main.py happens to apply
+# enforce_limits("simulator") as a router dependency, which runs first —
+# reorder or drop that dependency and the paywall silently widens to 20.
+#
+# There is now exactly one table: settings.TIER_LIMITS. Resolve through the
+# helper below so the lookup cannot silently miss.
+
+
+def get_tier_limits(tier: str) -> dict:
+    """
+    Resolve a subscription tier to its limits from the single source of truth.
+
+    Tier strings reach this module in mixed case: models.Tier uses upper
+    ("PRO") while the legacy models.SubscriptionPlan uses lower ("pro"), and
+    get_subscription_plan() returns the latter. Normalising here prevents a
+    missed lookup from silently downgrading a paying customer to FREE.
+    """
+    return settings.TIER_LIMITS.get(
+        str(tier).upper(), settings.TIER_LIMITS["FREE"]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -141,17 +141,27 @@ class JobStatusResponse(BaseModel):
 
 
 
-def _estimate_execution_seconds(num_qubits: int, shots: int) -> int:
+def _estimate_cost_seconds(num_qubits: int, shots: int, depth: int = 1) -> float:
     """
-    Rough heuristic for estimated wall-clock time so the caller can set
-    reasonable polling intervals.
+    Unclamped wall-clock estimate, used to enforce the execution budget.
+
+    Statevector simulation is exponential in qubit count and linear in both
+    depth and shots, so a single oversized request can occupy a worker for
+    minutes. This must NOT be clamped — the whole point is to recognise a
+    request that is far too expensive before any work begins.
     """
-    # Exponential scaling: each qubit roughly doubles state-vector size
     base = 0.5
     qubit_factor = 2 ** max(0, num_qubits - 10) * 0.001
     shot_factor = shots / 1024.0
-    estimated = base + qubit_factor * shot_factor
-    return max(1, min(int(estimated) + 1, 30))
+    depth_factor = max(1, depth) / 20.0
+    return base + qubit_factor * shot_factor * depth_factor
+
+
+def _estimate_execution_seconds(num_qubits: int, shots: int, depth: int = 1) -> int:
+    """
+    Clamped estimate handed back to the client purely as a polling hint.
+    """
+    return max(1, min(int(_estimate_cost_seconds(num_qubits, shots, depth)) + 1, 30))
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +198,7 @@ async def submit_simulation(
     tier = await get_subscription_plan(
         db, current_user.id, getattr(current_user, "org_id", None)
     )
-    limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
+    limits = get_tier_limits(tier)
 
     log.info(
         "simulation.request_received",
@@ -340,7 +350,38 @@ async def submit_simulation(
         )
 
     # --- 6. Queue the Celery task -------------------------------------------
-    estimated_seconds = _estimate_execution_seconds(num_qubits, body.shots)
+    # --- Enforce the execution budget before any work is dispatched ---------
+    # This guard must live here rather than in the worker: USE_CELERY defaults
+    # to False, in which case the job runs via FastAPI BackgroundTasks inside
+    # the web process, where Celery's task_soft_time_limit never applies and
+    # the SoftTimeLimitExceeded handler in worker.py is unreachable. Rejecting
+    # up front is the only cap that holds on both dispatch paths.
+    estimated_cost = _estimate_cost_seconds(num_qubits, body.shots, circuit_depth)
+    max_seconds = settings.SIMULATION_MAX_ESTIMATED_SECONDS
+
+    if estimated_cost > max_seconds:
+        log.warning(
+            "simulation.cost_budget_exceeded",
+            job_id=job_id,
+            user_id=current_user.id,
+            tier=tier,
+            num_qubits=num_qubits,
+            circuit_depth=circuit_depth,
+            shots=body.shots,
+            estimated_cost_seconds=round(estimated_cost, 2),
+            max_seconds=max_seconds,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Circuit is too expensive to simulate: estimated "
+                f"{estimated_cost:.1f}s exceeds the {max_seconds}s limit. "
+                f"Reduce qubits ({num_qubits}), depth ({circuit_depth}), "
+                f"or shots ({body.shots})."
+            ),
+        )
+
+    estimated_seconds = _estimate_execution_seconds(num_qubits, body.shots, circuit_depth)
 
     # Store initial job metadata in Redis (TTL = 1 hour)
     job_meta = {
@@ -366,9 +407,11 @@ async def submit_simulation(
     await redis_client.expire(concurrent_jobs_key, 3600)
 
 
-    # Dispatch either to Celery or use FastAPI BackgroundTasks based on configuration
+    # Dispatch either to Celery or use FastAPI BackgroundTasks based on configuration.
+    # `settings` comes from the module-level import; re-importing it here would
+    # make the name function-local for the whole body and raise UnboundLocalError
+    # at the budget check above. The worker import stays local to avoid a cycle.
     from worker import run_simulation
-    from core.config import settings
 
     if settings.USE_CELERY:
         run_simulation.delay(job_id)
@@ -445,7 +488,7 @@ async def get_simulation_status(
         result_raw = job_data["result"]
         # Determine statevector visibility based on tier
         tier = job_data.get("tier", "free")
-        sv = result_raw.get("statevector") if TIER_LIMITS.get(tier, TIER_LIMITS["free"])["statevector_access"] else None
+        sv = result_raw.get("statevector") if get_tier_limits(tier)["statevector_access"] else None
 
         result_payload = SimulationResult(
             counts=result_raw["counts"],

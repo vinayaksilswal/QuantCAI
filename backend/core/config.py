@@ -14,7 +14,14 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
     USE_CELERY: bool = False
-    
+
+    # Simulation cost ceiling, in estimated wall-clock seconds. Enforced at
+    # request time in quantum_engine.py so that it applies whether the job is
+    # dispatched to Celery or run inline via BackgroundTasks (USE_CELERY=False).
+    # Keep this below celery_app.conf.task_soft_time_limit (30s) so the
+    # pre-flight rejection fires before the worker-side timeout.
+    SIMULATION_MAX_ESTIMATED_SECONDS: int = 25
+
     # Authentication
     SECRET_KEY: str = "change-me-temporary-key-that-is-at-least-32-chars-long"
     ALGORITHM: str = "HS256"

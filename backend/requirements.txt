@@ -9,9 +9,14 @@ python-multipart
 bcrypt
 google-auth
 requests
-qiskit>=1.0.0
-qiskit-aer>=0.13.0
-qiskit-qasm3-import>=0.5.0
+# Pinned to the 1.x line. This code is written against Qiskit 1.x APIs — see
+# `from qiskit.compiler.transpiler import TranspilerError` in worker.py, a path
+# that moved in 2.0 — and qiskit-qasm3-import is a 1.x-era package. An
+# unpinned `qiskit>=1.0.0` let a cold build silently resolve to 2.x and break
+# simulation at runtime. Moving to 2.0 is a deliberate migration, not a bump.
+qiskit>=1.0.0,<2.0.0
+qiskit-aer>=0.13.0,<0.16.0
+qiskit-qasm3-import>=0.5.0,<0.6.0
 slowapi
 langchain
 langgraph
