@@ -267,6 +267,59 @@ class TestGroupTables:
             assert _normalize_group(group) == group, f"{group!r} is not normalized"
 
 
+class TestCnsaTimeline:
+    """
+    The "2030 deadline" in most vendor material is CNSA 2.0's software and
+    firmware signing date. Web servers must prefer PQC from 2025 and use it
+    exclusively by 2033. Citing 2030 at a TLS endpoint is the wrong system
+    class and fails procurement scrutiny.
+    """
+
+    def test_scanner_targets_the_web_server_class(self):
+        from services.pqc_scanner import _SCAN_SYSTEM_CLASS, CNSA_2_0_TIMELINE
+        assert _SCAN_SYSTEM_CLASS == "web_servers_browsers_cloud"
+        assert CNSA_2_0_TIMELINE[_SCAN_SYSTEM_CLASS]["exclusive"] == 2033
+        assert CNSA_2_0_TIMELINE[_SCAN_SYSTEM_CLASS]["prefer"] == 2025
+
+    def test_signing_and_web_deadlines_are_not_conflated(self):
+        from services.pqc_scanner import CNSA_2_0_TIMELINE
+        signing = CNSA_2_0_TIMELINE["software_firmware_signing"]["exclusive"]
+        web = CNSA_2_0_TIMELINE["web_servers_browsers_cloud"]["exclusive"]
+        assert signing == 2030
+        assert web == 2033
+        assert signing != web, "These are distinct deadlines and must not be merged."
+
+    def test_rsa_remediation_does_not_cite_the_signing_deadline_as_the_web_one(self):
+        from services.pqc_scanner import _remediation_for_key
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048).public_key()
+        text = _remediation_for_key(key)
+        assert "2033" in text
+
+
+class TestEdgeTermination:
+    """
+    Most observed PQ-TLS deployment sits at a handful of CDNs. Reporting an
+    edge result as origin compliance would put a false claim into a CBOM.
+    """
+
+    def test_cloudflare_issuer_is_detected(self):
+        from services.pqc_scanner import detect_edge_termination
+        assert detect_edge_termination("CN=Cloudflare Inc ECC CA-3, O=Cloudflare, Inc.", []) == "Cloudflare"
+
+    def test_ordinary_issuer_is_treated_as_origin(self):
+        from services.pqc_scanner import detect_edge_termination
+        assert detect_edge_termination("CN=Internal Corp Issuing CA, O=Example Corp", ["example.com"]) is None
+
+    def test_large_san_list_implies_shared_edge_certificate(self):
+        from services.pqc_scanner import detect_edge_termination
+        many = [f"host{i}.example.com" for i in range(60)]
+        assert detect_edge_termination("CN=Some CA", many) is not None
+
+    def test_detection_is_case_insensitive(self):
+        from services.pqc_scanner import detect_edge_termination
+        assert detect_edge_termination("cn=CLOUDFLARE INC ECC CA-3", []) == "Cloudflare"
+
+
 class TestSymmetricStrength:
     """Grover halves symmetric strength; CNSA 2.0 therefore requires AES-256."""
 

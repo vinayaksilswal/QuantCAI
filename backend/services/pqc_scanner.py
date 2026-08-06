@@ -137,10 +137,42 @@ TLS_VERSION_RISK: dict[str, dict[str, Any]] = {
     "TLSv1.3": {"label": "TLS 1.3", "risk": "OK",       "points": 0},
 }
 
+# CNSA 2.0 transition timeline, by system class (NSA, Commercial National
+# Security Algorithm Suite 2.0 FAQ).
+#
+# Getting this right matters commercially: the widely repeated "2030 deadline"
+# is the SOFTWARE AND FIRMWARE SIGNING date. Web servers, browsers and cloud
+# services must *prefer* CNSA 2.0 by 2025 but are not required to use it
+# exclusively until 2033. A TLS scanner that tells a web-server operator they
+# must migrate "by 2030" is citing the wrong system class, and that is exactly
+# the kind of error that ends an enterprise evaluation.
+CNSA_2_0_TIMELINE: dict[str, dict[str, Any]] = {
+    "software_firmware_signing": {"prefer": 2025, "exclusive": 2030},
+    "web_servers_browsers_cloud": {"prefer": 2025, "exclusive": 2033},
+    "networking_equipment":       {"prefer": 2026, "exclusive": 2030},
+    "operating_systems":          {"prefer": 2027, "exclusive": 2033},
+}
+
+# The system class this scanner assesses. Public TLS endpoints are web servers.
+_SCAN_SYSTEM_CLASS = "web_servers_browsers_cloud"
+_CNSA_PREFER_YEAR = CNSA_2_0_TIMELINE[_SCAN_SYSTEM_CLASS]["prefer"]
+_CNSA_EXCLUSIVE_YEAR = CNSA_2_0_TIMELINE[_SCAN_SYSTEM_CLASS]["exclusive"]
+
+# The genuinely urgent argument is not the compliance date but data lifetime:
+# traffic captured today is decrypted once a CRQC exists, so any data whose
+# confidentiality must outlast the transition is already exposed.
+HNDL_RATIONALE = (
+    "Harvest-now-decrypt-later: traffic recorded today is retrospectively "
+    "decryptable once a CRQC exists, so any data whose confidentiality must "
+    f"outlast {_CNSA_EXCLUSIVE_YEAR} is already at risk regardless of the "
+    "compliance deadline."
+)
+
 # NIST SP 800-131A rev 2 & CNSA 2.0 references
 NIST_REFERENCES: dict[str, str] = {
     "RSA":     "NIST SP 800-131A Rev 2 — RSA keys vulnerable to Shor's algorithm; "
-               "migrate to ML-DSA (FIPS 204) by 2030",
+               f"migrate to ML-DSA (FIPS 204). CNSA 2.0 requires web servers to prefer "
+               f"PQC from {_CNSA_PREFER_YEAR} and use it exclusively by {_CNSA_EXCLUSIVE_YEAR}",
     "ECC":     "NIST SP 800-186 — ECC keys (ECDSA/ECDH) vulnerable to Shor's algorithm; "
                "migrate to ML-DSA (FIPS 204) for signatures, ML-KEM (FIPS 203) for KEM",
     "DSA":     "NIST SP 800-131A Rev 2 — DSA is deprecated and quantum-vulnerable; "
@@ -190,7 +222,9 @@ def _classify_public_key(
                 "quantum_vulnerable": True,
                 "vulnerability_reason": (
                     f"RSA-{key_size} is a legacy key size vulnerable to Shor's algorithm on a CRQC. "
-                    "NIST and CNSA 2.0 mandate migrating to post-quantum signature schemes (e.g., ML-DSA / FIPS 204) by 2030."
+                    f"CNSA 2.0 requires web servers, browsers and cloud services to prefer post-quantum "
+                    f"signature schemes (ML-DSA / FIPS 204) from {_CNSA_PREFER_YEAR} and to use them "
+                    f"exclusively by {_CNSA_EXCLUSIVE_YEAR}. {HNDL_RATIONALE}"
                 ),
                 "severity": "CRITICAL",
                 "risk_points": _SCORE_RSA_2048 if key_size == 2048 else _SCORE_RSA_2048 + 50.0,
@@ -303,6 +337,46 @@ def _domain_matches_san(domain: str, san_list: list[str]) -> bool:
                 if "." not in prefix:
                     return True
     return False
+
+
+# Certificate issuer fragments that indicate the TLS session terminates at a
+# CDN or managed edge rather than at the customer's origin server.
+_CDN_ISSUER_MARKERS: dict[str, str] = {
+    "cloudflare": "Cloudflare",
+    "google trust services": "Google Cloud / GTS",
+    "amazon": "AWS (CloudFront/ACM)",
+    "digicert inc": "DigiCert (commonly Akamai/Fastly-fronted)",
+    "fastly": "Fastly",
+    "akamai": "Akamai",
+    "microsoft azure": "Azure Front Door",
+    "gts ca": "Google Trust Services",
+}
+
+
+def detect_edge_termination(issuer: str, san_domains: list[str]) -> Optional[str]:
+    """
+    Identify whether the TLS session likely terminates at a CDN edge.
+
+    This materially changes what a scan result means. Measurement studies
+    attribute the large majority of observed PQ-TLS deployment to a handful of
+    CDNs, so a hostname scan that reports ML-KEM may be describing the edge
+    while the origin behind it still negotiates RSA-2048 over TLS 1.2.
+    Reporting that as "PQC compliant" would be a false compliance signal in a
+    CBOM — the customer's own infrastructure is unassessed.
+
+    Returns a provider label, or None when no edge indicator is found.
+    """
+    haystack = (issuer or "").lower()
+    for marker, label in _CDN_ISSUER_MARKERS.items():
+        if marker in haystack:
+            return label
+
+    # A very large SAN list is characteristic of a shared/multi-tenant edge
+    # certificate rather than a single origin server's own certificate.
+    if len(san_domains) > 50:
+        return "Shared multi-tenant edge certificate"
+
+    return None
 
 
 def _normalize_group(group: Optional[str]) -> str:
@@ -720,6 +794,7 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
 
     # ── Analyze Certificate Chain ─────────────────────────────────────
     risk_points: float = 0.0
+    edge_provider: Optional[str] = None
     cert_results: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     total_assets = 0
@@ -760,6 +835,10 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
         # SAN coverage (leaf cert only)
         san_domains = _extract_san_domains(cert)
         san_covers_domain = _domain_matches_san(domain, san_domains) if idx == 0 else None
+
+        # Edge termination changes what this whole scan means (leaf cert only).
+        if idx == 0:
+            edge_provider = detect_edge_termination(issuer_str, san_domains)
 
         # Public key classification
         pub_key = cert.public_key()
@@ -888,6 +967,35 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
         risk_points += symmetric_finding.pop("risk_points")
         findings.append(symmetric_finding)
 
+    # ── Edge Termination Caveat ───────────────────────────────────────
+    # Carries no risk points: it is a statement about scan scope, not about
+    # the target's security. It exists so a PQC-compliant edge result is never
+    # mistaken for a compliant origin.
+    if edge_provider:
+        findings.append({
+            "severity": "LOW",
+            "category": "SCAN_SCOPE",
+            "title": f"TLS Terminates at an Edge/CDN: {edge_provider}",
+            "description": (
+                f"This certificate indicates the TLS session terminates at {edge_provider} "
+                "rather than at your origin server. Everything measured in this scan — "
+                "key exchange, cipher, certificate — describes the edge. The connection "
+                "from that edge to your origin is not covered and may still use legacy "
+                "TLS and classical key exchange. Independent measurement attributes most "
+                "observed post-quantum TLS deployment to a small number of CDNs, so an "
+                "edge-only result is not evidence of origin readiness."
+            ),
+            "affected_asset": f"TLS session to {host}:{port}",
+            "nist_reference": (
+                "NIST SP 1800-38 — cryptographic discovery must cover the full "
+                "communication path, not only the internet-facing edge"
+            ),
+            "remediation": (
+                "Scan the origin directly by IP or internal hostname to assess the "
+                "edge-to-origin leg. An Enterprise-tier internal scan covers this path."
+            ),
+        })
+
     # ── TLS Version Finding ───────────────────────────────────────────
     risk_points += tls_meta["points"]
 
@@ -934,6 +1042,14 @@ def scan_domain(domain: str, port: Optional[int] = None) -> dict[str, Any]:
         "key_exchange": cipher_analysis.get("key_exchange"),
         "key_exchange_risk": cipher_analysis["cipher_risk"],
         "pqc_capable": pqc_capable,
+        # Non-null means this result describes a CDN edge, not the origin.
+        "edge_termination": edge_provider,
+        "scan_scope": "edge" if edge_provider else "origin",
+        "cnsa_2_0": {
+            "system_class": _SCAN_SYSTEM_CLASS,
+            "prefer_by": _CNSA_PREFER_YEAR,
+            "exclusive_use_by": _CNSA_EXCLUSIVE_YEAR,
+        },
         "certificates": cert_results,
         "findings": findings,
         "cbom_summary": {
@@ -1011,7 +1127,9 @@ def _remediation_for_key(pub_key: Any) -> str:
         return (
             "Replace RSA certificates with ML-DSA-65 (FIPS 204) for digital signatures. "
             "For key exchange, deploy ML-KEM-768 (FIPS 203). "
-            "Target migration completion by 2030 per CNSA 2.0 timeline."
+            f"CNSA 2.0 requires web servers to prefer PQC from {_CNSA_PREFER_YEAR} and "
+            f"to use it exclusively by {_CNSA_EXCLUSIVE_YEAR}; the 2030 date frequently "
+            "cited applies to software and firmware signing, not TLS endpoints."
         )
     elif isinstance(pub_key, ec.EllipticCurvePublicKey):
         return (

@@ -66,8 +66,12 @@ celery_app.conf.update(
     task_time_limit=35,
     # Worker prefetch: 1 task at a time (simulation is CPU-heavy)
     worker_prefetch_multiplier=1,
-    # Prevent memory leaks: restart worker after N tasks
-    worker_max_tasks_per_child=50,
+    # Recycle worker children aggressively. Qiskit Aer runs C++ extensions
+    # whose allocations are not reliably returned to the allocator by CPython's
+    # GC, so a long-lived worker accumulates memory until the OS OOM killer
+    # takes it — which loses the in-flight job silently. 50 was too generous
+    # for jobs that can each hold a multi-hundred-MB statevector.
+    worker_max_tasks_per_child=10,
     # Restrict to ~4GB RAM per worker child
     worker_max_memory_per_child=4000000,
 )
