@@ -2,7 +2,7 @@ import os
 import sys
 import pytest
 from unittest.mock import AsyncMock, patch
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 
 # Add backend directory to path
@@ -37,7 +37,7 @@ async def test_qpu_credit_deductions():
         from core.auth import create_access_token
         access_token = create_access_token(user)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {access_token}"}
             payload = {
                 "qasm_string": 'OPENQASM 3.0;\ninclude "stdgates.inc";\nqubit[2] q;\nbit[2] c;\nh q[0];\ncx q[0], q[1];\nc = measure q;',

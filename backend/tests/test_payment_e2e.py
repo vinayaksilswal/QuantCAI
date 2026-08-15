@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from main import app
 from datetime import datetime, timezone
 import hashlib
@@ -29,7 +29,7 @@ async def test_warriorplus_ipn_subscription_upgrade(free_user, mock_redis):
     # URL encode payload like application/x-www-form-urlencoded
     data = urllib.parse.urlencode(payload)
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.post(
             "/api/payment/ipn",
             content=data,

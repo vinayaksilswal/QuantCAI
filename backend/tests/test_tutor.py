@@ -5,7 +5,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 from fastapi import Request, HTTPException
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
@@ -110,7 +110,7 @@ async def test_tutor_workflow_and_tier_limits(
         mock_structured_classifier.ainvoke.return_value = MockIntent("conceptual_question")
         mock_llm.ainvoke.return_value = MagicMock(content="Socratic response checking understanding.")
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # 1. Ask a question
             headers = {"Authorization": f"Bearer {token_free}"}
             res = await client.post(
@@ -137,7 +137,7 @@ async def test_tutor_workflow_and_tier_limits(
         mock_structured_classifier.ainvoke.return_value = MockIntent("math_help")
         mock_llm.ainvoke.return_value = MagicMock(content="Step 1: calculate state $|\psi\\rangle$ using $\cos(\\theta/2)|0\\rangle$.")
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {token_free}"}
             res = await client.post(
                 "/tutor/chat",
@@ -159,7 +159,7 @@ async def test_tutor_workflow_and_tier_limits(
         mock_structured_classifier.ainvoke.return_value = MockIntent("off_topic")
         mock_llm.ainvoke.return_value = MagicMock(content="Let's redirect back to quantum computing.")
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {token_free}"}
             res = await client.post(
                 "/tutor/chat",
@@ -184,7 +184,7 @@ async def test_tutor_workflow_and_tier_limits(
                 session.add(ev)
             await session.commit()
             
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Query #6 should fail
             headers = {"Authorization": f"Bearer {token_free}"}
             res = await client.post(
@@ -213,7 +213,7 @@ async def test_tutor_workflow_and_tier_limits(
         mock_structured_classifier.ainvoke.return_value = MockIntent("conceptual_question")
         mock_llm.ainvoke.return_value = MagicMock(content="Pro response.")
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {token_pro}"}
             res = await client.post(
                 "/tutor/chat",
@@ -312,7 +312,7 @@ async def test_tutor_simulation_request(
         }
         mock_status_sim.return_value = mock_status_res
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {token}"}
             res = await client.post(
                 "/tutor/chat",

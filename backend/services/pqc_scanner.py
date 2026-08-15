@@ -417,15 +417,21 @@ def probe_pqc_support(host: str, port: int, timeout: float = _CONNECTION_TIMEOUT
     (Python < 3.13 or OpenSSL < 3.5), which must be reported as unknown rather
     than guessed.
     """
+    # Check the capability on the class before building anything: on a runtime
+    # without set_groups there is no probe to run, and creating a context we
+    # cannot configure would be pure waste.
+    if not callable(getattr(ssl.SSLContext, "set_groups", None)):
+        return None
+
     ctx = ssl.create_default_context()
+    # Identity is irrelevant here — this handshake exists solely to learn
+    # whether the server will negotiate a PQC group. The main scan performs
+    # full verification separately.
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
-    setter = getattr(ctx, "set_groups", None)
-    if not callable(setter):
-        return None
     try:
-        setter("X25519MLKEM768:SecP256r1MLKEM768:X25519Kyber768Draft00")
+        ctx.set_groups("X25519MLKEM768:SecP256r1MLKEM768:X25519Kyber768Draft00")
     except Exception:  # noqa: BLE001 - OpenSSL too old to know these groups
         return None
 

@@ -1,15 +1,15 @@
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from main import app
 from datetime import datetime, timezone
-from models import DeveloperAPIKey
+from models import APIKey
 from core.database import async_session_factory
 import uuid
 
 @pytest.mark.asyncio
 async def test_api_key_lifecycle(pro_user):
     """Test API key creation, listing, deletion, and rotation."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Create a new API key
         create_res = await client.post("/developer/keys", json={
             "label": "Test Key",

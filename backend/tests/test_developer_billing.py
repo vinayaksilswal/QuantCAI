@@ -7,7 +7,7 @@ import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request, HTTPException, status
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
@@ -47,7 +47,7 @@ async def test_api_key_lifecycle(mock_redis):
         from core.auth import create_access_token
         access_token = create_access_token(user)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {access_token}"}
             
             # A. Create a Key
@@ -120,7 +120,7 @@ async def test_wallet_operations(mock_redis):
         from core.auth import create_access_token
         access_token = create_access_token(user)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {access_token}"}
 
             # A. Get initial wallet
@@ -215,7 +215,7 @@ async def test_metering_middleware_simulation(mock_q_engine, mock_redis):
             f"developer:wallet:{user_id}": "20.0"
         }.get(k))
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"X-API-Key": raw_key}
             payload = {
                 "num_qubits": 2,
@@ -232,7 +232,7 @@ async def test_metering_middleware_simulation(mock_q_engine, mock_redis):
             mock_redis.incrbyfloat.assert_called_with(f"developer:wallet:{user_id}", -0.015)
 
         # Test B: Deny request when API key is missing
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             res = await client.post("/api/v1/public/circuit/simulate", json=payload)
             assert res.status_code == 401
             assert "X-API-Key header is missing" in res.json()["detail"]
@@ -245,7 +245,7 @@ async def test_metering_middleware_simulation(mock_q_engine, mock_redis):
             f"developer:wallet_blocked:{user_id}": "1"
         }.get(k))
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"X-API-Key": raw_key}
             res = await client.post("/api/v1/public/circuit/simulate", json=payload, headers=headers)
             assert res.status_code == 402

@@ -64,3 +64,6 @@ yarn-error.log*
 python_admin/prisma-query-engine-*
 
 .gitignore
+
+# Local test virtualenv (created by the local pytest run)
+backend/.venv-test/

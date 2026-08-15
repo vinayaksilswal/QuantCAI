@@ -14,6 +14,19 @@ if "TEST_DATABASE_URL" in os.environ:
 else:
     os.environ["DATABASE_URL"] = "sqlite:///test.db"
 
+# core.config defaults ENVIRONMENT to "production", whose validator rejects the
+# placeholder SECRET_KEY. Importing core.database therefore fails at collection
+# time unless the caller happens to have exported the right variables, so set
+# test-safe defaults here and keep the suite runnable with a bare `pytest`.
+# setdefault, so a caller can still override any of these deliberately.
+os.environ.setdefault("ENVIRONMENT", "development")
+os.environ.setdefault("ENV", "test")
+os.environ.setdefault(
+    "SECRET_KEY", "test-only-secret-key-not-used-outside-the-test-suite-0123456789"
+)
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
+os.environ.setdefault("ALLOWED_ORIGINS", "http://localhost:5173")
+
 from core.database import engine, sync_engine
 from models import Base
 from sqlalchemy import event
@@ -59,19 +72,69 @@ async def cleanup_database_connections():
         
     await engine.dispose()
 
+# Every module that does `from security import redis_client` binds its OWN
+# module-level name at import time, so patching "security.redis_client" alone
+# leaves all of them pointing at the real client — which then tries to reach
+# localhost:6379 and fails. Patch each binding.
+_REDIS_CLIENT_BINDINGS = (
+    "security",
+    "billing",
+    "main",
+    "metering_middleware",
+    "middleware",
+    "quantum_engine",
+    "tier_limits",
+    "tutor",
+    "routers.developer",
+    "routers.developer_api",
+    "routers.entitlements",
+    "routers.payment",
+    "routers.paypal_billing",
+    "routers.pqc",
+    "routers.quantai",
+)
+
+
 @pytest.fixture(autouse=True, scope="function")
 def mock_redis():
-    """Mock Redis client globally using fakeredis."""
-    try:
-        import fakeredis.aioredis
-    except ImportError:
-        pytest.skip("fakeredis is required to run tests with Redis mocks")
-        
+    """
+    Mock Redis globally using fakeredis.
+
+    fakeredis is a hard requirement declared in requirements-test.txt. It used
+    to pytest.skip() when missing, which — because this fixture is autouse —
+    silently skipped the ENTIRE suite while pytest still exited 0. CI reported
+    success having run nothing at all.
+    """
+    import fakeredis.aioredis  # noqa: F401 - a missing dep must fail, not skip
+
     server = fakeredis.FakeServer()
     mock_redis_client = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
-    
-    with patch("security.redis_client", mock_redis_client):
+
+    import importlib
+
+    patches = []
+    for module_name in _REDIS_CLIENT_BINDINGS:
+        try:
+            module = importlib.import_module(module_name)
+        except Exception:
+            continue
+        # Some modules import redis_client inside a function rather than at
+        # module scope, so there is no attribute to replace. Patching those
+        # raises AttributeError at start().
+        if not hasattr(module, "redis_client"):
+            continue
+        patches.append(patch(f"{module_name}.redis_client", mock_redis_client))
+
+    for p in patches:
+        p.start()
+    try:
         yield mock_redis_client
+    finally:
+        for p in patches:
+            try:
+                p.stop()
+            except Exception:
+                pass
 
 @pytest_asyncio.fixture
 async def free_user(cleanup_database_connections):
@@ -83,7 +146,7 @@ async def free_user(cleanup_database_connections):
         user = User(
             email="free@example.com",
             name="Free User",
-            password_hash="fakehash",
+            hashed_password="fakehash",
             role="user",
             created_at=datetime.now(timezone.utc)
         )
@@ -102,7 +165,7 @@ async def pro_user(cleanup_database_connections):
         user = User(
             email="pro@example.com",
             name="Pro User",
-            password_hash="fakehash",
+            hashed_password="fakehash",
             role="user",
             created_at=datetime.now(timezone.utc)
         )
@@ -131,7 +194,7 @@ async def enterprise_user(cleanup_database_connections):
         user = User(
             email="enterprise@example.com",
             name="Enterprise User",
-            password_hash="fakehash",
+            hashed_password="fakehash",
             role="enterprise_user",
             created_at=datetime.now(timezone.utc)
         )

@@ -140,8 +140,8 @@ async def test_database_auth_flow():
             assert plan == "pro"
 
         # Test Login router endpoint manually using AsyncClient
-        from httpx import AsyncClient
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        from httpx import ASGITransport, AsyncClient
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             login_res = await client.post("/api/auth/login", json={"email": email, "password": "Password123!"})
             assert login_res.status_code == 200
             assert "access_token" in login_res.json()
@@ -216,8 +216,8 @@ async def test_rapidapi_middleware(mock_redis):
     original_secret = settings.RAPIDAPI_PROXY_SECRET
     settings.RAPIDAPI_PROXY_SECRET = "secret123"
     try:
-        from httpx import AsyncClient
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        from httpx import ASGITransport, AsyncClient
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # A. Valid Secret
             mock_redis.setex = AsyncMock(return_value=True)
             res = await client.get("/test-jwt", headers={

@@ -613,7 +613,7 @@ async def test_enterprise_scan_role_based_access(mock_scan, mock_redis):
     from main import app
     from security import create_access_token
     from core.database import async_session_factory
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
     import models as DBmodels
     from sqlalchemy import text
     
@@ -660,15 +660,22 @@ async def test_enterprise_scan_role_based_access(mock_scan, mock_redis):
         mock_redis.get.return_value = None
         mock_redis.setex.return_value = True
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # 1. Free user request - should return 403 Forbidden
             res = await client.get("/api/v1/enterprise/scan/test.example.com/cyclonedx", headers={"Authorization": f"Bearer {token_free}"})
             assert res.status_code == 403
             
-            # 2. Pro user request - should return 403 Forbidden
+            # 2. Pro user request - should return 200 OK.
+            # CBOM export was deliberately opened up from Enterprise-only to
+            # Pro-and-above: it is the clearest reason to upgrade from Free,
+            # and gating it at Enterprise left the Pro tier without its
+            # headline deliverable. Exports still consume the monthly scan
+            # quota, so this is not an unmetered bypass.
             res = await client.get("/api/v1/enterprise/scan/test.example.com/cyclonedx", headers={"Authorization": f"Bearer {token_pro}"})
-            assert res.status_code == 403
-            
+            assert res.status_code == 200
+            assert res.json()["bomFormat"] == "CycloneDX"
+
+
             # 3. Enterprise user request - should return 200 OK
             res = await client.get("/api/v1/enterprise/scan/test.example.com/cyclonedx", headers={"Authorization": f"Bearer {token_ent}"})
             assert res.status_code == 200
@@ -695,7 +702,7 @@ async def test_post_pqc_scan_endpoint(mock_scan, mock_redis):
     from main import app
     from security import create_access_token
     from core.database import async_session_factory
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
     import models as DBmodels
     from sqlalchemy import text
     
@@ -775,7 +782,7 @@ async def test_post_pqc_scan_endpoint(mock_scan, mock_redis):
             }
         }
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Test 1: Scan with Pro User payload (POST)
             res = await client.post(
                 "/api/v1/pqc/scan", 

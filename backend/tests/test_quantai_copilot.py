@@ -3,7 +3,7 @@ import sys
 import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text, select
 
 # Add backend directory to path
@@ -88,7 +88,7 @@ async def test_quantai_copilot_auth_and_billing(mock_llm, mock_redis):
         mock_redis.incrbyfloat.return_value = 9.997
         mock_redis.setex.return_value = True
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # POST with JWT Token
             headers = {"Authorization": f"Bearer {token}"}
             res = await client.post(
@@ -135,7 +135,7 @@ async def test_quantai_copilot_auth_and_billing(mock_llm, mock_redis):
         mock_redis.eval.return_value = 1
         mock_redis.incrbyfloat.return_value = 4.997
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"X-API-Key": api_key_plaintext}
             res = await client.post(
                 "/api/v1/quantai/chat",
@@ -158,7 +158,7 @@ async def test_quantai_copilot_auth_and_billing(mock_llm, mock_redis):
             f"developer:wallet_blocked:{user_id}": "1"
         }.get(k)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {token}"}
             res = await client.post(
                 "/api/v1/quantai/chat",
@@ -229,7 +229,7 @@ async def test_quantai_copilot_multi_agent_routing(mock_llm, mock_redis):
         contexts = ["learn", "circuit-builder", "pqc-scanner"]
         expected_prompts_keywords = ["Pedagogical", "Compilation", "Offensive"]
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             for ctx, kw in zip(contexts, expected_prompts_keywords):
                 res = await client.post(
                     "/api/v1/quantai/chat",

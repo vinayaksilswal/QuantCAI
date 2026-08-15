@@ -1,7 +1,7 @@
 import os
 import sys
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 
 # Add backend directory to path
@@ -38,7 +38,7 @@ async def test_public_badge_generation():
         target_id = target.id
 
     try:
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # 2. Get valid badge
             res = await client.get(f"/api/v1/public/badge/{target_id}")
             assert res.status_code == 200
@@ -97,7 +97,7 @@ async def test_circuit_sharing_and_permissions():
         token_a = create_access_token(user_a)
         token_b = create_access_token(user_b)
         
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # 2. Try to share User A's circuit using User B's token (should be 403)
             res_unauth = await client.post(
                 f"/api/v1/circuits/{circuit_id}/share",

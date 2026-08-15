@@ -4,7 +4,7 @@ import pytest
 import json
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text, select
 
 # Add backend directory to path
@@ -79,7 +79,7 @@ async def test_free_user_simulation_limits():
     headers = {"Authorization": f"Bearer {token}"}
 
     try:
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # 1. Test Qubits Limit (> 5 qubits)
             res = await client.post(
                 "/api/v1/simulator/execute",
@@ -162,7 +162,7 @@ async def test_pro_user_simulation_limits():
     headers = {"Authorization": f"Bearer {token}"}
 
     try:
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # 1. Qubits limit (> 30 qubits)
             res = await client.post(
                 "/api/v1/simulator/execute",
@@ -255,7 +255,7 @@ async def test_pqc_scanning_limits(mock_scan, mock_redis):
     token_ent = create_access_token({"sub": str(ent_id), "type": "access", "role": "enterprise_user", "token_version": 0})
 
     try:
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # 1. FREE/PRO users should be blocked from scanning internal domains
             for token in (token_free, token_pro):
                 res = await client.post(
@@ -330,7 +330,7 @@ async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_qu
     token_pro = create_access_token({"sub": str(pro_id), "type": "access", "role": "learner", "token_version": 0})
 
     try:
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Mock wallet balance retrieve in Redis
             wallet_free_key = f"developer:wallet:{free_id}"
             wallet_pro_key = f"developer:wallet:{pro_id}"

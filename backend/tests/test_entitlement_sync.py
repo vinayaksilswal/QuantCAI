@@ -95,6 +95,26 @@ class TestBillingPathsSyncEntitlements:
             is DBmodels.SubscriptionPlan.FREE
         )
 
+    def test_reads_the_field_warriorplus_actually_sends(self):
+        """
+        WarriorPlus sends WP_ITEM_NUMBER. The handler previously read only
+        WP_ITEM_ID/WP_OFFER_ID, so product_id was always empty on real IPNs.
+        That was invisible while the fallback granted PRO, but once the
+        fallback became FREE it would have downgraded every real purchase.
+        """
+        from core.config import settings
+        from routers.payment import _determine_tier_from_product
+
+        original = settings.WARRIORPLUS_PRO_PRODUCT_ID
+        settings.WARRIORPLUS_PRO_PRODUCT_ID = "wso_rrynld"
+        try:
+            assert (
+                _determine_tier_from_product({"WP_ITEM_NUMBER": "wso_rrynld"})
+                is DBmodels.SubscriptionPlan.PRO
+            )
+        finally:
+            settings.WARRIORPLUS_PRO_PRODUCT_ID = original
+
     def test_ipn_uses_constant_time_key_comparison(self):
         from routers import payment
 

@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from unittest.mock import patch
 from fastapi import status
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 
 # Add backend directory to path
@@ -53,12 +53,26 @@ def set_warriorplus_security_key():
     # Set a mock security key for tests
     original_key = settings.WARRIORPLUS_SECURITY_KEY
     settings.WARRIORPLUS_SECURITY_KEY = "test_secret_key_123"
+
+    # Product IDs must be configured for a sale to map to a paid tier. The
+    # handler used to default to PRO for any unmapped product, which meant an
+    # unconfigured deployment granted Pro on every sale — and any other product
+    # sold from the same WarriorPlus account granted Pro too. It now defaults
+    # to FREE, so these tests configure the mapping explicitly.
+    original_pro_id = settings.WARRIORPLUS_PRO_PRODUCT_ID
+    original_ent_id = settings.WARRIORPLUS_ENTERPRISE_PRODUCT_ID
+    settings.WARRIORPLUS_PRO_PRODUCT_ID = "wso_rrynld"
+    settings.WARRIORPLUS_ENTERPRISE_PRODUCT_ID = "wso_enterprise"
+
     yield
+
     settings.WARRIORPLUS_SECURITY_KEY = original_key
+    settings.WARRIORPLUS_PRO_PRODUCT_ID = original_pro_id
+    settings.WARRIORPLUS_ENTERPRISE_PRODUCT_ID = original_ent_id
 
 @pytest.mark.asyncio
 async def test_warriorplus_ipn_invalid_security_key():
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Send IPN with incorrect security key
         response = await client.post(
             "/api/payment/warriorplus/ipn",
@@ -75,7 +89,7 @@ async def test_warriorplus_ipn_invalid_security_key():
 @pytest.mark.asyncio
 async def test_warriorplus_ipn_sale_existing_user(seed_user):
     user_id, email = seed_user
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Send successful sale IPN for existing user
         response = await client.post(
             "/api/payment/warriorplus/ipn",
@@ -107,7 +121,7 @@ async def test_warriorplus_ipn_sale_new_user():
     suffix = get_unique_suffix()
     new_email = f"new_wplus_user_{suffix}@example.com"
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Send successful sale IPN for new user
         response = await client.post(
             "/api/payment/warriorplus/ipn",
@@ -160,7 +174,7 @@ async def test_warriorplus_ipn_refund(seed_user):
         session.add(sub)
         await session.commit()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # Send refund/cancel action
         response = await client.post(
             "/api/payment/warriorplus/ipn",

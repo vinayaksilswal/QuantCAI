@@ -41,7 +41,16 @@ def _determine_tier_from_product(form_data: dict) -> DBmodels.SubscriptionPlan:
     Determine the subscription tier based on WarriorPlus product/offer ID.
     Falls back to PRO if no product mapping is configured.
     """
-    product_id = form_data.get("WP_ITEM_ID", "") or form_data.get("WP_OFFER_ID", "")
+    # WarriorPlus sends the product/offer identifier as WP_ITEM_NUMBER. Reading
+    # only WP_ITEM_ID/WP_OFFER_ID meant product_id was always empty on real
+    # IPNs — harmless while this function defaulted to PRO, but the moment that
+    # default became FREE it would have downgraded every genuine purchase.
+    # Checked first, with the other spellings kept as fallbacks.
+    product_id = (
+        form_data.get("WP_ITEM_NUMBER", "")
+        or form_data.get("WP_ITEM_ID", "")
+        or form_data.get("WP_OFFER_ID", "")
+    )
 
     if settings.WARRIORPLUS_ENTERPRISE_PRODUCT_ID and product_id == settings.WARRIORPLUS_ENTERPRISE_PRODUCT_ID:
         return DBmodels.SubscriptionPlan.ENTERPRISE
