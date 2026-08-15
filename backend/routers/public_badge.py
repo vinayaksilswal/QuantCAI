@@ -34,7 +34,11 @@ def generate_svg(text: str, bg_color: str) -> str:
   </g>
 </svg>'''
 
-@router.get("/badge/{{target_id}}")
+# Single braces. The doubled form registered a literal path segment named
+# "{target_id}" rather than a path parameter, so every real badge request 404'd
+# and the public badge — an inbound-link driver that points back at the
+# platform from customers' own sites — never worked at all.
+@router.get("/badge/{target_id}")
 async def get_target_badge(
     target_id: int,
     db: AsyncSession = Depends(get_db)

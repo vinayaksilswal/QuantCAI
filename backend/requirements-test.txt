@@ -14,7 +14,11 @@ aiosqlite>=0.19.0
 # calls pytest.skip() when fakeredis is missing — so without it EVERY test in
 # the suite skips, pytest still exits 0, and CI reports success having run
 # nothing. That is how a broken billing path reached production unnoticed.
-fakeredis>=2.20.0
+#
+# The [lua] extra is required, not optional: tier_limits.py and
+# metering_middleware.py use Redis EVAL for atomic rate limiting and wallet
+# gating, and plain fakeredis answers EVAL with "unknown command".
+fakeredis[lua]>=2.20.0
 
 # Linters invoked by the CI job; pinned here so local runs match CI.
 flake8>=7.0.0
