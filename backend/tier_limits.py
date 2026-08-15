@@ -91,6 +91,81 @@ def _extract_qubit_count(qasm_str: str) -> int:
         total += int(match.group(1))
     return total
 
+def plan_string_to_tier(plan_str: Optional[str]) -> "DBmodels.Tier":
+    """
+    Map a subscription plan string onto the Tier enum used by UserPlan.
+
+    Accepts either casing: models.SubscriptionPlan uses lower-case values
+    ("pro") while models.Tier uses upper ("PRO").
+    """
+    mapping = {
+        "pro": DBmodels.Tier.PRO,
+        "api_metered": DBmodels.Tier.API_METERED,
+        "institutional": DBmodels.Tier.INSTITUTIONAL,
+        "enterprise": DBmodels.Tier.ENTERPRISE,
+        "free": DBmodels.Tier.FREE,
+    }
+    return mapping.get(str(plan_str or "").lower(), DBmodels.Tier.FREE)
+
+
+async def sync_user_plan_tier(
+    db: AsyncSession, user_id: int, plan_str: str
+) -> "DBmodels.Tier":
+    """
+    Force a user's UserPlan.tier to match a newly-purchased or cancelled plan.
+
+    THIS IS THE ENTITLEMENT WRITE PATH AND IT MUST BE CALLED ON EVERY BILLING
+    EVENT.
+
+    get_user_tier() reads UserPlan first and only falls back to the legacy
+    Subscription table when no UserPlan row exists. Since a UserPlan row is
+    created the first time a user touches any metered feature, almost every
+    real customer has one before they ever pay. Payment webhooks used to write
+    only to Subscription, so UserPlan.tier stayed FREE forever and the customer
+    received none of what they bought.
+
+    Creates the row (and its FeatureUsage sibling) when absent so that a
+    purchase made before first login still lands correctly.
+    """
+    stmt = select(DBmodels.UserPlan).where(DBmodels.UserPlan.user_id == user_id)
+    res = await db.execute(stmt)
+    plan = res.scalar_one_or_none()
+
+    tier_enum = plan_string_to_tier(plan_str)
+
+    if plan:
+        plan.tier = tier_enum
+        # Give the new plan a full cycle rather than inheriting the old one's
+        # remaining days, and clear counters so an upgrade is usable at once.
+        plan.cycle_reset_date = date.today() + timedelta(days=30)
+        db.add(plan)
+
+        usage_res = await db.execute(
+            select(DBmodels.FeatureUsage).where(DBmodels.FeatureUsage.user_id == user_id)
+        )
+        usage = usage_res.scalar_one_or_none()
+        if usage:
+            usage.monthly_pqc_scans = 0
+            db.add(usage)
+    else:
+        db.add(DBmodels.UserPlan(
+            user_id=user_id,
+            tier=tier_enum,
+            cycle_reset_date=date.today() + timedelta(days=30),
+        ))
+        db.add(DBmodels.FeatureUsage(
+            user_id=user_id,
+            daily_ai_chats=0,
+            monthly_pqc_scans=0,
+            total_compute_overhead=0.0,
+        ))
+
+    logger.info(
+        "Entitlement sync: user_id=%s UserPlan.tier -> %s", user_id, tier_enum.value
+    )
+    return tier_enum
+
+
 async def get_user_tier(db: AsyncSession, user_id: int) -> str:
     """
     Fetch the tier of the user. Automatically migrates/initializes UserPlan 
@@ -123,16 +198,7 @@ async def get_user_tier(db: AsyncSession, user_id: int) -> str:
     org_id = user.org_id if user else None
 
     tier_str = await get_subscription_plan(db, user_id, org_id)
-    tier_enum = DBmodels.Tier.FREE
-    tier_lower = tier_str.lower()
-    if tier_lower == "pro":
-        tier_enum = DBmodels.Tier.PRO
-    elif tier_lower == "api_metered":
-        tier_enum = DBmodels.Tier.API_METERED
-    elif tier_lower == "institutional":
-        tier_enum = DBmodels.Tier.INSTITUTIONAL
-    elif tier_lower == "enterprise":
-        tier_enum = DBmodels.Tier.ENTERPRISE
+    tier_enum = plan_string_to_tier(tier_str)
 
     # Initialize UserPlan
     plan = DBmodels.UserPlan(

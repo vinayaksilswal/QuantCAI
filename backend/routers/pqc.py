@@ -1,6 +1,7 @@
 from typing import Optional
 import json
-from fastapi import APIRouter, Depends, HTTPException, Request
+import re
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 import logging
 from datetime import datetime, timezone
@@ -8,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 import models as DBmodels
+from core.config import settings
 from core.database import get_db
 from core.auth import get_current_user
 from security import get_subscription_plan, redis_client
+from tier_limits import get_user_tier
 from services.pqc_scanner import scan_domain_async, generate_cyclonedx_cbom
 from schemas_pqc import ScanRequest, ScanResponse
 import scanner_engine
@@ -100,6 +103,30 @@ async def perform_pqc_scan(
         logger.error(f"Error performing PQC scan on domain {domain}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
 
+def _cbom_download_response(cbom: dict, domain: str) -> Response:
+    """
+    Return the CBOM as a browser download rather than an inline JSON body.
+
+    Enterprises hand this file to auditors and feed it into GRC tooling, so it
+    needs a stable, meaningful filename and the CycloneDX media type — not a
+    blob the browser renders as text.
+    """
+    safe_domain = re.sub(r"[^a-zA-Z0-9.-]", "_", domain)[:100]
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    filename = f"cbom-{safe_domain}-{stamp}.cdx.json"
+
+    return Response(
+        content=json.dumps(cbom, indent=2),
+        media_type="application/vnd.cyclonedx+json; version=1.6",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            # Let the browser read the filename on cross-origin downloads.
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+@router.get("/pqc/scan/{domain}/cbom", tags=["PQC Scanner"])
 @router.get("/enterprise/scan/{domain}/cyclonedx")
 async def perform_enterprise_pqc_scan_cyclonedx(
     domain: str,
@@ -108,25 +135,65 @@ async def perform_enterprise_pqc_scan_cyclonedx(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Perform TLS scan on the specified domain for PQC vulnerabilities and return CycloneDX 1.6 CBOM.
-    Exclusively for the Enterprise tier.
+    Scan a domain and return a downloadable CycloneDX 1.6 Cryptographic Bill
+    of Materials.
+
+    Available to Pro and above. The CBOM is the machine-readable artifact
+    enterprises feed into GRC and CI/CD pipelines, and it is the primary
+    reason to upgrade from Free.
     """
     domain = domain.strip()
     if not domain:
         raise HTTPException(status_code=400, detail="Domain name is required")
-        
-    # Check subscription and roles
-    plan = await get_subscription_plan(db, current_user.id, current_user.org_id)
-    is_enterprise = plan.lower() == "enterprise" or current_user.role in (DBmodels.UserRole.ROOT, DBmodels.UserRole.ENTERPRISE_USER)
-    
-    if not is_enterprise:
+
+    # --- Entitlement: Pro and above -------------------------------------
+    tier = await get_user_tier(db, current_user.id)
+    privileged_role = current_user.role in (
+        DBmodels.UserRole.ROOT, DBmodels.UserRole.ENTERPRISE_USER
+    )
+    if tier == "FREE" and not privileged_role:
         raise HTTPException(
-            status_code=403, 
-            detail="Access restricted. Enterprise tier subscription or role required."
+            status_code=403,
+            detail=(
+                "CycloneDX CBOM export requires a Pro subscription. "
+                "Upgrade to download machine-readable cryptographic inventories."
+            ),
         )
-        
-    logger.info(f"Enterprise CycloneDX PQC Scan request received for domain: {domain} (port: {port}) by user {current_user.email}")
-    
+
+    # --- Quota: count CBOM exports against the monthly scan allowance ----
+    # Without this, a Pro user could bypass the 50-scan limit entirely by
+    # using this endpoint instead of the standard scan route.
+    tier_limits = settings.TIER_LIMITS.get(tier, settings.TIER_LIMITS["FREE"])
+    max_scans = tier_limits["monthly_pqc_scans"]
+
+    usage_res = await db.execute(
+        select(DBmodels.FeatureUsage)
+        .where(DBmodels.FeatureUsage.user_id == current_user.id)
+        .with_for_update()
+    )
+    usage = usage_res.scalar_one_or_none()
+    if not usage:
+        usage = DBmodels.FeatureUsage(
+            user_id=current_user.id,
+            daily_ai_chats=0,
+            monthly_pqc_scans=0,
+            total_compute_overhead=0.0,
+        )
+        db.add(usage)
+        await db.flush()
+
+    if usage.monthly_pqc_scans >= max_scans:
+        raise HTTPException(
+            status_code=429,
+            detail=f"{tier} tier limit of {max_scans} PQC scans per month reached.",
+        )
+    usage.monthly_pqc_scans += 1
+    db.add(usage)
+
+    logger.info(
+        f"CycloneDX CBOM request for {domain} (port: {port}) by {current_user.email} [tier={tier}]"
+    )
+
     cache_key = f"pqc_scan_cdx:{domain}:{port}"
     try:
         cached_result = await redis_client.get(cache_key)
@@ -160,8 +227,8 @@ async def perform_enterprise_pqc_scan_cyclonedx(
             await redis_client.setex(cache_key, 86400, json.dumps(cdx_cbom))
         except Exception as e:
             logger.error(f"Failed to write to Redis cache for domain {domain}: {e}", exc_info=True)
-        
-        return cdx_cbom
+
+        return _cbom_download_response(cdx_cbom, domain)
     except HTTPException:
         raise
     except Exception as e:

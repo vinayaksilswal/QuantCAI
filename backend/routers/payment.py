@@ -12,6 +12,7 @@ Security features:
   - Structured logging with correlation IDs (sale_id)
 """
 
+import hmac
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -25,6 +26,7 @@ from core.database import get_db
 from core.config import settings
 from billing import clear_feature_access_cache
 from security import redis_client
+from tier_limits import sync_user_plan_tier
 from services.meta_capi import send_purchase_event_to_meta
 
 router = APIRouter(tags=["Payments"])
@@ -47,12 +49,28 @@ def _determine_tier_from_product(form_data: dict) -> DBmodels.SubscriptionPlan:
     if settings.WARRIORPLUS_PRO_PRODUCT_ID and product_id == settings.WARRIORPLUS_PRO_PRODUCT_ID:
         return DBmodels.SubscriptionPlan.PRO
 
-    # Default to PRO if no product-to-tier mapping is configured
-    logger.info(
-        f"No tier mapping for product_id={product_id!r}, defaulting to PRO. "
-        f"Configure WARRIORPLUS_PRO_PRODUCT_ID / WARRIORPLUS_ENTERPRISE_PRODUCT_ID to enable mapping."
-    )
-    return DBmodels.SubscriptionPlan.PRO
+    # No mapping matched.
+    #
+    # This used to grant PRO unconditionally. Both product-ID settings default
+    # to "", so on an unconfigured deployment EVERY sale granted Pro — and once
+    # configured, any *other* product sold through the same WarriorPlus account
+    # (a tripwire, an ebook, an unrelated offer) would also grant a full Pro
+    # subscription. Granting paid entitlements to unrecognised products is a
+    # revenue leak, so default to FREE and make the misconfiguration loud.
+    if not (settings.WARRIORPLUS_PRO_PRODUCT_ID or settings.WARRIORPLUS_ENTERPRISE_PRODUCT_ID):
+        logger.error(
+            "No WarriorPlus product IDs configured. Set WARRIORPLUS_PRO_PRODUCT_ID "
+            "and WARRIORPLUS_ENTERPRISE_PRODUCT_ID, or paid sales cannot be mapped "
+            "to a tier. Granting FREE for product_id=%r.",
+            product_id,
+        )
+    else:
+        logger.warning(
+            "Unrecognised WarriorPlus product_id=%r — not a configured Pro or "
+            "Enterprise offer. Granting FREE.",
+            product_id,
+        )
+    return DBmodels.SubscriptionPlan.FREE
 
 
 @router.post("/api/payment/warriorplus/ipn")
@@ -95,7 +113,9 @@ async def warriorplus_ipn_handler(
             detail="WarriorPlus integration is not configured on the server."
         )
 
-    if security_key != expected_key:
+    # Constant-time comparison: a plain != leaks the shared secret's prefix
+    # length through response timing to an attacker able to submit IPNs.
+    if not hmac.compare_digest(str(security_key or ""), str(expected_key)):
         logger.warning(f"[IPN:{sale_id}] Invalid security key received")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -208,6 +228,11 @@ async def warriorplus_ipn_handler(
             )
             db.add(db_sub)
 
+        # Propagate the purchase to UserPlan, which is what every entitlement
+        # check actually reads. Writing only to Subscription left UserPlan at
+        # FREE, so a paying customer received nothing they bought.
+        await sync_user_plan_tier(db, user.id, target_plan.value)
+
         await db.commit()
 
         # Clear feature access Redis cache
@@ -272,6 +297,8 @@ async def warriorplus_ipn_handler(
             db_sub.current_period_end = None
             db_sub.updated_at = datetime.now(timezone.utc)
             db.add(db_sub)
+            # Revoke entitlements too, or a refunded customer keeps paid access.
+            await sync_user_plan_tier(db, user.id, DBmodels.SubscriptionPlan.FREE.value)
             await db.commit()
             await clear_feature_access_cache(user.id)
             logger.info(f"[IPN:{sale_id}] Cancelled subscription for {email} (ID: {user.id}) via {action}")

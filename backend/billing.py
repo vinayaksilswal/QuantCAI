@@ -40,9 +40,22 @@ async def subscribe_plan(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Generate a mock checkout session that automatically provisions the user to PRO.
-    For production, this would integrate with Stripe Checkout.
+    Development-only shortcut that provisions the caller to PRO without payment.
+
+    Disabled in production. As written this granted a full Pro subscription to
+    any authenticated caller, so on a live deployment it was a self-serve free
+    upgrade: sign up, POST here, keep Pro indefinitely. Real purchases go
+    through the WarriorPlus IPN handler in routers/payment.py.
     """
+    if settings.is_production:
+        logger.warning(
+            "Blocked mock /subscribe in production for user_id=%s", current_user.id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found.",
+        )
+
     try:
         # Check if user already has an active subscription
         stmt = select(DBmodels.Subscription).where(
@@ -64,7 +77,11 @@ async def subscribe_plan(
                 updated_at=datetime.now(timezone.utc)
             )
             db.add(new_sub)
-            
+
+        # Keep UserPlan in step — it is what entitlement checks actually read.
+        from tier_limits import sync_user_plan_tier
+        await sync_user_plan_tier(db, current_user.id, DBmodels.SubscriptionPlan.PRO.value)
+
         await db.commit()
         await clear_feature_access_cache(current_user.id)
         
