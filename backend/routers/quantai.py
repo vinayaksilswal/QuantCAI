@@ -436,7 +436,12 @@ async def quantai_chat_endpoint(
 
         # Build the user message with context metadata
         context_parts = []
-        if body.client_context:
+        # Workspace-aware context is a paid capability: the assistant can only
+        # see the user's live circuit/scan state on Pro and above. On FREE the
+        # client_context is dropped, so answers stay generic. This is the
+        # documented tier split and one of the clearer reasons to upgrade.
+        workspace_context_allowed = str(tier).upper() != "FREE"
+        if body.client_context and workspace_context_allowed:
             # Include relevant client context for the AI to understand the user's state
             filtered_context = {k: v for k, v in body.client_context.items()
                                if k not in ("current_route",) and v is not None}

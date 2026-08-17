@@ -280,8 +280,11 @@ app.include_router(auth_router)
 from routers.users import router as users_router
 app.include_router(users_router)
 
-from routers.circuit import router as circuit_router
+from routers.circuit import router as circuit_router, public_router as circuit_public_router
 app.include_router(circuit_router, dependencies=[Depends(enforce_limits("circuit"))])
+# Mounted WITHOUT enforce_limits: shared-circuit links are opened by anonymous
+# visitors, and the router-level dependency above would 401 every one of them.
+app.include_router(circuit_public_router)
 
 from routers.content import router as content_router
 app.include_router(content_router)

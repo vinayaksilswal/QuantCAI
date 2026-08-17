@@ -315,7 +315,10 @@ async def test_pqc_scanning_limits(mock_scan, mock_redis):
 @pytest.mark.asyncio
 @patch("tier_limits.redis_client", new_callable=AsyncMock)
 @patch("routers.quantai.redis_client", new_callable=AsyncMock)
-@patch("routers.quantai.llm", new_callable=AsyncMock)
+# The chat route streams from `llm_with_tools` (the tool-bound model), not
+# `llm`. Patching `llm` left llm_with_tools as None — its value when no API key
+# is configured — so the request 500'd internally and astream was never called.
+@patch("routers.quantai.llm_with_tools", new_callable=AsyncMock)
 async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_quantai, mock_redis_tier):
     mock_llm.astream = MagicMock(side_effect=mock_astream)
 
@@ -346,6 +349,11 @@ async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_qu
                     redis_chats_free_key: "10"
                 }.get(k)
                 mock_r.incrbyfloat.return_value = 9.997
+                # The daily chat cap is enforced by a Lua script via EVAL, not
+                # by the plain GET mocked above; LUA_AI_CHAT_LIMITER returns -1
+                # once the limit is reached. Without this the gate saw a bare
+                # AsyncMock and always allowed the request.
+                mock_r.eval = AsyncMock(return_value=-1)
 
             res = await client.post(
                 "/api/v1/quantai/chat",
@@ -355,7 +363,11 @@ async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_qu
                     "context": "learn"
                 }
             )
-            assert res.status_code == 429
+            # 402, not 429: every plan-limit breach on this platform raises
+            # TierLimitError, which is defined as HTTP 402 Payment Required so
+            # the client can surface an upgrade prompt. The simulator limit
+            # assertions above use 402 for the same reason.
+            assert res.status_code == 402
             assert res.json()["detail"]["error"] == "AI_LIMIT_EXCEEDED"
 
             # 2. Daily rate-limiting for PRO user: 11th chat allowed (unlimited)
@@ -366,6 +378,10 @@ async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_qu
                     redis_chats_pro_key: "15"
                 }.get(k)
                 mock_r.incrbyfloat.return_value = 9.997
+                # Allow: the limiter returns the new count rather than -1.
+                # Without resetting this, the -1 set for the FREE case above
+                # persists and blocks every later request in the test.
+                mock_r.eval = AsyncMock(return_value=16)
 
             res = await client.post(
                 "/api/v1/quantai/chat",
@@ -385,6 +401,7 @@ async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_qu
                     f"user:{free_id}:ai_chats:count": "1"
                 }.get(k)
                 mock_r.incrbyfloat.return_value = 9.997
+                mock_r.eval = AsyncMock(return_value=2)
 
             mock_llm.astream.reset_mock()
             res = await client.post(
@@ -399,7 +416,7 @@ async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_qu
             assert res.status_code == 200
             args, kwargs = mock_llm.astream.call_args
             user_msg = args[0][-1]
-            assert "User message: Tell me about my workspace" in user_msg.content
+            assert "Tell me about my workspace" in user_msg.content
             assert "placed_gates_count" not in user_msg.content
 
             # PRO tier: workspace state context injected
@@ -423,9 +440,16 @@ async def test_quantai_rate_limits_and_context_injection(mock_llm, mock_redis_qu
             assert res.status_code == 200
             args, kwargs = mock_llm.astream.call_args
             user_msg = args[0][-1]
-            assert "User message: Tell me about my workspace" in user_msg.content
-            assert "Active Subsystem Context: circuit-builder" in user_msg.content
+            assert "Tell me about my workspace" in user_msg.content
+            # Paid tiers get the live workspace state injected.
             assert "placed_gates_count" in user_msg.content
+            # The active subsystem is conveyed by persona selection in the
+            # SYSTEM prompt, not by a marker in the user message — the old
+            # "Active Subsystem Context: circuit-builder" string appears
+            # nowhere in the codebase.
+            system_msg = args[0][0]
+            assert system_msg.type == "system"
+            assert "quantum circuit design assistant" in system_msg.content
 
     finally:
         await cleanup_test_user(free_id)

@@ -6,6 +6,7 @@ import hashlib
 import json
 import urllib.parse
 from core.config import settings
+import models as DBmodels
 
 @pytest.mark.asyncio
 async def test_warriorplus_ipn_subscription_upgrade(free_user, mock_redis):
@@ -31,7 +32,7 @@ async def test_warriorplus_ipn_subscription_upgrade(free_user, mock_redis):
     
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.post(
-            "/api/payment/ipn",
+            "/api/payment/warriorplus/ipn",
             content=data,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
@@ -40,7 +41,7 @@ async def test_warriorplus_ipn_subscription_upgrade(free_user, mock_redis):
         assert res.status_code == 200
         
         # Verify idempotency key was set
-        assert await mock_redis.get("wp_ipn:SALE_12345") is not None
+        assert await mock_redis.get("wp_ipn:SALE_12345:sale") is not None
         
         # Verify user tier was upgraded
         from core.database import async_session_factory
@@ -51,19 +52,20 @@ async def test_warriorplus_ipn_subscription_upgrade(free_user, mock_redis):
             result = await session.execute(select(Subscription).where(Subscription.user_id == free_user.id))
             sub = result.scalars().first()
             assert sub is not None
-            assert sub.plan == "PRO"
-            assert sub.status == "active"
+            assert sub.plan == DBmodels.SubscriptionPlan.PRO
+            assert sub.status == DBmodels.SubscriptionStatus.ACTIVE
             
             # The tier of the user should be pro
             user_result = await session.execute(select(User).where(User.id == free_user.id))
             updated_user = user_result.scalars().first()
-            assert updated_user.role == "user" # Role remains user, subscription drives tier
+            assert updated_user.role == DBmodels.UserRole.LEARNER  # Role is unchanged; the subscription drives tier
             
             # Testing idempotency - sending same request again
             res2 = await client.post(
-                "/api/payment/ipn",
+                "/api/payment/warriorplus/ipn",
                 content=data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"}
             )
             assert res2.status_code == 200
-            assert "already been processed" in res2.text or "success" in res2.text.lower()
+            # The replay is acknowledged rather than reprocessed.
+            assert "already processed" in res2.text.lower()

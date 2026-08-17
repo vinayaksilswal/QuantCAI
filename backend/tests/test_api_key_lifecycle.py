@@ -29,14 +29,15 @@ async def test_api_key_lifecycle(pro_user):
         
         assert create_res.status_code == 200
         data = create_res.json()
-        assert "key" in data
+        # The plaintext secret is returned as "api_key" and only ever once.
+        assert "api_key" in data
         assert data["label"] == "Test Key"
         key_id = data["id"]
         
         # List API keys
         list_res = await client.get("/developer/keys", headers=headers)
         assert list_res.status_code == 200
-        keys = list_res.json()["keys"]
+        keys = list_res.json()
         assert len(keys) == 1
         assert keys[0]["id"] == key_id
         
@@ -44,9 +45,9 @@ async def test_api_key_lifecycle(pro_user):
         rotate_res = await client.post(f"/developer/keys/{key_id}/rotate", headers=headers)
         assert rotate_res.status_code == 200
         rotate_data = rotate_res.json()
-        assert "key" in rotate_data
+        assert "api_key" in rotate_data
         assert rotate_data["id"] == key_id
-        assert rotate_data["key"] != data["key"] # Should be a new raw key
+        assert rotate_data["api_key"] != data["api_key"]  # Should be a new raw key
         
         # Delete API key
         delete_res = await client.delete(f"/developer/keys/{key_id}", headers=headers)
@@ -55,5 +56,5 @@ async def test_api_key_lifecycle(pro_user):
         # List again to ensure it's deleted
         list_res2 = await client.get("/developer/keys", headers=headers)
         assert list_res2.status_code == 200
-        keys2 = list_res2.json()["keys"]
+        keys2 = list_res2.json()
         assert len(keys2) == 0

@@ -136,79 +136,106 @@ def mock_redis():
             except Exception:
                 pass
 
+# Use enum members, never raw strings. These columns are PG_ENUM-backed, so a
+# value outside the enum fails on read with an opaque
+# `KeyError: 'user'` from SQLAlchemy's type machinery — "user" is not a
+# UserRole, and "PRO" is not a SubscriptionPlan value ("pro" is).
+async def _make_user(
+    session,
+    *,
+    email: str,
+    name: str,
+    role,
+    plan=None,
+):
+    """Create a user, optionally with an active subscription and UserPlan."""
+    from models import (
+        FeatureUsage, Subscription, SubscriptionStatus, Tier, User, UserPlan,
+    )
+    from datetime import date
+
+    user = User(
+        email=email,
+        name=name,
+        hashed_password="fakehash",
+        role=role,
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
+    session.add(user)
+    await session.flush()
+
+    if plan is not None:
+        session.add(Subscription(
+            user_id=user.id,
+            plan=plan,
+            status=SubscriptionStatus.ACTIVE,
+            current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
+            created_at=datetime.now(timezone.utc),
+        ))
+
+    # Entitlement checks read UserPlan, not Subscription. Seeding only the
+    # latter reproduces the production bug where a paid user resolved to FREE,
+    # which would make these fixtures silently useless for tier assertions.
+    session.add(UserPlan(
+        user_id=user.id,
+        tier=Tier[plan.name] if plan is not None else Tier.FREE,
+        cycle_reset_date=date.today() + timedelta(days=30),
+    ))
+    session.add(FeatureUsage(
+        user_id=user.id,
+        daily_ai_chats=0,
+        monthly_pqc_scans=0,
+        total_compute_overhead=0.0,
+    ))
+
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
 @pytest_asyncio.fixture
 async def free_user(cleanup_database_connections):
     """Fixture for a free tier user."""
-    from models import User
+    from models import UserRole
     from core.database import async_session_factory
-    
+
     async with async_session_factory() as session:
-        user = User(
+        return await _make_user(
+            session,
             email="free@example.com",
             name="Free User",
-            hashed_password="fakehash",
-            role="user",
-            created_at=datetime.now(timezone.utc)
+            role=UserRole.LEARNER,
         )
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-        return user
+
 
 @pytest_asyncio.fixture
 async def pro_user(cleanup_database_connections):
     """Fixture for a pro tier user with an active subscription."""
-    from models import User, Subscription
+    from models import SubscriptionPlan, UserRole
     from core.database import async_session_factory
-    
+
     async with async_session_factory() as session:
-        user = User(
+        return await _make_user(
+            session,
             email="pro@example.com",
             name="Pro User",
-            hashed_password="fakehash",
-            role="user",
-            created_at=datetime.now(timezone.utc)
+            role=UserRole.LEARNER,
+            plan=SubscriptionPlan.PRO,
         )
-        session.add(user)
-        await session.flush()
-        
-        sub = Subscription(
-            user_id=user.id,
-            plan="PRO",
-            status="active",
-            current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
-            created_at=datetime.now(timezone.utc)
-        )
-        session.add(sub)
-        await session.commit()
-        await session.refresh(user)
-        return user
+
 
 @pytest_asyncio.fixture
 async def enterprise_user(cleanup_database_connections):
     """Fixture for an enterprise tier user with an active subscription."""
-    from models import User, Subscription
+    from models import SubscriptionPlan, UserRole
     from core.database import async_session_factory
-    
+
     async with async_session_factory() as session:
-        user = User(
+        return await _make_user(
+            session,
             email="enterprise@example.com",
             name="Enterprise User",
-            hashed_password="fakehash",
-            role="enterprise_user",
-            created_at=datetime.now(timezone.utc)
+            role=UserRole.ENTERPRISE_USER,
+            plan=SubscriptionPlan.ENTERPRISE,
         )
-        session.add(user)
-        await session.flush()
-        
-        sub = Subscription(
-            user_id=user.id,
-            plan="ENTERPRISE",
-            status="active",
-            current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
-            created_at=datetime.now(timezone.utc)
-        )
-        session.add(sub)
-        await session.commit()
-        await session.refresh(user)
-        return user

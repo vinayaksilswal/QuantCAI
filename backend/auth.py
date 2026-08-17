@@ -180,5 +180,9 @@ async def rotate_developer_key(
     
     return {
         "message": "API key rotated successfully",
+        # Echo the id so a client can correlate the new secret with the key it
+        # rotated; every other key endpoint returns it.
+        "id": key.id,
+        "label": key.label,
         "api_key": plaintext_key  # Plaintext key returned ONCE
     }

@@ -261,22 +261,29 @@ async def test_rapidapi_middleware(mock_redis):
 def test_rate_limiting_keys_and_tiers():
     request = MagicMock(spec=Request)
     request.state = MagicMock()
+    # Keys are scoped by endpoint so one hot route cannot exhaust a caller's
+    # budget everywhere: the format is "{identity}:{first two path segments}".
+    request.url.path = "/api/v1/simulate"
 
     # Test key resolution
     # Case A: API Key user
     request.state.api_key_id = 99
-    assert custom_key_func(request) == "apikey:99"
+    assert custom_key_func(request) == "apikey:99:api/v1"
 
     # Case B: JWT user
     delattr(request.state, "api_key_id")
     request.state.user_id = 111
-    assert custom_key_func(request) == "user:111"
+    assert custom_key_func(request) == "user:111:api/v1"
 
     # Case C: Unauthenticated IP fallback
     delattr(request.state, "user_id")
     request.client = MagicMock()
     request.client.host = "127.0.0.1"
-    assert custom_key_func(request) == "127.0.0.1"
+    assert custom_key_func(request) == "127.0.0.1:api/v1"
+
+    # Case D: root path must not produce a dangling colon
+    request.url.path = "/"
+    assert custom_key_func(request) == "127.0.0.1:root"
 
     # Test dynamic rate limit resolution
     # Case A: free

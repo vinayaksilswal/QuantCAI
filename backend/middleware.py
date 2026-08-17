@@ -110,10 +110,13 @@ def custom_key_func(request: Request) -> str:
     else:
         identity = get_remote_address(request)
     
-    # Scope by endpoint path prefix (first 2 segments)
-    path_parts = request.url.path.strip("/").split("/")[:2]
+    # Scope by endpoint path prefix (first 2 segments).
+    # Filter empty segments: "".strip("/").split("/") returns [''], which is a
+    # truthy list, so the "root" fallback never fired and requests to "/" were
+    # keyed as "identity:" with a dangling colon.
+    path_parts = [p for p in request.url.path.strip("/").split("/") if p][:2]
     path_prefix = "/".join(path_parts) if path_parts else "root"
-    
+
     return f"{identity}:{path_prefix}"
 
 # Limiter object to attach to the FastAPI application

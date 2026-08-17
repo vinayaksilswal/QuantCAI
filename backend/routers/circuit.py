@@ -27,6 +27,14 @@ from schemas_circuit import (
 )
 
 router = APIRouter(prefix="/api", tags=["circuit"])
+
+# Routes that must stay reachable without authentication.
+#
+# main.py mounts `router` with dependencies=[Depends(enforce_limits("circuit"))],
+# which applies to every route on it. A genuinely public endpoint therefore
+# cannot live on `router` — it would 401 for exactly the anonymous visitors it
+# exists to serve. Shared-circuit links were dead for this reason.
+public_router = APIRouter(prefix="/api", tags=["circuit-public"])
 logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address)
@@ -296,7 +304,7 @@ def unshare_circuit(
     }
 
 
-@router.get("/v1/public/circuits/{share_slug}")
+@public_router.get("/v1/public/circuits/{share_slug}")
 @limiter.limit("30/minute")
 def get_public_circuit(
     request: Request,

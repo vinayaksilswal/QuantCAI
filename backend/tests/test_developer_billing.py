@@ -5,7 +5,7 @@ import pytest
 import asyncio
 import hashlib
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, Request, HTTPException, status
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -129,14 +129,39 @@ async def test_wallet_operations(mock_redis):
             assert res.json()["balance_credits"] == 0.0
             assert res.json()["auto_topup_enabled"] is False
 
-            # B. Top-up Wallet
-            res = await client.post(
-                "/api/v1/developer/wallet/topup",
-                json={"amount": 25.50},
-                headers=headers
-            )
+            # B. Top-up Wallet.
+            #
+            # Top-up is a two-step PayPal flow, not a direct credit: /topup
+            # creates an order and returns an approval URL, and the balance
+            # only moves once /wallet/capture settles it. This test previously
+            # asserted the balance changed on /topup, which cannot happen and
+            # only ever produced a 503 because PayPal is unconfigured in tests.
+            with patch(
+                "routers.developer._get_paypal_access_token",
+                new=AsyncMock(return_value="fake-paypal-token"),
+            ), patch("routers.developer.httpx.AsyncClient") as mock_httpx:
+                mock_response = MagicMock()
+                mock_response.status_code = 201
+                mock_response.json.return_value = {
+                    "id": "ORDER-TEST-123",
+                    "links": [
+                        {"rel": "approve", "href": "https://paypal.test/approve/ORDER-TEST-123"}
+                    ],
+                }
+                mock_httpx.return_value.__aenter__.return_value.post = AsyncMock(
+                    return_value=mock_response
+                )
+
+                res = await client.post(
+                    "/api/v1/developer/wallet/topup",
+                    json={"amount": 25.50},
+                    headers=headers
+                )
+
             assert res.status_code == 200
-            assert res.json()["balance_credits"] == 25.50
+            body = res.json()
+            assert body["order_id"] == "ORDER-TEST-123"
+            assert body["url"].startswith("https://paypal.test/approve/")
 
             # C. Update Auto-Topup Settings
             res = await client.patch(
@@ -200,9 +225,20 @@ async def test_metering_middleware_simulation(mock_q_engine, mock_redis):
             is_active=True
         )
         wallet = models_billing.WalletBalance(user_id=user.id, balance_credits=20.0)
-        session.add_all([api_key, wallet])
+        # PRO, so that exceeding the daily allowance enters overage billing and
+        # reaches the wallet gate. A FREE caller is hard-blocked with 402
+        # "Daily Developer API limit reached" before the wallet is consulted,
+        # so the blocked-wallet path is unreachable on that tier.
+        from datetime import date
+        user_plan = DBmodels.UserPlan(
+            user_id=user.id,
+            tier=DBmodels.Tier.PRO,
+            cycle_reset_date=date.today() + timedelta(days=30),
+        )
+        session.add_all([api_key, wallet, user_plan])
         await session.commit()
         user_id = user.id
+        api_key_id = api_key.id
 
     try:
         # Test A: Successful API Key simulation
@@ -228,8 +264,25 @@ async def test_metering_middleware_simulation(mock_q_engine, mock_redis):
             assert res.status_code == 200
             assert res.json()["type"] == "ideal"
             
-            # Check Redis decrement called for charge
-            mock_redis.incrbyfloat.assert_called_with(f"developer:wallet:{user_id}", -0.015)
+            # A request INSIDE the daily quota must not be charged: micro-charges
+            # exist only for overage, per routers/public_circuit.py. The old
+            # assertion expected a charge on this in-quota call (and at a stale
+            # -0.015, from before the payload used 1024 shots), so it asserted
+            # behaviour the system has never had.
+            assert not any(
+                call.args and str(call.args[0]).startswith("developer:wallet:")
+                for call in mock_redis.incrbyfloat.call_args_list
+            ), "An in-quota request must not deduct from the wallet"
+
+        # Charging itself is exercised directly, at the documented $0.001/shot.
+        mock_redis.incrbyfloat.reset_mock()
+        await metering_middleware.apply_transaction_charges(
+            user_id=user_id, api_key_id=api_key_id, shots=payload["shots"]
+        )
+        expected_charge = payload["shots"] * 0.001
+        mock_redis.incrbyfloat.assert_any_call(
+            f"developer:wallet:{user_id}", -expected_charge
+        )
 
         # Test B: Deny request when API key is missing
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -237,13 +290,28 @@ async def test_metering_middleware_simulation(mock_q_engine, mock_redis):
             assert res.status_code == 401
             assert "X-API-Key header is missing" in res.json()["detail"]
 
-        # Test C: Deny request when wallet blocked flag is set
+        # Test C: Deny request when the wallet is blocked AND the caller is in
+        # overage.
+        #
+        # The wallet gate is deliberately only consulted for overage requests:
+        # a caller inside their paid daily quota is not being billed, so an
+        # empty wallet must not lock them out of what they already have. The
+        # 402 therefore requires driving usage past the daily limit first —
+        # this test previously sent a single in-quota request and expected 402,
+        # which the design never produced.
         mock_redis.get = AsyncMock(side_effect=lambda k: {
             f"developer:apikey:{hashed_key}": json.dumps({
                 "id": 1, "user_id": user_id, "prefix": "qc_live_", "name": "Test Key", "is_active": True
             }),
             f"developer:wallet_blocked:{user_id}": "1"
         }.get(k))
+        # Report today's usage as far beyond any tier's daily allowance.
+        mock_redis.hget = AsyncMock(return_value="1000000")
+        # The wallet/rate gate is a Lua script run via EVAL. Under a blanket
+        # AsyncMock it returns a mock that compares unequal to everything, so
+        # the gate silently allowed the request. Return the script's real deny
+        # shape: {0, 'WALLET_BLOCKED'}.
+        mock_redis.eval = AsyncMock(return_value=[0, "WALLET_BLOCKED"])
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers = {"X-API-Key": raw_key}
@@ -289,13 +357,19 @@ async def test_background_metrics_flush(mock_redis):
         api_key_id = api_key.id
 
     try:
-        # Mock scan to return keys to flush
+        # Mock scan to return keys to flush.
+        #
+        # The flush routine accumulates PENDING DEBITS in Redis and subtracts
+        # them from the stored balance; it does not write an absolute balance.
+        # So the key is developer:wallet_pending:* and it is read with getdel
+        # (read-and-clear, so a crash mid-flush cannot double-debit).
         mock_redis.scan = AsyncMock(side_effect=[
-            (0, [f"developer:wallet:{user_id}"]), # first scan for wallets
-            (0, [f"developer:usage:daily:{api_key_id}:2026-06-14"]) # second scan for usage
+            (0, [f"developer:wallet_pending:{user_id}"]),  # first scan for pending debits
+            (0, [f"developer:usage:daily:{api_key_id}:2026-06-14"])  # second scan for usage
         ])
-        
-        mock_redis.get = AsyncMock(return_value="94.20") # simulated new wallet balance
+
+        # 100.00 seeded balance minus 5.80 of pending debits == 94.20
+        mock_redis.getdel = AsyncMock(return_value="5.80")
         mock_redis.hgetall = AsyncMock(return_value={
             "requests": "15",
             "total_shots": "15360",

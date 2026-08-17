@@ -161,9 +161,24 @@ async def warriorplus_ipn_handler(
 
     # ── 4. Handle SALE action ─────────────────────────────────────────────
     if action == "sale":
-        if payment_status != "Completed":
-            logger.warning(f"[IPN:{sale_id}] Payment status is '{payment_status}', not 'Completed'. Ignoring.")
+        # WP_ACTION=sale is itself the completed-sale notification, and
+        # WP_PAYMENT_STATUS is not present on every sale IPN. Requiring it to
+        # equal "Completed" therefore silently dropped legitimate purchases —
+        # the buyer is charged and never provisioned, which is the most
+        # expensive failure this handler can have.
+        #
+        # Still refuse any explicitly non-completed status, so a pending,
+        # failed or already-refunded payment cannot grant access.
+        if payment_status and payment_status != "Completed":
+            logger.warning(
+                f"[IPN:{sale_id}] Payment status is '{payment_status}', not 'Completed'. Ignoring."
+            )
             return {"status": "ignored", "reason": f"Payment status is {payment_status}"}
+        if not payment_status:
+            logger.info(
+                f"[IPN:{sale_id}] No WP_PAYMENT_STATUS on sale IPN; treating the "
+                f"sale action as completed."
+            )
 
         # Determine tier from product/offer ID
         target_plan = _determine_tier_from_product(form_dict)

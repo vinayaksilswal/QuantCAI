@@ -15,7 +15,9 @@ def get_unique_suffix():
     return os.urandom(4).hex()
 
 @pytest.mark.asyncio
-@patch("worker.scan_tls_pqc")
+# worker.py imports scan_tls_pqc inside the task body, so there is no
+# module-level worker.scan_tls_pqc to replace — patch it at its definition.
+@patch("scanner_engine.scan_tls_pqc")
 async def test_scheduled_scan_drift_alert(mock_scan):
     suffix = get_unique_suffix()
     email = f"scheduler_user_{suffix}@example.com"

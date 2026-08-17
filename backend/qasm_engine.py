@@ -1,6 +1,7 @@
 import re
 import time
 import structlog
+from decimal import Decimal
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, status, Depends
 from schemas_simulator import QasmExecutionRequest
@@ -72,7 +73,14 @@ async def execute_qasm(
 
     # --- 1.2 QPU Credits Deduction Surcharge ---
     if request.backend_choice in ("AWS Braket", "IBM Quantum"):
-        cost_credits = 1000.0 + 10.0 * request.shots
+        # WalletBalance.balance_credits is Numeric(12,6), which SQLAlchemy
+        # returns as Decimal. Mixing it with a float raises
+        # "unsupported operand type(s) for -: 'decimal.Decimal' and 'float'",
+        # so every real-QPU run 500'd immediately after passing the balance
+        # check. Decimal comparison against float happens to work, which is
+        # why the guard above never caught it. Keep the whole calculation in
+        # Decimal — this is money, and binary floats should not touch it.
+        cost_credits = Decimal(1000) + Decimal(10) * Decimal(int(request.shots))
         from sqlalchemy import select
         res = await db.execute(select(DBmodels.WalletBalance).where(DBmodels.WalletBalance.user_id == current_user.id))
         wallet = res.scalar_one_or_none()

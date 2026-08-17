@@ -194,8 +194,22 @@ async def verify_api_key_and_meter(
         60, 1.0, time.time(), 1 if is_overage else 0
     )
 
-    if gate_result[0] == 0:
+    # The Lua script returns a two-element table, but a Redis client may hand
+    # that back as a list, a tuple, or — when the reply is coerced — a bare
+    # integer. Indexing blindly raised "'int' object is not subscriptable" and
+    # 500'd the request, which on this path means a metered API call is
+    # rejected with a server error instead of a rate-limit or payment message.
+    if isinstance(gate_result, (list, tuple)):
+        allowed = gate_result[0] if gate_result else 0
         reason = gate_result[1] if len(gate_result) > 1 else "UNKNOWN"
+    else:
+        allowed = gate_result
+        reason = "UNKNOWN"
+
+    if isinstance(reason, (bytes, bytearray)):
+        reason = reason.decode("utf-8", "replace")
+
+    if allowed == 0:
         if reason == "WALLET_BLOCKED":
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,

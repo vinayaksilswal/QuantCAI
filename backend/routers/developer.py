@@ -62,6 +62,19 @@ class DailyUsageResponse(BaseModel):
 # Endpoints
 # -----------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# WARNING: the /keys endpoints below are SHADOWED and never execute.
+#
+# auth.py registers the same paths (/developer/keys, and additionally a
+# /{key_id}/rotate) and main.py includes it first (see the developer_keys_router
+# import), so FastAPI matches auth.py's handlers and these never run. They also
+# disagree with the live implementation: these return name/prefix while auth.py
+# returns label/tier/daily_limit.
+#
+# Editing these to change key behaviour will have no effect. Change auth.py.
+# They are left in place rather than deleted because the wallet and usage
+# endpoints further down this module ARE live and share its setup.
+# ---------------------------------------------------------------------------
 @router.get("/keys", response_model=List[KeyResponse])
 async def list_keys(
     current_user: DBmodels.User = Depends(get_current_user),

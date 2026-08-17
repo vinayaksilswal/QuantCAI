@@ -226,8 +226,16 @@ async def test_quantai_copilot_multi_agent_routing(mock_llm, mock_redis):
         mock_redis.incrbyfloat.return_value = 9.997
         mock_redis.setex.return_value = True
 
+        # Each context routes to a distinct persona in _select_persona().
+        # The previous keywords ("Pedagogical", "Compilation", "Offensive")
+        # appear in none of the prompts, so this only ever asserted that
+        # routing was broken. These phrases are unique to one persona each.
         contexts = ["learn", "circuit-builder", "pqc-scanner"]
-        expected_prompts_keywords = ["Pedagogical", "Compilation", "Offensive"]
+        expected_prompts_keywords = [
+            "quantum computing tutor",        # LEARNER_PERSONA
+            "quantum circuit design assistant",  # BUILDER_PERSONA
+            "Post-Quantum Cryptography security analyst",  # SECURITY_PERSONA
+        ]
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             for ctx, kw in zip(contexts, expected_prompts_keywords):
