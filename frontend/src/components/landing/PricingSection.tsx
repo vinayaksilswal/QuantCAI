@@ -1,134 +1,144 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState } from 'react';
-import { CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Check, Minus, ShieldCheck } from 'lucide-react';
 
-/* ── Inline SVG Icons ─────────────────────────────────────────────── */
-const CheckIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-teal-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-  </svg>
-);
+/**
+ * Pricing.
+ *
+ * Checkout still runs through WarriorPlus — same URL, same custom={user.id}
+ * parameter, same auto-checkout-after-login flow. What changed is the framing:
+ * the plan no longer sits inside a white panel showing "Regular: $99 /
+ * Today: $27" above a WarriorPlus-branded image button. A struck-through
+ * anchor price and a countdown-style discount are the visual grammar of
+ * affiliate marketing, and a CISO evaluating a cryptography vendor reads it as
+ * a reason to leave. The price is simply the price.
+ *
+ * Limits below mirror backend/core/config.py TIER_LIMITS exactly. They were
+ * stale — Pro advertised 15 qubits after the ceiling moved to 24.
+ */
 
-const MinusIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-slate-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
-  </svg>
-);
+const WARRIORPLUS_CHECKOUT = 'https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63';
 
-/* ── Types ─────────────────────────────────────────────────────────── */
 interface PlanProps {
   name: string;
-  price: string | React.ReactNode;
-  originalPrice?: string;
-  discountPercentage?: string;
+  price: string;
   period?: string;
   billingNote?: string;
+  summary: string;
   badge?: string;
   features: string[];
   cta: string;
   ctaHref?: string;
   highlighted?: boolean;
-  planKey?: string; // "pro" or "enterprise" for checkout
+  planKey?: 'pro';
 }
 
-const PlanCard = ({ name, price, originalPrice, discountPercentage, period, billingNote, badge, features, cta, ctaHref, highlighted, planKey }: PlanProps) => {
+const PlanCard = ({
+  name, price, period, billingNote, summary, badge, features, cta, ctaHref, highlighted, planKey,
+}: PlanProps) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const handleProCheckout = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleProCheckout = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!user) {
-      navigate('/login', { state: { from: { pathname: window.location.pathname, search: '?autoCheckout=warriorplus' } } });
+      // Send them to sign in, then bounce straight back into checkout.
+      navigate('/login', {
+        state: { from: { pathname: window.location.pathname, search: '?autoCheckout=warriorplus' } },
+      });
     } else {
-      window.location.href = `https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63?custom=${user.id}`;
+      window.location.href = `${WARRIORPLUS_CHECKOUT}?custom=${user.id}`;
     }
   };
 
+  const ctaClasses = highlighted
+    ? 'bg-qc-accent text-qc-accent-fg hover:bg-qc-accent-hover'
+    : 'border border-qc-border-strong text-qc-text hover:bg-qc-surface-hover';
+
   return (
-    <div className={`relative rounded-2xl border p-6 sm:p-8 flex flex-col transition-all duration-300 backdrop-blur-xl h-full
-      ${highlighted
-        ? 'border-teal-400/40 bg-white/10 shadow-2xl shadow-teal-500/20 hover:border-teal-400/60'
-        : 'border-white/10 bg-white/5 shadow-2xl shadow-blue-500/10 hover:border-blue-400/30'
+    <div
+      className={`relative flex flex-col rounded-xl p-6 sm:p-7 h-full ${
+        highlighted
+          ? 'border-2 border-qc-accent bg-qc-surface shadow-qc-lg'
+          : 'border border-qc-border bg-qc-surface'
       }`}
     >
       {badge && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-0.5 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-[10px] font-bold tracking-wider uppercase shadow-lg shadow-teal-500/30">
+        <span className="absolute -top-3 left-6 px-3 py-1 rounded-full bg-qc-accent text-qc-accent-fg text-[11px] font-bold tracking-wide uppercase">
           {badge}
-        </div>
+        </span>
       )}
-      <div className="mb-6">
-        <h3 className="font-bold text-lg text-white mb-1 drop-shadow-md">{name}</h3>
-        {originalPrice && (
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-slate-400 line-through text-sm">{originalPrice}</span>
-            {discountPercentage && (
-              <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-[10px] font-bold tracking-wider uppercase">
-                {discountPercentage}
-              </span>
-            )}
-          </div>
-        )}
-        <div className="flex items-baseline gap-1">
-          <span className="font-extrabold text-3xl text-white drop-shadow-md">{price}</span>
-          {period && <span className="text-blue-300/70 text-sm">{period}</span>}
-        </div>
-        {billingNote && <div className="text-teal-400 text-xs mt-1 font-medium">{billingNote}</div>}
+
+      <h3 className="font-semibold text-lg text-qc-text">{name}</h3>
+      <p className="text-sm text-qc-muted mt-1 min-h-[2.5rem]">{summary}</p>
+
+      <div className="flex items-baseline gap-1.5 mt-5">
+        <span className="font-bold text-4xl text-qc-text tracking-tight">{price}</span>
+        {period && <span className="text-qc-muted text-sm">{period}</span>}
       </div>
-      <ul className="space-y-3 mb-8 flex-1">
-        {features.map((f, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-blue-200">
-            <CheckIcon />
-            <span>{f}</span>
+      <p className="text-xs text-qc-subtle mt-1.5 min-h-[1rem]">{billingNote ?? ''}</p>
+
+      <div className="qc-rule my-6" />
+
+      <ul className="space-y-3 flex-1">
+        {features.map((f) => (
+          <li key={f} className="flex items-start gap-2.5">
+            <Check className="w-4 h-4 text-qc-accent shrink-0 mt-0.5" aria-hidden="true" />
+            <span className="text-sm text-qc-muted leading-relaxed">{f}</span>
           </li>
         ))}
       </ul>
-      {planKey === 'pro' ? (
-        <div className="mt-auto w-full">
-          <div className="bg-white rounded-xl p-4 text-center mt-auto shadow-md border border-gray-200">
-             <div className="flex flex-col justify-center items-center gap-1 mb-2">
-               <span className="text-gray-400 line-through text-[11px] font-semibold">Regular: {originalPrice || '$99'}</span> 
-               <span className="text-red-600 font-bold text-sm">
-                 {billingNote ? billingNote : `Today: ${price}`}
-               </span>
-             </div>
-             <div className="flex justify-center items-center py-2 w-full">
-               <a href="https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63" onClick={handleProCheckout}>
-                 <img src="https://warriorplus.com/o2/btn/fn300011000/b0pzyf/jgbrsv/467202" alt="WarriorPlus Buy Button" className="hover:scale-105 transition-transform" />
-               </a>
-             </div>
-          </div>
-        </div>
-      ) : ctaHref?.startsWith('/') ? (
-        <div className="mt-auto w-full">
-          <Link
-            to={ctaHref}
-            className={`block text-center py-3 rounded-xl text-sm font-semibold transition-all duration-300
-              ${highlighted
-                ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-400 hover:to-cyan-400 shadow-lg shadow-teal-500/30 hover:shadow-xl'
-                : 'border border-white/10 text-white hover:border-blue-400/30 hover:bg-white/10 backdrop-blur-sm'
-              }`}
-          >
-            {cta}
-          </Link>
-        </div>
-      ) : (
-        <div className="mt-auto w-full">
+
+      <div className="mt-7">
+        {planKey === 'pro' ? (
           <a
-            href={ctaHref}
-            className={`block text-center py-3 rounded-xl text-sm font-semibold transition-all duration-300
-              ${highlighted
-                ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-400 hover:to-cyan-400 shadow-lg shadow-teal-500/30 hover:shadow-xl'
-                : 'border border-white/10 text-white hover:border-blue-400/30 hover:bg-white/10 backdrop-blur-sm'
-              }`}
+            href={WARRIORPLUS_CHECKOUT}
+            onClick={handleProCheckout}
+            className={`qc-tap flex items-center justify-center w-full rounded-lg py-3 text-sm font-semibold transition-colors ${ctaClasses}`}
           >
             {cta}
           </a>
-        </div>
-      )}
+        ) : ctaHref?.startsWith('/') ? (
+          <Link
+            to={ctaHref}
+            className={`qc-tap flex items-center justify-center w-full rounded-lg py-3 text-sm font-semibold transition-colors ${ctaClasses}`}
+          >
+            {cta}
+          </Link>
+        ) : (
+          <a
+            href={ctaHref}
+            className={`qc-tap flex items-center justify-center w-full rounded-lg py-3 text-sm font-semibold transition-colors ${ctaClasses}`}
+          >
+            {cta}
+          </a>
+        )}
+      </div>
     </div>
   );
 };
+
+/* Mirrors backend/core/config.py TIER_LIMITS. Keep the two in step. */
+const comparison = [
+  { name: 'Max qubits (statevector)', free: '3', pro: '24', ent: '26' },
+  { name: 'Simulation methods', free: 'Statevector', pro: 'MPS, stabilizer, density matrix', ent: 'All' },
+  { name: 'Max shots', free: '1,024', pro: '65,536', ent: '65,536' },
+  { name: 'Noise models', free: null, pro: 'Depolarizing, thermal', ent: 'Depolarizing, thermal' },
+  { name: 'Daily simulation runs', free: '10', pro: '500', ent: 'Unlimited' },
+  { name: 'PQC domain scans', free: '3 / mo', pro: '50 / mo', ent: 'Unlimited' },
+  { name: 'CycloneDX CBOM export', free: null, pro: 'CycloneDX 1.6', ent: 'CycloneDX 1.6' },
+  { name: 'Developer API', free: '10 req / day', pro: '500 req / day', ent: '100,000 req / day' },
+  { name: 'Scheduled monitoring', free: null, pro: null, ent: 'Included' },
+  { name: 'Support', free: 'Community', pro: 'Priority email', ent: 'Dedicated SLA' },
+];
+
+const Cell = ({ value }: { value: string | null }) =>
+  value === null ? (
+    <Minus className="w-4 h-4 text-qc-subtle mx-auto" aria-label="Not included" />
+  ) : (
+    <span>{value}</span>
+  );
 
 export const PricingSection = () => {
   const location = useLocation();
@@ -140,152 +150,153 @@ export const PricingSection = () => {
     if (searchParams.get('autoCheckout') === 'warriorplus') {
       searchParams.delete('autoCheckout');
       const newSearch = searchParams.toString();
-      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
-      window.history.replaceState({}, '', newUrl);
-
+      window.history.replaceState({}, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
       const customParam = user ? `?custom=${user.id}` : '';
-      window.location.href = `https://warriorplus.com/o2/buy/b0pzyf/jgbrsv/qd1f63${customParam}`;
+      window.location.href = `${WARRIORPLUS_CHECKOUT}${customParam}`;
     }
   }, [location.search, user]);
 
   return (
-    <section id="pricing" className="py-20 sm:py-28 px-4 sm:px-6 relative z-10">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-10">
-          <p className="text-teal-400 text-xs font-mono uppercase tracking-widest mb-3 drop-shadow-sm">Pricing</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 drop-shadow-lg">
-            Start free. Scale when you're ready.
+    <section id="pricing" className="qc-section border-t border-qc-border bg-qc-bg-raised">
+      <div className="qc-container">
+        <div className="max-w-2xl">
+          <span className="qc-eyebrow">Pricing</span>
+          <h2 className="text-fluid-h2 font-bold text-qc-text mt-3">
+            Start free. Pay when it becomes evidence.
           </h2>
-          <p className="text-blue-200 text-sm max-w-lg mx-auto mb-8 drop-shadow-sm">
-            No credit card required for Free tier. All plans include API access to both
-            quantum simulation and PQC scanning.
+          <p className="text-fluid-lead text-qc-muted mt-4 qc-measure">
+            No card required to scan. Upgrade when you need the machine-readable
+            inventory and the higher simulation ceiling.
           </p>
-
-          {/* Annual Toggle */}
-          <div className="flex items-center justify-center gap-3">
-            <span className={`text-sm font-medium ${!isAnnual ? 'text-white drop-shadow-sm' : 'text-slate-400'}`}>Monthly</span>
-            <button 
-              onClick={() => setIsAnnual(!isAnnual)}
-              className="relative w-14 h-7 rounded-full bg-slate-800 border border-slate-700 transition-colors duration-300 focus:outline-none"
-            >
-              <div className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-teal-400 shadow-md transform transition-transform duration-300 ${isAnnual ? 'translate-x-7' : ''}`} />
-            </button>
-            <span className={`text-sm font-medium flex items-center gap-2 ${isAnnual ? 'text-white drop-shadow-sm' : 'text-slate-400'}`}>
-              Annually
-              <span className="px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400 text-[10px] font-bold tracking-wider uppercase border border-teal-500/30">
-                Save 20%
-              </span>
-            </span>
-          </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-16">
+        {/* Billing toggle */}
+        <div className="flex items-center gap-3 mt-8">
+          <span className={`text-sm ${!isAnnual ? 'text-qc-text font-medium' : 'text-qc-muted'}`}>
+            Monthly
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isAnnual}
+            aria-label="Toggle annual billing"
+            onClick={() => setIsAnnual(!isAnnual)}
+            className={`relative w-14 h-8 rounded-full transition-colors ${
+              isAnnual ? 'bg-qc-accent' : 'bg-qc-surface-hover border border-qc-border-strong'
+            }`}
+          >
+            <span
+              className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-qc-text transition-transform ${
+                isAnnual ? 'translate-x-6' : ''
+              }`}
+            />
+          </button>
+          <span className={`text-sm flex items-center gap-2 ${isAnnual ? 'text-qc-text font-medium' : 'text-qc-muted'}`}>
+            Annual
+            <span className="qc-pill qc-pill-ok">Save 33%</span>
+          </span>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-5 sm:gap-6 mt-8 items-stretch">
           <PlanCard
-            name="Free Tier"
+            name="Free"
             price="$0"
             period="/ forever"
+            summary="Check a handful of domains and learn the platform."
             features={[
-              'Basic Learning Hub & Interactive States',
-              'Quantum Circuit Builder (Up to 3 Qubits)',
-              'Ideal Quantum Simulator (1,024 Shots)',
-              '10 daily circuit simulation runs',
-              '3 PQC Domain Scans per month',
-              '10 Developer API requests per day',
-              'Community forum support',
+              '3 PQC domain scans per month',
+              'Circuit builder up to 3 qubits',
+              'Ideal simulator, 1,024 shots',
+              '10 simulation runs per day',
+              '10 developer API requests per day',
+              'Learning hub and community support',
             ]}
-            cta="Start Free"
+            cta="Create free account"
             ctaHref="/signup"
           />
           <PlanCard
-            name="Pro Tier"
-            price={isAnnual ? "$18" : "$27"}
-            originalPrice={isAnnual ? "$1188" : "$99"}
-            discountPercentage="72% OFF"
+            name="Pro"
+            price={isAnnual ? '$18' : '$27'}
             period="/ month"
-            billingNote={isAnnual ? "Billed $216 yearly today" : undefined}
-            badge="Most Popular"
+            billingNote={isAnnual ? 'Billed $216 annually' : 'Billed monthly, cancel anytime'}
+            summary="For teams producing migration evidence."
+            badge="Most popular"
             highlighted
+            planKey="pro"
             features={[
-              'Full Circuit Builder (Up to 15 Qubits)',
-              'Advanced Simulator (65,536 Shots)',
-              'Thermal & Depolarizing Noise Models',
-              '500 daily circuit simulation runs',
-              '50 PQC Domain Scans per month',
-              'Unlimited AI Tutor access (QuantAI)',
-              '500 API requests / day',
-              'CBOM Export & Priority Support',
+              '50 PQC domain scans per month',
+              'CycloneDX 1.6 CBOM export',
+              'Circuit builder up to 24 qubits',
+              'Matrix-product-state and stabilizer methods',
+              'Depolarizing and thermal noise models',
+              '500 simulation runs and 500 API requests per day',
+              'Workspace-aware AI assistant',
+              'Priority email support',
             ]}
             cta="Upgrade to Pro"
-            planKey="pro"
           />
           <PlanCard
             name="Enterprise"
             price="Custom"
-            period=""
+            summary="For regulated environments and internal networks."
             features={[
-              'Sovereign PQC compliance suite',
-              'CycloneDX 1.6 CBOM generation',
-              'Internal network & port scanning',
-              'Cryptographic Vulnerability Mapping',
-              'Unlimited simulation runs & API',
-              'Single Sign-On (SSO) & Teams',
-              'Dedicated SLA & Custom engineering',
+              'Unlimited scans and scheduled monitoring',
+              'Internal network and IP range scanning',
+              'Public readiness badge for your site',
+              'SSO and team management',
+              '100,000 API requests per day',
+              'Dedicated SLA and onboarding',
             ]}
-            cta="Request Demo"
+            cta="Talk to us"
             ctaHref="/enterprise"
           />
         </div>
 
-        {/* Guarantee Badge */}
-        <div className="flex justify-center mb-16">
-          <div className="inline-flex items-center gap-4 bg-slate-900/60 border border-slate-700/50 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-xl max-w-2xl text-left">
-            <div className="w-12 h-12 rounded-full bg-teal-500/10 flex items-center justify-center shrink-0 border border-teal-500/20">
-              <ShieldCheck className="h-6 w-6 text-teal-400" />
-            </div>
-            <div>
-              <h4 className="text-white font-bold text-sm sm:text-base">30-Day Money-Back Guarantee</h4>
-              <p className="text-slate-400 text-xs sm:text-sm mt-1">
-                Try QuantCAI Pro completely risk-free. If you're not satisfied with the PQC scanner or simulators, we'll refund 100% of your payment. No questions asked.
-              </p>
-            </div>
+        {/* Refund terms — a factual statement of policy, not a sales badge. */}
+        <div className="qc-card p-5 sm:p-6 mt-8 flex items-start gap-4">
+          <ShieldCheck className="w-5 h-5 text-qc-accent shrink-0 mt-0.5" aria-hidden="true" />
+          <div>
+            <h3 className="text-sm font-semibold text-qc-text">30-day refund policy</h3>
+            <p className="text-sm text-qc-muted mt-1 leading-relaxed">
+              If Pro does not do what you need, request a full refund within 30 days of
+              purchase. See the{' '}
+              <Link to="/refund-policy" className="text-qc-accent hover:underline">
+                refund policy
+              </Link>{' '}
+              for details.
+            </p>
           </div>
         </div>
 
-        {/* Feature Comparison Table */}
-        <div className="max-w-4xl mx-auto hidden sm:block">
-          <h3 className="text-2xl font-bold text-center text-white mb-8">Compare Plan Features</h3>
-          <div className="bg-slate-900/40 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-xl">
-            <table className="w-full text-left border-collapse">
+        {/* Comparison. Scrolls inside itself on small screens instead of
+            forcing the page sideways; hiding it on mobile removed the one
+            place a buyer can compare plans on the device most of them browse
+            from. */}
+        <div className="mt-14">
+          <h3 className="text-xl font-semibold text-qc-text mb-5">Compare plans</h3>
+          <div className="qc-card overflow-x-auto">
+            <table className="w-full min-w-[38rem] text-left border-collapse">
               <thead>
-                <tr className="bg-white/5 border-b border-white/10">
-                  <th className="p-4 text-slate-300 font-semibold w-1/3">Feature</th>
-                  <th className="p-4 text-center text-slate-300 font-semibold">Free</th>
-                  <th className="p-4 text-center text-teal-400 font-bold bg-teal-500/5">Pro</th>
-                  <th className="p-4 text-center text-slate-300 font-semibold">Enterprise</th>
+                <tr className="border-b border-qc-border">
+                  <th scope="col" className="p-4 text-sm font-semibold text-qc-muted">Feature</th>
+                  <th scope="col" className="p-4 text-sm font-semibold text-qc-muted text-center">Free</th>
+                  <th scope="col" className="p-4 text-sm font-bold text-qc-accent text-center">Pro</th>
+                  <th scope="col" className="p-4 text-sm font-semibold text-qc-muted text-center">Enterprise</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                {[
-                  { name: 'Max Qubits', free: '3', pro: '15', ent: 'Unlimited' },
-                  { name: 'Max Simulator Shots', free: '1,024', pro: '65,536', ent: 'Unlimited' },
-                  { name: 'Noise Models', free: <MinusIcon />, pro: <CheckIcon />, ent: <CheckIcon /> },
-                  { name: 'PQC Domain Scans', free: '3 / mo', pro: '50 / mo', ent: 'Unlimited' },
-                  { name: 'CBOM Export', free: <MinusIcon />, pro: <CheckIcon />, ent: 'CycloneDX 1.6' },
-                  { name: 'QuantAI Tutor', free: 'Basic', pro: 'Unlimited', ent: 'Unlimited' },
-                  { name: 'Support', free: 'Community', pro: 'Priority Email', ent: 'Dedicated SLA' },
-                ].map((row, i) => (
-                  <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="p-4 text-sm text-slate-300">{row.name}</td>
-                    <td className="p-4 text-sm text-center text-slate-400"><div className="flex justify-center">{row.free}</div></td>
-                    <td className="p-4 text-sm text-center text-teal-300 bg-teal-500/5 font-medium"><div className="flex justify-center">{row.pro}</div></td>
-                    <td className="p-4 text-sm text-center text-slate-300"><div className="flex justify-center">{row.ent}</div></td>
+              <tbody>
+                {comparison.map((row) => (
+                  <tr key={row.name} className="border-b border-qc-border last:border-0">
+                    <th scope="row" className="p-4 text-sm font-normal text-qc-text">{row.name}</th>
+                    <td className="p-4 text-sm text-qc-muted text-center"><Cell value={row.free} /></td>
+                    <td className="p-4 text-sm text-qc-text text-center font-medium"><Cell value={row.pro} /></td>
+                    <td className="p-4 text-sm text-qc-muted text-center"><Cell value={row.ent} /></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
-
       </div>
     </section>
   );

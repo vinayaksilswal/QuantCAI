@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Facebook, Linkedin, Youtube, Instagram, Twitter } from 'lucide-react';
+import { Facebook, Linkedin, Youtube, Instagram } from 'lucide-react';
 import { NewsletterForm } from './NewsletterForm';
 import { LogoProcessor } from './LogoProcessor';
 
@@ -21,31 +21,31 @@ export const Footer = () => {
                 }}
               />
             </div>
-            <p className="text-blue-200 leading-relaxed">
+            <p className="text-qc-muted leading-relaxed">
               Shaping Tomorrow's Quantum Future Today.
             </p>
           </div>
 
           {/* Navigation Links */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Navigation</h3>
+            <h3 className="text-qc-text font-semibold mb-4">Navigation</h3>
             <div className="space-y-3">
-              <Link to="/" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Home
               </Link>
-              <span className="block text-blue-200 hover:text-white transition-colors cursor-pointer">
+              <span className="block text-qc-muted hover:text-qc-text transition-colors cursor-pointer">
                 Solutions
               </span>
-              <Link to="/vision" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/vision" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Vision
               </Link>
-              <Link to="/learn" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/learn" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Learn
               </Link>
-              <Link to="/soon" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/soon" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Soon
               </Link>
-              <Link to="/get-started" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/get-started" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Get Started
               </Link>
             </div>
@@ -53,18 +53,18 @@ export const Footer = () => {
 
           {/* Legal Links */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Legal</h3>
+            <h3 className="text-qc-text font-semibold mb-4">Legal</h3>
             <div className="space-y-3">
-              <Link to="/terms" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/terms" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Terms & Conditions
               </Link>
-              <Link to="/privacy" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/privacy" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Privacy Policy
               </Link>
-              <Link to="/refund-policy" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/refund-policy" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Refund Policy
               </Link>
-              <Link to="/security" className="block text-blue-200 hover:text-white transition-colors">
+              <Link to="/security" className="flex items-center min-h-[44px] py-1 text-qc-muted hover:text-qc-text transition-colors">
                 Security & Compliance
               </Link>
             </div>
@@ -72,19 +72,19 @@ export const Footer = () => {
 
           {/* Newsletter */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Subscribe to Our Newsletter</h3>
+            <h3 className="text-qc-text font-semibold mb-4">Subscribe to Our Newsletter</h3>
             <NewsletterForm compact />
           </div>
 
           {/* Social */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Follow Us On:</h3>
+            <h3 className="text-qc-text font-semibold mb-4">Follow Us On:</h3>
             <div className="flex space-x-4">
               <a 
                 href="https://www.facebook.com/profile.php?id=61583324510921" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="text-blue-200 hover:text-white transition-colors"
+                className="grid place-items-center min-w-[44px] min-h-[44px] -m-2 rounded-lg text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover transition-colors"
                 aria-label="Facebook"
               >
                 <Facebook className="h-6 w-6" />
@@ -93,7 +93,7 @@ export const Footer = () => {
                 href="https://www.instagram.com/quantcai.info/reels/" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="text-blue-200 hover:text-white transition-colors"
+                className="grid place-items-center min-w-[44px] min-h-[44px] -m-2 rounded-lg text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover transition-colors"
                 aria-label="Instagram"
               >
                 <Instagram className="h-6 w-6" />
@@ -102,7 +102,7 @@ export const Footer = () => {
                 href="https://www.linkedin.com/company/quantcai/?viewAsMember=true" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="text-blue-200 hover:text-white transition-colors"
+                className="grid place-items-center min-w-[44px] min-h-[44px] -m-2 rounded-lg text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover transition-colors"
                 aria-label="LinkedIn"
               >
                 <Linkedin className="h-6 w-6" />
@@ -111,7 +111,7 @@ export const Footer = () => {
                 href="https://www.youtube.com/channel/UCtOTdDiQXMQ9RUOXGnFrSvQ" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="text-blue-200 hover:text-white transition-colors"
+                className="grid place-items-center min-w-[44px] min-h-[44px] -m-2 rounded-lg text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover transition-colors"
                 aria-label="YouTube"
               >
                 <Youtube className="h-6 w-6" />
@@ -137,7 +137,7 @@ export const Footer = () => {
             <div>
               <h4 className="font-bold text-slate-300 mb-2 uppercase tracking-wider">Privacy Policy</h4>
               <p className="leading-relaxed">
-                We collect personal information (name, email, billing details via WarriorPlus/payment processors) and usage data (simulation history, AI chat volume) to manage your subscription and prevent system abuse. We share data only with necessary processing services and do not sell your data. For requests or data deletion, contact <a href="mailto:quantc.info@gmail.com" className="text-blue-400 hover:underline">quantc.info@gmail.com</a>.
+                We collect personal information (name, email, billing details via WarriorPlus/payment processors) and usage data (simulation history, AI chat volume) to manage your subscription and prevent system abuse. We share data only with necessary processing services and do not sell your data. For requests or data deletion, contact <a href="mailto:quantc.info@gmail.com" className="text-qc-accent hover:underline">quantc.info@gmail.com</a>.
               </p>
             </div>
             <div>
@@ -154,7 +154,7 @@ export const Footer = () => {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 text-sm font-bold">
             <p className="text-slate-300">© 2024–{new Date().getFullYear()} QuantCAI. All rights reserved.</p>
             <p className="text-slate-300">
-              Support Email: <a href="mailto:quantc.info@gmail.com" className="text-blue-400 hover:text-blue-300 transition-colors ml-1">
+              Support Email: <a href="mailto:quantc.info@gmail.com" className="text-qc-accent hover:text-qc-muted transition-colors ml-1">
                 quantc.info@gmail.com
               </a>
             </p>

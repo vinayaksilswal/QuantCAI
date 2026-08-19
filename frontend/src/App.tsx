@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { ReactElement, lazy, Suspense } from "react";
-import Index from "./pages/Index";
+// LandingPage was present but routed nowhere — 573 lines of dead code while
+// pages/Index.tsx served "/". It is now the marketing entry point.
+import LandingPage from "./pages/LandingPage";
 
 // Lazy load pages
 const Learn = lazy(() => import("./pages/Learn"));
@@ -86,7 +88,7 @@ const App = () => (
                     </div>
                   }>
                     <Routes>
-                      <Route path="/" element={<RootRedirect><Index /></RootRedirect>} />
+                      <Route path="/" element={<RootRedirect><LandingPage /></RootRedirect>} />
                       <Route path="/dashboard" element={<Navigate to="/profile" replace />} />
                       <Route path="/quantum-simulator" element={<QuantumSimulator />} />
                       <Route path="/learn" element={<Learn />} />

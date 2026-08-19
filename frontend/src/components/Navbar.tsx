@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket, Shield, Terminal, Bell, CreditCard } from 'lucide-react';
+import { Menu, X, ChevronDown, BookOpen, Atom, Zap, Target, User, LogOut, Home, Users, Eye, Rocket, Shield, Bell, CreditCard } from 'lucide-react';
 import { LogoProcessor } from './LogoProcessor';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -31,7 +31,7 @@ export const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 bg-slate-900/95 backdrop-blur-xl border-b border-blue-500/30 shadow-lg shadow-blue-500/10">
+    <nav className="fixed top-0 w-full z-50 bg-qc-bg-raised backdrop-blur-xl border-b border-qc-border shadow-lg shadow-blue-500/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
           {/* Logo - Bigger and more visible */}
@@ -52,8 +52,8 @@ export const Navbar = () => {
             <Link
               to="/"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/')
-                ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
-                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-qc-accent-dim text-qc-text font-medium shadow-lg shadow-blue-500/20'
+                : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                 }`}
             >
               <Home className="h-4 w-4" />
@@ -69,8 +69,8 @@ export const Navbar = () => {
               <button
                 onClick={handleLearnClick}
                 className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 relative ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states') || location.pathname.startsWith('/learn/')
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg shadow-purple-500/30'
-                  : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-100 hover:from-blue-500/40 hover:to-purple-500/40 hover:text-white border border-blue-400/30'
+                  ? 'bg-qc-accent text-qc-text font-medium shadow-lg shadow-purple-500/30'
+                  : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-qc-muted hover:from-blue-500/40 hover:to-purple-500/40 hover:text-qc-text border border-qc-border'
                   }`}
               >
                 <BookOpen className="h-4 w-4" />
@@ -79,7 +79,7 @@ export const Navbar = () => {
               </button>
 
               {isLearnOpen && (
-                <div className="absolute top-full left-0 mt-2 w-80 bg-slate-800/98 backdrop-blur-xl rounded-xl border border-blue-500/30 py-3 shadow-2xl shadow-blue-500/20">
+                <div className="absolute top-full left-0 mt-2 w-80 bg-qc-bg-raised backdrop-blur-xl rounded-xl border border-qc-border py-3 shadow-2xl shadow-blue-500/20">
                   {/* Learning Paths */}
                   <div className="space-y-1">
                     {learningPaths.map((item) => {
@@ -90,8 +90,8 @@ export const Navbar = () => {
                           key={item.path}
                           to={item.path}
                           className={`block px-4 py-3 mx-2 rounded-lg transition-all duration-200 ${isPathActive
-                            ? 'bg-blue-600/30 text-white border border-blue-500/50'
-                            : 'text-blue-100 hover:text-white hover:bg-blue-600/20'
+                            ? 'bg-qc-accent-dim text-qc-text border border-blue-500/50'
+                            : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                             }`}
                         >
                           <div className="flex items-center gap-3">
@@ -118,8 +118,8 @@ export const Navbar = () => {
             <Link
               to="/tools"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/tools')
-                ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
-                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-qc-accent-dim text-qc-text font-medium shadow-lg shadow-blue-500/20'
+                : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                 }`}
             >
               <Zap className="h-4 w-4" />
@@ -130,8 +130,8 @@ export const Navbar = () => {
               <Link
                 to="/enterprise/pqc-scanner"
                 className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 relative ${isActive('/enterprise/pqc-scanner')
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-lg shadow-teal-500/30'
-                  : 'text-emerald-400 hover:text-white hover:bg-emerald-600/20'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-qc-text font-medium shadow-lg shadow-teal-500/30'
+                  : 'text-emerald-400 hover:text-qc-text hover:bg-emerald-600/20'
                   }`}
               >
                 <Shield className="h-4 w-4" />
@@ -146,8 +146,8 @@ export const Navbar = () => {
             <Link
               to="/community"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/community')
-                ? 'bg-blue-600/30 text-white font-medium'
-                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-qc-accent-dim text-qc-text font-medium'
+                : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                 }`}
             >
               <Users className="h-4 w-4" />
@@ -157,8 +157,8 @@ export const Navbar = () => {
             <Link
               to="/soon"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/soon')
-                ? 'bg-blue-600/30 text-white font-medium'
-                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-qc-accent-dim text-qc-text font-medium'
+                : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                 }`}
             >
               <Rocket className="h-4 w-4" />
@@ -168,8 +168,8 @@ export const Navbar = () => {
             <Link
               to="/vision"
               className={`px-3 py-1 rounded-lg transition-all duration-200 flex items-center gap-2 ${isActive('/vision')
-                ? 'bg-blue-600/30 text-white font-medium'
-                : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                ? 'bg-qc-accent-dim text-qc-text font-medium'
+                : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                 }`}
             >
               <Eye className="h-4 w-4" />
@@ -179,7 +179,7 @@ export const Navbar = () => {
             {role === 'root' && (
               <Link
                 to="/admin"
-                className="px-3 py-1 rounded-lg transition-all duration-200 text-purple-200 hover:text-white hover:bg-purple-600/20 flex items-center gap-2"
+                className="px-3 py-1 rounded-lg transition-all duration-200 text-purple-200 hover:text-qc-text hover:bg-purple-600/20 flex items-center gap-2"
               >
                 <Target className="h-4 w-4" />
                 Admin
@@ -191,17 +191,17 @@ export const Navbar = () => {
           <div className="hidden lg:flex items-center space-x-3 text-sm">
             {!user ? (
               <>
-                <a href="/#pricing" className="hidden xl:flex items-center gap-2 px-3 py-1 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-lg transition-all">
+                <a href="/#pricing" className="hidden xl:flex items-center gap-2 px-3 py-1 text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover rounded-lg transition-all">
                   <CreditCard className="h-4 w-4" />
                   Pricing
                 </a>
                 <Link to="/login">
-                  <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20">
+                  <Button variant="ghost" className="text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover">
                     Log In
                   </Button>
                 </Link>
                 <Link to="/get-started">
-                  <Button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25 flex items-center gap-2">
+                  <Button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-qc-text shadow-lg shadow-blue-500/25 flex items-center gap-2">
                     <Rocket className="h-4 w-4" />
                     Get Started
                   </Button>
@@ -212,7 +212,7 @@ export const Navbar = () => {
                 <div className="relative">
                   <button 
                     onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-                    className="p-2 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-full transition-colors relative"
+                    className="p-2 text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover rounded-full transition-colors relative"
                   >
                     <Bell className="h-5 w-5" />
                     <span className="absolute top-1 right-1 flex h-2 w-2">
@@ -222,10 +222,10 @@ export const Navbar = () => {
                   </button>
                   
                   {isNotificationsOpen && (
-                    <div className="absolute right-0 mt-2 w-80 bg-[#0f172a] border border-blue-500/20 rounded-xl shadow-2xl py-2 z-50">
-                      <div className="px-4 py-2 border-b border-blue-500/20 flex justify-between items-center">
-                        <h3 className="font-syne font-bold text-white">Notifications</h3>
-                        <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">3 New</span>
+                    <div className="absolute right-0 mt-2 w-80 bg-[#0f172a] border border-qc-border rounded-xl shadow-2xl py-2 z-50">
+                      <div className="px-4 py-2 border-b border-qc-border flex justify-between items-center">
+                        <h3 className="font-syne font-bold text-qc-text">Notifications</h3>
+                        <span className="bg-red-500 text-qc-text text-[10px] font-bold px-2 py-0.5 rounded-full">3 New</span>
                       </div>
                       <div className="max-h-[300px] overflow-y-auto">
                         <div className="px-4 py-3 hover:bg-blue-900/20 transition-colors cursor-pointer border-b border-blue-500/10">
@@ -234,7 +234,7 @@ export const Navbar = () => {
                               <Zap className="h-4 w-4 text-emerald-400" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white mb-1 leading-tight">New Feature: PQC Scanner</p>
+                              <p className="text-sm font-medium text-qc-text mb-1 leading-tight">New Feature: PQC Scanner</p>
                               <p className="text-xs text-slate-400 leading-snug">Scan your repositories for Post-Quantum Cryptography vulnerabilities today!</p>
                               <p className="text-[10px] text-slate-500 mt-1">2 hours ago</p>
                             </div>
@@ -246,7 +246,7 @@ export const Navbar = () => {
                               <Rocket className="h-4 w-4 text-purple-400" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white mb-1 leading-tight">Summer Promotion 🌟</p>
+                              <p className="text-sm font-medium text-qc-text mb-1 leading-tight">Summer Promotion 🌟</p>
                               <p className="text-xs text-slate-400 leading-snug">Upgrade to Enterprise plan and get 30% off your first 3 months.</p>
                               <p className="text-[10px] text-slate-500 mt-1">1 day ago</p>
                             </div>
@@ -255,18 +255,18 @@ export const Navbar = () => {
                         <div className="px-4 py-3 hover:bg-blue-900/20 transition-colors cursor-pointer">
                           <div className="flex items-start gap-3">
                             <div className="bg-blue-500/20 p-2 rounded-lg mt-0.5">
-                              <Atom className="h-4 w-4 text-blue-400" />
+                              <Atom className="h-4 w-4 text-qc-accent" />
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white mb-1 leading-tight">Quantum Simulator v2.0</p>
+                              <p className="text-sm font-medium text-qc-text mb-1 leading-tight">Quantum Simulator v2.0</p>
                               <p className="text-xs text-slate-400 leading-snug">Experience faster rendering and more precise entanglement visualizations.</p>
                               <p className="text-[10px] text-slate-500 mt-1">3 days ago</p>
                             </div>
                           </div>
                         </div>
                       </div>
-                      <div className="px-4 py-2 border-t border-blue-500/20 text-center">
-                        <button className="text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors">
+                      <div className="px-4 py-2 border-t border-qc-border text-center">
+                        <button className="text-xs text-qc-accent hover:text-qc-muted font-medium transition-colors">
                           Mark all as read
                         </button>
                       </div>
@@ -274,13 +274,13 @@ export const Navbar = () => {
                   )}
                 </div>
                 <Link to="/profile">
-                  <Button variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
+                  <Button variant="ghost" className="text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover flex items-center gap-2">
                     <User className="h-4 w-4" />
                     Profile
                   </Button>
                 </Link>
 
-                <Button onClick={signOut} variant="ghost" className="text-blue-200 hover:text-white hover:bg-blue-600/20 flex items-center gap-2">
+                <Button onClick={signOut} variant="ghost" className="text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover flex items-center gap-2">
                   <LogOut className="h-4 w-4" />
                   Log Out
                 </Button>
@@ -290,7 +290,7 @@ export const Navbar = () => {
 
           {/* Mobile Menu Toggle */}
           <button
-            className="lg:hidden text-white p-2 hover:bg-blue-600/20 rounded-lg transition-colors"
+            className="lg:hidden text-qc-text p-2 hover:bg-qc-surface-hover rounded-lg transition-colors"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
             {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -299,13 +299,13 @@ export const Navbar = () => {
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="lg:hidden bg-slate-800/98 backdrop-blur-xl rounded-xl mb-4 p-4 border border-blue-500/30 shadow-xl">
+          <div className="lg:hidden bg-qc-bg-raised backdrop-blur-xl rounded-xl mb-4 p-4 border border-qc-border shadow-xl">
             <div className="flex flex-col space-y-2">
               <Link
                 to="/"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/')
-                  ? 'bg-blue-600/30 text-white font-medium'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-qc-accent-dim text-qc-text font-medium'
+                  : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -318,8 +318,8 @@ export const Navbar = () => {
                 <button
                   onClick={() => setIsLearnOpen(!isLearnOpen)}
                   className={`w-full px-4 py-3 rounded-lg transition-all flex items-center justify-between ${isActive('/learn') || isActive('/quantum-computing') || isActive('/quantum-states') || location.pathname.startsWith('/learn/')
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium shadow-lg'
-                    : 'bg-gradient-to-r from-blue-500/30 to-purple-500/30 text-blue-100 border border-blue-400/30'
+                    ? 'bg-qc-accent text-qc-text font-medium shadow-lg'
+                    : 'bg-qc-surface-hover text-qc-muted border border-qc-border'
                     }`}
                 >
                   <div className="flex items-center gap-3">
@@ -330,7 +330,7 @@ export const Navbar = () => {
                 </button>
 
                 {isLearnOpen && (
-                  <div className="ml-4 space-y-1 border-l-2 border-blue-500/30 pl-4">
+                  <div className="ml-4 space-y-1 border-l-2 border-qc-border pl-4">
                     {learningPaths.map((item) => {
                       const Icon = item.icon;
                       return (
@@ -338,8 +338,8 @@ export const Navbar = () => {
                           key={item.path}
                           to={item.path}
                           className={`block px-3 py-1 rounded-lg transition-all ${isActive(item.path)
-                            ? 'bg-blue-600/30 text-white'
-                            : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                            ? 'bg-qc-accent-dim text-qc-text'
+                            : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                             }`}
                           onClick={() => { setIsMenuOpen(false); setIsLearnOpen(false); }}
                         >
@@ -357,8 +357,8 @@ export const Navbar = () => {
               <Link
                 to="/tools"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/tools')
-                  ? 'bg-blue-600/30 text-white font-medium shadow-lg shadow-blue-500/20'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-qc-accent-dim text-qc-text font-medium shadow-lg shadow-blue-500/20'
+                  : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -370,22 +370,22 @@ export const Navbar = () => {
                 <Link
                   to="/enterprise/pqc-scanner"
                   className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 relative ${isActive('/enterprise/pqc-scanner')
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium shadow-lg shadow-emerald-500/20 border border-emerald-500/30'
-                    : 'text-emerald-400 hover:text-white hover:bg-emerald-600/20'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-qc-text font-medium shadow-lg shadow-emerald-500/20 border border-emerald-500/30'
+                    : 'text-emerald-400 hover:text-qc-text hover:bg-emerald-600/20'
                     }`}
                   onClick={() => setIsMenuOpen(false)}
                 >
                   <Shield className="h-5 w-5" />
                   <span>PQC Compliance</span>
-                  <span className="ml-auto bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">NEW</span>
+                  <span className="ml-auto bg-emerald-500 text-qc-text text-[10px] font-bold px-2 py-0.5 rounded-full">NEW</span>
                 </Link>
               )}
 
               <Link
                 to="/community"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/community')
-                  ? 'bg-blue-600/30 text-white font-medium'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-qc-accent-dim text-qc-text font-medium'
+                  : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -396,8 +396,8 @@ export const Navbar = () => {
               <Link
                 to="/soon"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/soon')
-                  ? 'bg-blue-600/30 text-white font-medium'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-qc-accent-dim text-qc-text font-medium'
+                  : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -408,8 +408,8 @@ export const Navbar = () => {
               <Link
                 to="/vision"
                 className={`px-4 py-3 rounded-lg transition-all flex items-center gap-3 ${isActive('/vision')
-                  ? 'bg-blue-600/30 text-white font-medium'
-                  : 'text-blue-200 hover:text-white hover:bg-blue-600/20'
+                  ? 'bg-qc-accent-dim text-qc-text font-medium'
+                  : 'text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover'
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -420,7 +420,7 @@ export const Navbar = () => {
               {role === 'root' && (
                 <Link
                   to="/admin"
-                  className="px-4 py-3 rounded-lg transition-all text-purple-200 hover:text-white hover:bg-purple-600/20 flex items-center gap-3"
+                  className="px-4 py-3 rounded-lg transition-all text-purple-200 hover:text-qc-text hover:bg-purple-600/20 flex items-center gap-3"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   <Target className="h-5 w-5" />
@@ -431,18 +431,18 @@ export const Navbar = () => {
               <div className="flex flex-col space-y-2 pt-4 border-t border-blue-700/50">
                 {!user ? (
                   <>
-                    <a href="/#pricing" onClick={() => setIsMenuOpen(false)} className="px-4 py-3 text-blue-200 hover:text-white hover:bg-blue-600/20 rounded-lg flex items-center gap-3">
+                    <a href="/#pricing" onClick={() => setIsMenuOpen(false)} className="px-4 py-3 text-qc-muted hover:text-qc-text hover:bg-qc-surface-hover rounded-lg flex items-center gap-3">
                       <CreditCard className="h-5 w-5" />
                       Pricing
                     </a>
                     <Link to="/login" onClick={() => setIsMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full text-blue-200 hover:text-white justify-start">
+                      <Button variant="ghost" className="w-full text-qc-muted hover:text-qc-text justify-start">
                         <User className="h-5 w-5 mr-2" />
                         Log In
                       </Button>
                     </Link>
                     <Link to="/get-started" onClick={() => setIsMenuOpen(false)}>
-                      <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white flex items-center justify-center gap-2">
+                      <Button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-qc-text flex items-center justify-center gap-2">
                         <Rocket className="h-4 w-4" />
                         Get Started
                       </Button>
@@ -451,7 +451,7 @@ export const Navbar = () => {
                 ) : (
                   <>
                     <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
-                      <Button variant="ghost" className="w-full text-blue-200 hover:text-white justify-start">
+                      <Button variant="ghost" className="w-full text-qc-muted hover:text-qc-text justify-start">
                         <User className="h-5 w-5 mr-2" />
                         Profile
                       </Button>
@@ -460,7 +460,7 @@ export const Navbar = () => {
                     <Button
                       onClick={() => { signOut(); setIsMenuOpen(false); }}
                       variant="ghost"
-                      className="w-full text-blue-200 hover:text-white justify-start"
+                      className="w-full text-qc-muted hover:text-qc-text justify-start"
                     >
                       <LogOut className="h-5 w-5 mr-2" />
                       Log Out

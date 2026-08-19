@@ -2,251 +2,323 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   QuantCAI Design System
+   --------------------------------------------------------------------------
+   One palette, one scale. This file previously carried three competing colour
+   systems — a near-black qc-* set, a shadcn slate set, and a blue/purple body
+   gradient — so the same "surface" rendered as three different colours
+   depending on which class a component happened to use.
+
+   The palette is deliberately restrained. Enterprise security buyers read
+   heavy gradients and glow as consumer marketing; trust comes from contrast,
+   alignment and restraint. Colour carries meaning here:
+
+     brand   - one accent, for actions and the single most important fact
+     danger  - cryptographic risk (this is a security product; red means risk)
+     warn    - deadline pressure, degraded state
+     ok      - compliant, quantum-safe
+
+   Everything else is neutral.
+   ========================================================================== */
+
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* --- Neutrals: cool slate, never pure black (pure black blooms on OLED
+       and flattens the depth between stacked surfaces) --- */
+    --qc-bg: 222 24% 6%;
+    --qc-bg-raised: 222 22% 9%;
+    --qc-surface: 222 20% 11%;
+    --qc-surface-hover: 222 18% 14%;
+    --qc-border: 222 16% 18%;
+    --qc-border-strong: 222 14% 26%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    /* --- Text: three steps is enough; more becomes mush --- */
+    --qc-text: 210 30% 97%;
+    --qc-text-muted: 214 14% 68%;
+    --qc-text-subtle: 214 12% 50%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    /* --- Brand: teal-cyan, carried over from the original mark --- */
+    --qc-brand: 168 84% 42%;
+    --qc-brand-hover: 168 84% 48%;
+    --qc-brand-fg: 200 40% 4%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* --- Semantic --- */
+    --qc-danger: 358 72% 58%;
+    --qc-warn: 38 92% 55%;
+    --qc-ok: 152 62% 46%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* --- shadcn bridge: map the kit's tokens onto the palette above so
+       Button, Card, Dialog etc. inherit these colours instead of
+       introducing a second theme. --- */
+    --background: var(--qc-bg);
+    --foreground: var(--qc-text);
+    --card: var(--qc-surface);
+    --card-foreground: var(--qc-text);
+    --popover: var(--qc-bg-raised);
+    --popover-foreground: var(--qc-text);
+    --primary: var(--qc-brand);
+    --primary-foreground: var(--qc-brand-fg);
+    --secondary: var(--qc-surface);
+    --secondary-foreground: var(--qc-text);
+    --muted: var(--qc-surface);
+    --muted-foreground: var(--qc-text-muted);
+    --accent: var(--qc-surface-hover);
+    --accent-foreground: var(--qc-text);
+    --destructive: var(--qc-danger);
+    --destructive-foreground: var(--qc-text);
+    --border: var(--qc-border);
+    --input: var(--qc-border-strong);
+    --ring: var(--qc-brand);
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --sidebar-background: var(--qc-bg-raised);
+    --sidebar-foreground: var(--qc-text);
+    --sidebar-primary: var(--qc-brand);
+    --sidebar-primary-foreground: var(--qc-brand-fg);
+    --sidebar-accent: var(--qc-surface);
+    --sidebar-accent-foreground: var(--qc-text);
+    --sidebar-border: var(--qc-border);
+    --sidebar-ring: var(--qc-brand);
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-
-    --radius: 0.5rem;
+    --radius: 0.625rem;
   }
 
   * {
-    border-color: hsl(var(--border));
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-    background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
-    min-height: 100vh;
+    border-color: hsl(var(--qc-border));
   }
 
   html {
     scroll-behavior: smooth;
+    /* Stop iOS inflating text in landscape, which silently breaks layouts */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* A flat ground, not a gradient. The old gradient fought every surface
+       colour placed on it and made cards look muddy toward the page edges. */
+    background-color: hsl(var(--qc-bg));
+    min-height: 100dvh;
+    /* One over-wide element used to scroll the entire page sideways on
+       phones. Containing it makes that a component bug, not a site-wide one. */
+    overflow-x: hidden;
+  }
+
+  /* Decorative motion is not worth a migraine, and honouring this is an
+     accessibility requirement rather than a nicety. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Visible keyboard focus. Several components set outline-none, leaving
+     keyboard users with no indication of position at all. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--qc-brand));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Syne', 'Inter', sans-serif;
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-ligatures: none;
+  }
+}
+
+@layer components {
+  /* --- Layout -------------------------------------------------------- */
+  .qc-container {
+    width: 100%;
+    margin-inline: auto;
+    max-width: 80rem;
+    padding-inline: 1.25rem;
+  }
+
+  @media (min-width: 640px) {
+    .qc-container { padding-inline: 2rem; }
+  }
+
+  /* Vertical rhythm for page sections; tighter on phones, where screen
+     real estate is the scarce resource. */
+  .qc-section {
+    padding-block: 4rem;
+  }
+
+  @media (min-width: 768px) {
+    .qc-section { padding-block: 6.5rem; }
+  }
+
+  /* --- Surfaces ------------------------------------------------------ */
+  .qc-card {
+    background-color: hsl(var(--qc-surface));
+    border: 1px solid hsl(var(--qc-border));
+    border-radius: var(--radius);
+  }
+
+  .qc-card-interactive {
+    transition: border-color 160ms ease, background-color 160ms ease;
+  }
+
+  .qc-card-interactive:hover {
+    border-color: hsl(var(--qc-border-strong));
+    background-color: hsl(var(--qc-surface-hover));
+  }
+
+  /* --- Eyebrow label above section headings -------------------------- */
+  .qc-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--qc-brand));
+  }
+
+  /* --- Status pills: the scanner's core vocabulary -------------------- */
+  .qc-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
+    border: 1px solid transparent;
+  }
+
+  .qc-pill-danger {
+    color: hsl(var(--qc-danger));
+    background-color: hsl(var(--qc-danger) / 0.12);
+    border-color: hsl(var(--qc-danger) / 0.3);
+  }
+
+  .qc-pill-warn {
+    color: hsl(var(--qc-warn));
+    background-color: hsl(var(--qc-warn) / 0.12);
+    border-color: hsl(var(--qc-warn) / 0.3);
+  }
+
+  .qc-pill-ok {
+    color: hsl(var(--qc-ok));
+    background-color: hsl(var(--qc-ok) / 0.12);
+    border-color: hsl(var(--qc-ok) / 0.3);
+  }
+
+  .qc-pill-neutral {
+    color: hsl(var(--qc-text-muted));
+    background-color: hsl(var(--qc-surface));
+    border-color: hsl(var(--qc-border));
+  }
+
+  /* --- Touch targets --------------------------------------------------
+     WCAG 2.2 Target Size (Minimum) asks 24px; Apple and Google both
+     recommend 44px. Below that it is a mis-tap on a phone. */
+  .qc-tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* --- Hairline divider ---------------------------------------------- */
+  .qc-rule {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      hsl(var(--qc-border-strong)),
+      transparent
+    );
   }
 }
 
 @layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 1s ease-in-out;
+  /* Fluid type: scales with the viewport rather than jumping at breakpoints,
+     so a display heading cannot overflow a 375px phone. */
+  .text-fluid-display {
+    font-size: clamp(2.25rem, 1.4rem + 4.2vw, 4.5rem);
+    line-height: 1.04;
   }
 
+  .text-fluid-h2 {
+    font-size: clamp(1.75rem, 1.2rem + 2.4vw, 2.75rem);
+    line-height: 1.12;
+  }
+
+  .text-fluid-lead {
+    font-size: clamp(1rem, 0.94rem + 0.4vw, 1.1875rem);
+    line-height: 1.6;
+  }
+
+  /* Caps line length; prose beyond ~70ch is hard to track back. */
+  .qc-measure {
+    max-width: 68ch;
+  }
+
+  .qc-measure-narrow {
+    max-width: 46ch;
+  }
+
+  .animate-fade-in {
+    animation: qcFadeIn 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes qcFadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Retained because existing pages reference them, but reduced from the
+     previous hue-rotating, scaling versions that pulled the eye off the
+     content they surrounded. */
   .animate-quantum-pulse {
-    animation: quantumPulse 2s ease-in-out infinite;
+    animation: qcPulse 2.6s ease-in-out infinite;
+  }
+
+  @keyframes qcPulse {
+    0%, 100% { opacity: 0.75; }
+    50%      { opacity: 1; }
   }
 
   .animate-quantum-float {
-    animation: quantumFloat 3s ease-in-out infinite;
+    animation: qcFloat 6s ease-in-out infinite;
+  }
+
+  @keyframes qcFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
   }
 
   .animate-entanglement {
-    animation: entanglement 4s ease-in-out infinite;
+    animation: qcPulse 3.2s ease-in-out infinite;
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  /* Subtle grid backdrop for hero sections — reads as technical
+     instrumentation rather than decoration. */
+  .qc-grid-bg {
+    background-image:
+      linear-gradient(hsl(var(--qc-border) / 0.55) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--qc-border) / 0.55) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
   }
-
-  @keyframes quantumPulse {
-
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 0.8;
-      box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
-    }
-
-    50% {
-      transform: scale(1.1);
-      opacity: 1;
-      box-shadow: 0 0 40px rgba(59, 130, 246, 0.6);
-    }
-  }
-
-  @keyframes quantumFloat {
-
-    0%,
-    100% {
-      transform: translateY(0px) rotate(0deg);
-    }
-
-    33% {
-      transform: translateY(-10px) rotate(120deg);
-    }
-
-    66% {
-      transform: translateY(5px) rotate(240deg);
-    }
-  }
-
-  @keyframes entanglement {
-
-    0%,
-    100% {
-      transform: scale(1) rotate(0deg);
-      filter: hue-rotate(0deg);
-    }
-
-    25% {
-      transform: scale(1.05) rotate(90deg);
-      filter: hue-rotate(90deg);
-    }
-
-    50% {
-      transform: scale(0.95) rotate(180deg);
-      filter: hue-rotate(180deg);
-    }
-
-    75% {
-      transform: scale(1.05) rotate(270deg);
-      filter: hue-rotate(270deg);
-    }
-  }
-
-  .text-gradient {
-    @apply bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent;
-  }
-
-  .quantum-glow {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3), 0 0 40px rgba(139, 92, 246, 0.2);
-  }
-
-  .superposition-blur {
-    filter: blur(0.5px);
-    animation: superpositionShimmer 1.5s ease-in-out infinite alternate;
-  }
-
-  @keyframes superpositionShimmer {
-    from {
-      filter: blur(0px) brightness(1);
-    }
-
-    to {
-      filter: blur(1px) brightness(1.2);
-    }
-  }
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  @apply bg-slate-800;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-blue-600 rounded-full;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-blue-500;
-}
-
-/* Quantum particle effects */
-.quantum-particle {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.quantum-trail {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.8) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-  animation: fadeOut 1s ease-out forwards;
-}
-
-@keyframes fadeOut {
-  to {
-    opacity: 0;
-    transform: scale(0);
-  }
-}
-
-/* Enhanced visibility for content over background */
-.content-overlay {
-  position: relative;
-  z-index: 10;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(1px);
-}
-
-/* Ensure text is always visible */
-.text-white {
-  color: #ffffff !important;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.text-blue-100 {
-  color: #dbeafe !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-.text-blue-200 {
-  color: #bfdbfe !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-/* WarriorPlus Disclaimer Overrides */
-.wplus_spdisclaimer,
-.wplus_spdisclaimer div,
-.wplus_spdisclaimer p,
-.wplus_spdisclaimer span {
-  background: transparent !important;
-  background-color: transparent !important;
-  color: #94a3b8 !important; /* matches slate-400 text color */
-  border: none !important;
-  box-shadow: none !important;
-  font-size: 0.875rem !important; /* normal text size */
-  text-align: center !important;
-  margin-top: 1.25rem !important;
-  margin-bottom: 1.25rem !important;
 }
